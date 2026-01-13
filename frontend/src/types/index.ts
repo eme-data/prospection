@@ -81,3 +81,86 @@ export interface MapViewState {
 }
 
 export type LayerType = 'parcelles' | 'dvf' | 'satellite'
+
+// Nouveaux types pour les fonctionnalités avancées
+
+export interface DVFFilters {
+  typeLocal?: string
+  prixMin?: number
+  prixMax?: number
+  surfaceMin?: number
+  surfaceMax?: number
+  anneeMin?: number
+  anneeMax?: number
+}
+
+export interface DVFStatistiques {
+  code_insee: string
+  nb_transactions: number
+  statistiques: {
+    prix_min: number | null
+    prix_max: number | null
+    prix_moyen: number | null
+    prix_median: number | null
+    surface_moyenne: number | null
+    prix_m2_moyen: number | null
+    prix_m2_min: number | null
+    prix_m2_max: number | null
+  } | null
+  evolution: {
+    annee: string
+    nb_transactions: number
+    prix_moyen: number | null
+    prix_m2_moyen: number | null
+  }[]
+  repartition_types: Record<string, number>
+}
+
+export interface Risque {
+  code: string
+  libelle: string
+  niveau: string
+  commune?: string
+}
+
+export interface RisquesResponse {
+  code_insee?: string
+  longitude?: number
+  latitude?: number
+  risques: Risque[]
+  count: number
+}
+
+export interface ZonagePLU {
+  libelle: string
+  libelong: string
+  typezone: string
+  destdomi: string
+  nomfic: string
+  urlfic: string
+  partition: string
+}
+
+export interface ZonageResponse {
+  longitude: number
+  latitude: number
+  zonages: ZonagePLU[]
+  count: number
+}
+
+export interface PrescriptionPLU {
+  libelle: string
+  txt: string
+  typepsc: string
+  stypepsc: string
+  nomfic: string
+  urlfic: string
+}
+
+export interface FavoriteParcelle {
+  id: string
+  parcelle: Parcelle
+  note?: string
+  addedAt: string
+  transactions?: DVFTransaction[]
+}
