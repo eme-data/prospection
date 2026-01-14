@@ -98,7 +98,7 @@ export function MapView({
         ['==', ['get', 'id'], hoveredParcelleId || ''],
         '#3b82f6',
         '#93c5fd',
-      ],
+      ] as unknown as string,
       'fill-opacity': 0.3,
     },
   }
@@ -124,7 +124,7 @@ export function MapView({
         10, 4,
         15, 8,
         18, 12,
-      ],
+      ] as unknown as number,
       'circle-color': [
         'interpolate',
         ['linear'],
@@ -133,7 +133,7 @@ export function MapView({
         200000, '#eab308',
         500000, '#f97316',
         1000000, '#ef4444',
-      ],
+      ] as unknown as string,
       'circle-stroke-color': '#fff',
       'circle-stroke-width': 2,
       'circle-opacity': 0.8,
