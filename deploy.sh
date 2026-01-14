@@ -207,8 +207,11 @@ log_info "Installation de l'application dans $INSTALL_DIR..."
 if [ -d "$INSTALL_DIR/.git" ]; then
     log_info "Mise a jour du code existant..."
     cd "$INSTALL_DIR"
-    sudo -u "$APP_USER" git fetch origin
-    sudo -u "$APP_USER" git pull origin main || sudo -u "$APP_USER" git pull origin master || true
+    # Fix git safe.directory issue
+    git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
+    sudo -u "$APP_USER" git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
+    git fetch origin 2>/dev/null || true
+    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || log_warn "Git pull echoue - utilisation du code local"
 else
     if [ -d "$INSTALL_DIR" ] && [ "$(ls -A $INSTALL_DIR 2>/dev/null)" ]; then
         log_info "Copie du code source local..."
