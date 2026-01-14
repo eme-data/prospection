@@ -1,855 +1,836 @@
 """
-API de Prospection Foncière
-Agrège les données opendata françaises pour la prospection foncière
+API de Prospection Fonciere - Version Production
+Agregue les donnees opendata francaises pour la prospection fonciere
 """
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-import httpx
-from typing import Optional, List
-from pydantic import BaseModel
+from contextlib import asynccontextmanager
 from datetime import datetime
+from typing import Optional
 import csv
 import io
 import json
 
-app = FastAPI(
-    title="Prospection Foncière API",
-    description="API pour la prospection foncière utilisant les données opendata françaises",
-    version="2.0.0"
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse, JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from app.config import settings
+from app.logging_config import setup_logging, get_logger
+from app.security import (
+    limiter,
+    rate_limit_exceeded_handler,
+    SecurityHeadersMiddleware,
+    RequestLoggingMiddleware,
+    validate_code_insee,
+    validate_coordinates,
+    sanitize_string,
+)
+from app.health import router as health_router
+from app.cache import cached, cache_get, cache_set
+from app.http_client import (
+    ban_client,
+    cadastre_client,
+    geo_client,
+    dvf_client,
+    georisques_client,
+    gpu_client,
+    APIError,
 )
 
-# Configuration CORS pour le frontend
+# Configuration du logging
+setup_logging()
+logger = get_logger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Gestion du cycle de vie de l'application"""
+    logger.info(
+        "application_starting",
+        environment=settings.environment,
+        version=settings.app_version,
+    )
+    yield
+    logger.info("application_stopping")
+
+
+# Application FastAPI
+app = FastAPI(
+    title=settings.app_name,
+    description="API pour la prospection fonciere utilisant les donnees opendata francaises",
+    version=settings.app_version,
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    lifespan=lifespan,
+)
+
+# Rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+# Middlewares
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    max_age=86400,
 )
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
 
-# URLs des APIs opendata
-API_ADRESSE = "https://api-adresse.data.gouv.fr"
-API_CADASTRE = "https://cadastre.data.gouv.fr"
-API_GEO = "https://geo.api.gouv.fr"
-API_DVF = "https://api.cquest.org/dvf"  # API DVF par Christian Quest
-API_GEORISQUES = "https://georisques.gouv.fr/api/v1"
-API_GPU = "https://apicarto.ign.fr/api/gpu"  # Géoportail de l'Urbanisme
+# Routes de sante
+app.include_router(health_router)
 
 
-class SearchResult(BaseModel):
-    label: str
-    score: float
-    housenumber: Optional[str] = None
-    street: Optional[str] = None
-    postcode: Optional[str] = None
-    citycode: Optional[str] = None
-    city: Optional[str] = None
-    context: Optional[str] = None
-    longitude: float
-    latitude: float
+# ============== GESTION DES ERREURS ==============
 
+@app.exception_handler(APIError)
+async def api_error_handler(request: Request, exc: APIError):
+    """Handler pour les erreurs d'API externes"""
+    logger.error(
+        "external_api_error",
+        api=exc.api_name,
+        status_code=exc.status_code,
+        message=exc.message,
+        path=request.url.path,
+    )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": "Erreur de service externe",
+            "detail": exc.message,
+            "api": exc.api_name,
+        }
+    )
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Handler global pour les erreurs non gerees"""
+    logger.exception(
+        "unhandled_exception",
+        path=request.url.path,
+        error=str(exc),
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": "Erreur interne du serveur",
+            "detail": "Une erreur inattendue s'est produite" if settings.is_production else str(exc),
+        }
+    )
+
+
+# ============== ENDPOINTS PRINCIPAUX ==============
 
 @app.get("/")
 async def root():
-    """Point d'entrée de l'API"""
+    """Point d'entree de l'API"""
     return {
-        "message": "API Prospection Foncière",
-        "version": "1.0.0",
-        "endpoints": {
-            "search_address": "/api/address/search",
-            "reverse_geocode": "/api/address/reverse",
-            "parcelles": "/api/cadastre/parcelles",
-            "dvf": "/api/dvf/transactions",
-            "communes": "/api/geo/communes"
-        }
+        "message": settings.app_name,
+        "version": settings.app_version,
+        "environment": settings.environment,
+        "documentation": "/docs" if settings.debug else "Disabled in production",
     }
 
 
 @app.get("/api/address/search")
-async def search_address(q: str = Query(..., min_length=3, description="Adresse à rechercher")):
-    """
-    Recherche d'adresse via la Base Adresse Nationale (BAN)
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{API_ADRESSE}/search/",
-                params={"q": q, "limit": 10}
-            )
-            response.raise_for_status()
-            data = response.json()
+@limiter.limit("30/minute")
+async def search_address(
+    request: Request,
+    q: str = Query(..., min_length=3, max_length=200, description="Adresse a rechercher")
+):
+    """Recherche d'adresse via la Base Adresse Nationale (BAN)"""
+    q = sanitize_string(q)
 
-            results = []
-            for feature in data.get("features", []):
-                props = feature.get("properties", {})
-                coords = feature.get("geometry", {}).get("coordinates", [0, 0])
-                results.append({
-                    "label": props.get("label", ""),
-                    "score": props.get("score", 0),
-                    "housenumber": props.get("housenumber"),
-                    "street": props.get("street"),
-                    "postcode": props.get("postcode"),
-                    "citycode": props.get("citycode"),
-                    "city": props.get("city"),
-                    "context": props.get("context"),
-                    "longitude": coords[0],
-                    "latitude": coords[1]
-                })
+    try:
+        data = await ban_client.get("/search/", params={"q": q, "limit": 10})
 
-            return {"results": results}
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API BAN: {str(e)}")
+        results = []
+        for feature in data.get("features", []):
+            props = feature.get("properties", {})
+            coords = feature.get("geometry", {}).get("coordinates", [0, 0])
+            results.append({
+                "label": props.get("label", ""),
+                "score": props.get("score", 0),
+                "housenumber": props.get("housenumber"),
+                "street": props.get("street"),
+                "postcode": props.get("postcode"),
+                "citycode": props.get("citycode"),
+                "city": props.get("city"),
+                "context": props.get("context"),
+                "longitude": coords[0],
+                "latitude": coords[1]
+            })
+
+        return {"results": results}
+    except APIError:
+        raise
+    except Exception as e:
+        logger.exception("address_search_error", query=q)
+        raise HTTPException(status_code=502, detail=f"Erreur API BAN: {str(e)}")
 
 
 @app.get("/api/address/reverse")
+@limiter.limit("60/minute")
 async def reverse_geocode(
-    lon: float = Query(..., description="Longitude"),
-    lat: float = Query(..., description="Latitude")
+    request: Request,
+    lon: float = Query(..., ge=-180, le=180, description="Longitude"),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude")
 ):
-    """
-    Géocodage inverse - trouve l'adresse à partir de coordonnées
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{API_ADRESSE}/reverse/",
-                params={"lon": lon, "lat": lat}
-            )
-            response.raise_for_status()
-            data = response.json()
+    """Geocodage inverse - trouve l'adresse a partir de coordonnees"""
+    try:
+        data = await ban_client.get("/reverse/", params={"lon": lon, "lat": lat})
 
-            features = data.get("features", [])
-            if not features:
-                return {"result": None}
+        features = data.get("features", [])
+        if not features:
+            return {"result": None}
 
-            feature = features[0]
-            props = feature.get("properties", {})
-            coords = feature.get("geometry", {}).get("coordinates", [0, 0])
+        feature = features[0]
+        props = feature.get("properties", {})
+        coords = feature.get("geometry", {}).get("coordinates", [0, 0])
 
-            return {
-                "result": {
-                    "label": props.get("label", ""),
-                    "housenumber": props.get("housenumber"),
-                    "street": props.get("street"),
-                    "postcode": props.get("postcode"),
-                    "citycode": props.get("citycode"),
-                    "city": props.get("city"),
-                    "longitude": coords[0],
-                    "latitude": coords[1]
-                }
+        return {
+            "result": {
+                "label": props.get("label", ""),
+                "housenumber": props.get("housenumber"),
+                "street": props.get("street"),
+                "postcode": props.get("postcode"),
+                "citycode": props.get("citycode"),
+                "city": props.get("city"),
+                "longitude": coords[0],
+                "latitude": coords[1]
             }
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API BAN: {str(e)}")
+        }
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API BAN: {str(e)}")
 
 
 @app.get("/api/cadastre/parcelles")
+@limiter.limit("20/minute")
 async def get_parcelles(
-    code_insee: str = Query(..., description="Code INSEE de la commune"),
-    section: Optional[str] = Query(None, description="Section cadastrale (ex: AB)"),
-    numero: Optional[str] = Query(None, description="Numéro de parcelle")
+    request: Request,
+    code_insee: str = Query(..., min_length=5, max_length=5, description="Code INSEE de la commune"),
+    section: Optional[str] = Query(None, max_length=10, description="Section cadastrale (ex: AB)"),
+    numero: Optional[str] = Query(None, max_length=10, description="Numero de parcelle")
 ):
-    """
-    Récupère les parcelles cadastrales d'une commune
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    """Recupere les parcelles cadastrales d'une commune"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    # Cache key
+    cache_key = f"parcelles:{code_insee}"
+    cached_data = await cache_get(cache_key)
+
+    if cached_data:
+        features = cached_data.get("features", [])
+    else:
         try:
-            # Construction de l'URL pour le téléchargement GeoJSON des parcelles
-            url = f"{API_CADASTRE}/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
-
-            response = await client.get(url)
-            response.raise_for_status()
-            data = response.json()
-
+            url = f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+            data = await cadastre_client.get(url)
             features = data.get("features", [])
-
-            # Filtrage optionnel par section et numéro
-            if section:
-                features = [f for f in features if f.get("properties", {}).get("section", "").upper() == section.upper()]
-            if numero:
-                features = [f for f in features if f.get("properties", {}).get("numero", "") == numero]
-
-            return {
-                "type": "FeatureCollection",
-                "features": features[:100]  # Limite à 100 parcelles pour performance
-            }
-        except httpx.HTTPError as e:
+            await cache_set(cache_key, data, ttl=600)  # Cache 10 min
+        except APIError:
+            raise
+        except Exception as e:
             raise HTTPException(status_code=502, detail=f"Erreur API Cadastre: {str(e)}")
+
+    # Filtrage optionnel
+    if section:
+        features = [f for f in features if f.get("properties", {}).get("section", "").upper() == section.upper()]
+    if numero:
+        features = [f for f in features if f.get("properties", {}).get("numero", "") == numero]
+
+    return {
+        "type": "FeatureCollection",
+        "features": features[:100]
+    }
 
 
 @app.get("/api/cadastre/parcelle/{parcelle_id}")
-async def get_parcelle_detail(parcelle_id: str):
-    """
-    Récupère les détails d'une parcelle spécifique
-    Format parcelle_id: CODE_INSEE + SECTION + NUMERO (ex: 75101000AB0001)
-    """
-    # Extraction des composants de l'identifiant parcelle
+@limiter.limit("30/minute")
+async def get_parcelle_detail(request: Request, parcelle_id: str):
+    """Recupere les details d'une parcelle specifique"""
     if len(parcelle_id) < 10:
         raise HTTPException(status_code=400, detail="Identifiant de parcelle invalide")
 
     code_insee = parcelle_id[:5]
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            url = f"{API_CADASTRE}/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
-            response = await client.get(url)
-            response.raise_for_status()
-            data = response.json()
+    try:
+        url = f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+        data = await cadastre_client.get(url)
 
-            # Recherche de la parcelle
-            for feature in data.get("features", []):
-                if feature.get("properties", {}).get("id") == parcelle_id:
-                    return feature
+        for feature in data.get("features", []):
+            if feature.get("properties", {}).get("id") == parcelle_id:
+                return feature
 
-            raise HTTPException(status_code=404, detail="Parcelle non trouvée")
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API Cadastre: {str(e)}")
+        raise HTTPException(status_code=404, detail="Parcelle non trouvee")
+    except APIError:
+        raise
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API Cadastre: {str(e)}")
 
 
 @app.get("/api/dvf/transactions")
+@limiter.limit("20/minute")
 async def get_dvf_transactions(
-    code_insee: Optional[str] = Query(None, description="Code INSEE de la commune"),
-    lon: Optional[float] = Query(None, description="Longitude du centre"),
-    lat: Optional[float] = Query(None, description="Latitude du centre"),
-    rayon: int = Query(500, description="Rayon de recherche en mètres")
+    request: Request,
+    code_insee: Optional[str] = Query(None, min_length=5, max_length=5, description="Code INSEE de la commune"),
+    lon: Optional[float] = Query(None, ge=-180, le=180, description="Longitude du centre"),
+    lat: Optional[float] = Query(None, ge=-90, le=90, description="Latitude du centre"),
+    rayon: int = Query(500, ge=100, le=5000, description="Rayon de recherche en metres")
 ):
-    """
-    Récupère les transactions DVF (Demandes de Valeurs Foncières)
-    Utilise l'API DVF de Christian Quest
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            params = {}
+    """Recupere les transactions DVF (Demandes de Valeurs Foncieres)"""
+    params = {}
 
-            if code_insee:
-                params["code_commune"] = code_insee
-            elif lon and lat:
-                params["lon"] = lon
-                params["lat"] = lat
-                params["dist"] = rayon
-            else:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Veuillez fournir soit un code_insee, soit des coordonnées (lon, lat)"
-                )
+    if code_insee:
+        if not validate_code_insee(code_insee):
+            raise HTTPException(status_code=400, detail="Code INSEE invalide")
+        params["code_commune"] = code_insee
+    elif lon is not None and lat is not None:
+        params["lon"] = lon
+        params["lat"] = lat
+        params["dist"] = rayon
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Veuillez fournir soit un code_insee, soit des coordonnees (lon, lat)"
+        )
 
-            response = await client.get(API_DVF, params=params)
-            response.raise_for_status()
-            data = response.json()
+    try:
+        data = await dvf_client.get("", params=params)
 
-            # Transformation en GeoJSON pour affichage sur la carte
-            features = []
-            for transaction in data.get("resultats", [])[:200]:  # Limite à 200 transactions
-                if transaction.get("longitude") and transaction.get("latitude"):
-                    features.append({
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [
-                                float(transaction.get("longitude", 0)),
-                                float(transaction.get("latitude", 0))
-                            ]
-                        },
-                        "properties": {
-                            "date_mutation": transaction.get("date_mutation"),
-                            "nature_mutation": transaction.get("nature_mutation"),
-                            "valeur_fonciere": transaction.get("valeur_fonciere"),
-                            "adresse": transaction.get("adresse_nom_voie"),
-                            "code_postal": transaction.get("code_postal"),
-                            "commune": transaction.get("nom_commune"),
-                            "type_local": transaction.get("type_local"),
-                            "surface_reelle_bati": transaction.get("surface_reelle_bati"),
-                            "nombre_pieces": transaction.get("nombre_pieces_principales"),
-                            "surface_terrain": transaction.get("surface_terrain")
-                        }
-                    })
+        features = []
+        for transaction in data.get("resultats", [])[:200]:
+            if transaction.get("longitude") and transaction.get("latitude"):
+                features.append({
+                    "type": "Feature",
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [
+                            float(transaction.get("longitude", 0)),
+                            float(transaction.get("latitude", 0))
+                        ]
+                    },
+                    "properties": {
+                        "date_mutation": transaction.get("date_mutation"),
+                        "nature_mutation": transaction.get("nature_mutation"),
+                        "valeur_fonciere": transaction.get("valeur_fonciere"),
+                        "adresse": transaction.get("adresse_nom_voie"),
+                        "code_postal": transaction.get("code_postal"),
+                        "commune": transaction.get("nom_commune"),
+                        "type_local": transaction.get("type_local"),
+                        "surface_reelle_bati": transaction.get("surface_reelle_bati"),
+                        "nombre_pieces": transaction.get("nombre_pieces_principales"),
+                        "surface_terrain": transaction.get("surface_terrain")
+                    }
+                })
 
-            return {
-                "type": "FeatureCollection",
-                "features": features,
-                "count": len(features)
-            }
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API DVF: {str(e)}")
+        return {
+            "type": "FeatureCollection",
+            "features": features,
+            "count": len(features)
+        }
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API DVF: {str(e)}")
 
 
 @app.get("/api/geo/communes")
+@limiter.limit("30/minute")
 async def search_communes(
-    nom: Optional[str] = Query(None, description="Nom de la commune"),
-    code_postal: Optional[str] = Query(None, description="Code postal"),
-    code_departement: Optional[str] = Query(None, description="Code département")
+    request: Request,
+    nom: Optional[str] = Query(None, max_length=100, description="Nom de la commune"),
+    code_postal: Optional[str] = Query(None, max_length=5, description="Code postal"),
+    code_departement: Optional[str] = Query(None, max_length=3, description="Code departement")
 ):
-    """
-    Recherche de communes via l'API Géo
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            params = {"fields": "nom,code,codesPostaux,centre,contour,population,departement"}
+    """Recherche de communes via l'API Geo"""
+    params = {"fields": "nom,code,codesPostaux,centre,contour,population,departement"}
 
-            if nom:
-                params["nom"] = nom
-            if code_postal:
-                params["codePostal"] = code_postal
-            if code_departement:
-                params["codeDepartement"] = code_departement
+    if nom:
+        params["nom"] = sanitize_string(nom, 100)
+    if code_postal:
+        params["codePostal"] = code_postal
+    if code_departement:
+        params["codeDepartement"] = code_departement
 
-            response = await client.get(f"{API_GEO}/communes", params=params)
-            response.raise_for_status()
-            communes = response.json()
-
-            return {
-                "communes": communes[:20]  # Limite à 20 résultats
-            }
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API Géo: {str(e)}")
+    try:
+        communes = await geo_client.get("/communes", params=params)
+        return {"communes": communes[:20] if isinstance(communes, list) else []}
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API Geo: {str(e)}")
 
 
 @app.get("/api/geo/commune/{code_insee}")
-async def get_commune(code_insee: str):
-    """
-    Récupère les détails d'une commune par son code INSEE
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{API_GEO}/communes/{code_insee}",
-                params={"fields": "nom,code,codesPostaux,centre,contour,population,departement,region,surface"}
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API Géo: {str(e)}")
+@limiter.limit("30/minute")
+async def get_commune(request: Request, code_insee: str):
+    """Recupere les details d'une commune par son code INSEE"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    try:
+        return await geo_client.get(
+            f"/communes/{code_insee}",
+            params={"fields": "nom,code,codesPostaux,centre,contour,population,departement,region,surface"}
+        )
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API Geo: {str(e)}")
 
 
 @app.get("/api/geo/departements")
-async def get_departements():
-    """
-    Liste tous les départements français
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{API_GEO}/departements",
-                params={"fields": "nom,code,codeRegion"}
-            )
-            response.raise_for_status()
-            return {"departements": response.json()}
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API Géo: {str(e)}")
+@limiter.limit("10/minute")
+async def get_departements(request: Request):
+    """Liste tous les departements francais"""
+    cache_key = "departements:all"
+    cached_data = await cache_get(cache_key)
+
+    if cached_data:
+        return cached_data
+
+    try:
+        data = await geo_client.get("/departements", params={"fields": "nom,code,codeRegion"})
+        result = {"departements": data if isinstance(data, list) else []}
+        await cache_set(cache_key, result, ttl=3600)  # Cache 1h
+        return result
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API Geo: {str(e)}")
 
 
-# ============== RISQUES NATURELS (GEORISQUES) ==============
+# ============== RISQUES NATURELS ==============
 
 @app.get("/api/risques/commune/{code_insee}")
-async def get_risques_commune(code_insee: str):
-    """
-    Récupère les risques naturels et technologiques d'une commune
-    via l'API Géorisques
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            # Récupération des risques
-            response = await client.get(
-                f"{API_GEORISQUES}/gaspar/risques",
-                params={"code_insee": code_insee}
-            )
-            response.raise_for_status()
-            data = response.json()
+@limiter.limit("20/minute")
+async def get_risques_commune(request: Request, code_insee: str):
+    """Recupere les risques naturels et technologiques d'une commune"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
 
-            risques = []
-            for item in data.get("data", []):
-                risques.append({
-                    "code": item.get("code_risque"),
-                    "libelle": item.get("libelle_risque_long"),
-                    "niveau": item.get("niveau_risque"),
-                })
+    try:
+        data = await georisques_client.get("/gaspar/risques", params={"code_insee": code_insee})
 
-            return {
-                "code_insee": code_insee,
-                "risques": risques,
-                "count": len(risques)
-            }
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API Géorisques: {str(e)}")
+        risques = []
+        for item in data.get("data", []):
+            risques.append({
+                "code": item.get("code_risque"),
+                "libelle": item.get("libelle_risque_long"),
+                "niveau": item.get("niveau_risque"),
+            })
+
+        return {
+            "code_insee": code_insee,
+            "risques": risques,
+            "count": len(risques)
+        }
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API Georisques: {str(e)}")
 
 
 @app.get("/api/risques/parcelle")
+@limiter.limit("20/minute")
 async def get_risques_parcelle(
-    lon: float = Query(..., description="Longitude"),
-    lat: float = Query(..., description="Latitude")
+    request: Request,
+    lon: float = Query(..., ge=-180, le=180, description="Longitude"),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude")
 ):
-    """
-    Récupère les risques pour une localisation précise
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            # Risques naturels autour du point
-            response = await client.get(
-                f"{API_GEORISQUES}/gaspar/risques",
-                params={
-                    "latlon": f"{lat},{lon}",
-                    "rayon": 1000
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
+    """Recupere les risques pour une localisation precise"""
+    try:
+        data = await georisques_client.get(
+            "/gaspar/risques",
+            params={"latlon": f"{lat},{lon}", "rayon": 1000}
+        )
 
-            risques = []
-            for item in data.get("data", []):
-                risques.append({
-                    "code": item.get("code_risque"),
-                    "libelle": item.get("libelle_risque_long"),
-                    "niveau": item.get("niveau_risque"),
-                    "commune": item.get("libelle_commune"),
-                })
+        risques = []
+        for item in data.get("data", []):
+            risques.append({
+                "code": item.get("code_risque"),
+                "libelle": item.get("libelle_risque_long"),
+                "niveau": item.get("niveau_risque"),
+                "commune": item.get("libelle_commune"),
+            })
 
-            return {
-                "longitude": lon,
-                "latitude": lat,
-                "risques": risques,
-                "count": len(risques)
-            }
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API Géorisques: {str(e)}")
+        return {
+            "longitude": lon,
+            "latitude": lat,
+            "risques": risques,
+            "count": len(risques)
+        }
+    except Exception:
+        return {"longitude": lon, "latitude": lat, "risques": [], "count": 0}
 
 
 @app.get("/api/risques/inondation")
+@limiter.limit("20/minute")
 async def get_risques_inondation(
-    lon: float = Query(..., description="Longitude"),
-    lat: float = Query(..., description="Latitude")
+    request: Request,
+    lon: float = Query(..., ge=-180, le=180, description="Longitude"),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude")
 ):
-    """
-    Récupère les zones inondables autour d'un point
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.get(
-                f"{API_GEORISQUES}/gaspar/azi",
-                params={
-                    "latlon": f"{lat},{lon}",
-                    "rayon": 500
-                }
-            )
-            response.raise_for_status()
-            data = response.json()
-
-            return {
-                "longitude": lon,
-                "latitude": lat,
-                "zones_inondables": data.get("data", []),
-                "count": len(data.get("data", []))
-            }
-        except httpx.HTTPError as e:
-            # Retourner une réponse vide si pas de données
-            return {
-                "longitude": lon,
-                "latitude": lat,
-                "zones_inondables": [],
-                "count": 0
-            }
+    """Recupere les zones inondables autour d'un point"""
+    try:
+        data = await georisques_client.get(
+            "/gaspar/azi",
+            params={"latlon": f"{lat},{lon}", "rayon": 500}
+        )
+        return {
+            "longitude": lon,
+            "latitude": lat,
+            "zones_inondables": data.get("data", []),
+            "count": len(data.get("data", []))
+        }
+    except Exception:
+        return {"longitude": lon, "latitude": lat, "zones_inondables": [], "count": 0}
 
 
-# ============== PLU / URBANISME (GEOPORTAIL) ==============
+# ============== PLU / URBANISME ==============
 
 @app.get("/api/urbanisme/zonage")
+@limiter.limit("20/minute")
 async def get_zonage_plu(
-    lon: float = Query(..., description="Longitude"),
-    lat: float = Query(..., description="Latitude")
+    request: Request,
+    lon: float = Query(..., ge=-180, le=180, description="Longitude"),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude")
 ):
-    """
-    Récupère le zonage PLU/PLUi pour une localisation
-    via l'API Carto IGN (Géoportail de l'Urbanisme)
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            # Point au format WKT
-            geom = f"POINT({lon} {lat})"
+    """Recupere le zonage PLU/PLUi pour une localisation"""
+    try:
+        geom = f"POINT({lon} {lat})"
+        data = await gpu_client.get("/zone-urba", params={"geom": geom})
 
-            response = await client.get(
-                f"{API_GPU}/zone-urba",
-                params={"geom": geom}
-            )
-            response.raise_for_status()
-            data = response.json()
+        zones = []
+        for feature in data.get("features", []):
+            props = feature.get("properties", {})
+            zones.append({
+                "libelle": props.get("libelle"),
+                "libelong": props.get("libelong"),
+                "typezone": props.get("typezone"),
+                "destdomi": props.get("destdomi"),
+                "nomfic": props.get("nomfic"),
+                "urlfic": props.get("urlfic"),
+                "partition": props.get("partition"),
+            })
 
-            zones = []
-            for feature in data.get("features", []):
-                props = feature.get("properties", {})
-                zones.append({
-                    "libelle": props.get("libelle"),
-                    "libelong": props.get("libelong"),
-                    "typezone": props.get("typezone"),
-                    "destdomi": props.get("destdomi"),
-                    "nomfic": props.get("nomfic"),
-                    "urlfic": props.get("urlfic"),
-                    "partition": props.get("partition"),
-                })
-
-            return {
-                "longitude": lon,
-                "latitude": lat,
-                "zonages": zones,
-                "count": len(zones)
-            }
-        except httpx.HTTPError as e:
-            return {
-                "longitude": lon,
-                "latitude": lat,
-                "zonages": [],
-                "count": 0,
-                "error": str(e)
-            }
+        return {"longitude": lon, "latitude": lat, "zonages": zones, "count": len(zones)}
+    except Exception:
+        return {"longitude": lon, "latitude": lat, "zonages": [], "count": 0}
 
 
 @app.get("/api/urbanisme/prescriptions")
+@limiter.limit("20/minute")
 async def get_prescriptions_plu(
-    lon: float = Query(..., description="Longitude"),
-    lat: float = Query(..., description="Latitude")
+    request: Request,
+    lon: float = Query(..., ge=-180, le=180, description="Longitude"),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude")
 ):
-    """
-    Récupère les prescriptions PLU pour une localisation
-    (servitudes, emplacements réservés, etc.)
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            geom = f"POINT({lon} {lat})"
+    """Recupere les prescriptions PLU pour une localisation"""
+    try:
+        geom = f"POINT({lon} {lat})"
+        data = await gpu_client.get("/prescription-surf", params={"geom": geom})
 
-            response = await client.get(
-                f"{API_GPU}/prescription-surf",
-                params={"geom": geom}
-            )
-            response.raise_for_status()
-            data = response.json()
+        prescriptions = []
+        for feature in data.get("features", []):
+            props = feature.get("properties", {})
+            prescriptions.append({
+                "libelle": props.get("libelle"),
+                "txt": props.get("txt"),
+                "typepsc": props.get("typepsc"),
+                "stypepsc": props.get("stypepsc"),
+                "nomfic": props.get("nomfic"),
+                "urlfic": props.get("urlfic"),
+            })
 
-            prescriptions = []
-            for feature in data.get("features", []):
-                props = feature.get("properties", {})
-                prescriptions.append({
-                    "libelle": props.get("libelle"),
-                    "txt": props.get("txt"),
-                    "typepsc": props.get("typepsc"),
-                    "stypepsc": props.get("stypepsc"),
-                    "nomfic": props.get("nomfic"),
-                    "urlfic": props.get("urlfic"),
-                })
-
-            return {
-                "longitude": lon,
-                "latitude": lat,
-                "prescriptions": prescriptions,
-                "count": len(prescriptions)
-            }
-        except httpx.HTTPError as e:
-            return {
-                "longitude": lon,
-                "latitude": lat,
-                "prescriptions": [],
-                "count": 0
-            }
+        return {"longitude": lon, "latitude": lat, "prescriptions": prescriptions, "count": len(prescriptions)}
+    except Exception:
+        return {"longitude": lon, "latitude": lat, "prescriptions": [], "count": 0}
 
 
 # ============== STATISTIQUES DVF ==============
 
 @app.get("/api/dvf/statistiques")
+@limiter.limit("10/minute")
 async def get_dvf_statistiques(
-    code_insee: str = Query(..., description="Code INSEE de la commune"),
-    type_local: Optional[str] = Query(None, description="Type de local (Maison, Appartement, etc.)"),
-    annee_min: Optional[int] = Query(None, description="Année minimum"),
-    annee_max: Optional[int] = Query(None, description="Année maximum")
+    request: Request,
+    code_insee: str = Query(..., min_length=5, max_length=5, description="Code INSEE de la commune"),
+    type_local: Optional[str] = Query(None, max_length=100, description="Type de local"),
+    annee_min: Optional[int] = Query(None, ge=2014, le=2030, description="Annee minimum"),
+    annee_max: Optional[int] = Query(None, ge=2014, le=2030, description="Annee maximum")
 ):
-    """
-    Calcule les statistiques des transactions DVF pour une commune
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            params = {"code_commune": code_insee}
+    """Calcule les statistiques des transactions DVF pour une commune"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
 
-            response = await client.get(API_DVF, params=params)
-            response.raise_for_status()
-            data = response.json()
+    try:
+        data = await dvf_client.get("", params={"code_commune": code_insee})
+        transactions = data.get("resultats", [])
 
-            transactions = data.get("resultats", [])
+        # Filtrage
+        if type_local:
+            transactions = [t for t in transactions if t.get("type_local") == type_local]
 
-            # Filtrage
-            if type_local:
-                transactions = [t for t in transactions if t.get("type_local") == type_local]
-
-            if annee_min or annee_max:
-                filtered = []
-                for t in transactions:
-                    date_str = t.get("date_mutation", "")
-                    if date_str:
-                        try:
-                            annee = int(date_str[:4])
-                            if annee_min and annee < annee_min:
-                                continue
-                            if annee_max and annee > annee_max:
-                                continue
-                            filtered.append(t)
-                        except (ValueError, IndexError):
-                            continue
-                transactions = filtered
-
-            # Calcul des statistiques
-            if not transactions:
-                return {
-                    "code_insee": code_insee,
-                    "nb_transactions": 0,
-                    "statistiques": None
-                }
-
-            valeurs = [t.get("valeur_fonciere", 0) for t in transactions if t.get("valeur_fonciere")]
-            surfaces = [t.get("surface_reelle_bati", 0) for t in transactions if t.get("surface_reelle_bati")]
-            prix_m2 = []
-
-            for t in transactions:
-                val = t.get("valeur_fonciere", 0)
-                surf = t.get("surface_reelle_bati", 0)
-                if val and surf and surf > 0:
-                    prix_m2.append(val / surf)
-
-            # Statistiques par année
-            par_annee = {}
+        if annee_min or annee_max:
+            filtered = []
             for t in transactions:
                 date_str = t.get("date_mutation", "")
                 if date_str:
                     try:
-                        annee = date_str[:4]
-                        if annee not in par_annee:
-                            par_annee[annee] = {"nb": 0, "valeurs": [], "prix_m2": []}
-                        par_annee[annee]["nb"] += 1
-                        if t.get("valeur_fonciere"):
-                            par_annee[annee]["valeurs"].append(t["valeur_fonciere"])
-                        if t.get("valeur_fonciere") and t.get("surface_reelle_bati") and t["surface_reelle_bati"] > 0:
-                            par_annee[annee]["prix_m2"].append(t["valeur_fonciere"] / t["surface_reelle_bati"])
+                        annee = int(date_str[:4])
+                        if annee_min and annee < annee_min:
+                            continue
+                        if annee_max and annee > annee_max:
+                            continue
+                        filtered.append(t)
                     except (ValueError, IndexError):
                         continue
+            transactions = filtered
 
-            evolution = []
-            for annee in sorted(par_annee.keys()):
-                stats = par_annee[annee]
-                evolution.append({
-                    "annee": annee,
-                    "nb_transactions": stats["nb"],
-                    "prix_moyen": sum(stats["valeurs"]) / len(stats["valeurs"]) if stats["valeurs"] else None,
-                    "prix_m2_moyen": sum(stats["prix_m2"]) / len(stats["prix_m2"]) if stats["prix_m2"] else None,
-                })
+        if not transactions:
+            return {"code_insee": code_insee, "nb_transactions": 0, "statistiques": None}
 
-            # Types de biens
-            types_count = {}
-            for t in transactions:
-                type_bien = t.get("type_local", "Autre") or "Autre"
-                types_count[type_bien] = types_count.get(type_bien, 0) + 1
+        valeurs = [t.get("valeur_fonciere", 0) for t in transactions if t.get("valeur_fonciere")]
+        surfaces = [t.get("surface_reelle_bati", 0) for t in transactions if t.get("surface_reelle_bati")]
+        prix_m2 = []
 
-            return {
-                "code_insee": code_insee,
-                "nb_transactions": len(transactions),
-                "statistiques": {
-                    "prix_min": min(valeurs) if valeurs else None,
-                    "prix_max": max(valeurs) if valeurs else None,
-                    "prix_moyen": sum(valeurs) / len(valeurs) if valeurs else None,
-                    "prix_median": sorted(valeurs)[len(valeurs) // 2] if valeurs else None,
-                    "surface_moyenne": sum(surfaces) / len(surfaces) if surfaces else None,
-                    "prix_m2_moyen": sum(prix_m2) / len(prix_m2) if prix_m2 else None,
-                    "prix_m2_min": min(prix_m2) if prix_m2 else None,
-                    "prix_m2_max": max(prix_m2) if prix_m2 else None,
-                },
-                "evolution": evolution,
-                "repartition_types": types_count
-            }
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API DVF: {str(e)}")
+        for t in transactions:
+            val = t.get("valeur_fonciere", 0)
+            surf = t.get("surface_reelle_bati", 0)
+            if val and surf and surf > 0:
+                prix_m2.append(val / surf)
+
+        # Stats par annee
+        par_annee = {}
+        for t in transactions:
+            date_str = t.get("date_mutation", "")
+            if date_str:
+                try:
+                    annee = date_str[:4]
+                    if annee not in par_annee:
+                        par_annee[annee] = {"nb": 0, "valeurs": [], "prix_m2": []}
+                    par_annee[annee]["nb"] += 1
+                    if t.get("valeur_fonciere"):
+                        par_annee[annee]["valeurs"].append(t["valeur_fonciere"])
+                    if t.get("valeur_fonciere") and t.get("surface_reelle_bati") and t["surface_reelle_bati"] > 0:
+                        par_annee[annee]["prix_m2"].append(t["valeur_fonciere"] / t["surface_reelle_bati"])
+                except (ValueError, IndexError):
+                    continue
+
+        evolution = []
+        for annee in sorted(par_annee.keys()):
+            stats = par_annee[annee]
+            evolution.append({
+                "annee": annee,
+                "nb_transactions": stats["nb"],
+                "prix_moyen": sum(stats["valeurs"]) / len(stats["valeurs"]) if stats["valeurs"] else None,
+                "prix_m2_moyen": sum(stats["prix_m2"]) / len(stats["prix_m2"]) if stats["prix_m2"] else None,
+            })
+
+        types_count = {}
+        for t in transactions:
+            type_bien = t.get("type_local", "Autre") or "Autre"
+            types_count[type_bien] = types_count.get(type_bien, 0) + 1
+
+        return {
+            "code_insee": code_insee,
+            "nb_transactions": len(transactions),
+            "statistiques": {
+                "prix_min": min(valeurs) if valeurs else None,
+                "prix_max": max(valeurs) if valeurs else None,
+                "prix_moyen": sum(valeurs) / len(valeurs) if valeurs else None,
+                "prix_median": sorted(valeurs)[len(valeurs) // 2] if valeurs else None,
+                "surface_moyenne": sum(surfaces) / len(surfaces) if surfaces else None,
+                "prix_m2_moyen": sum(prix_m2) / len(prix_m2) if prix_m2 else None,
+                "prix_m2_min": min(prix_m2) if prix_m2 else None,
+                "prix_m2_max": max(prix_m2) if prix_m2 else None,
+            },
+            "evolution": evolution,
+            "repartition_types": types_count
+        }
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API DVF: {str(e)}")
 
 
-# ============== EXPORT DES DONNÉES ==============
+# ============== EXPORT DES DONNEES ==============
 
 @app.get("/api/export/dvf/csv")
+@limiter.limit("5/minute")
 async def export_dvf_csv(
-    code_insee: str = Query(..., description="Code INSEE de la commune"),
+    request: Request,
+    code_insee: str = Query(..., min_length=5, max_length=5, description="Code INSEE"),
     type_local: Optional[str] = Query(None, description="Filtrer par type de local"),
-    prix_min: Optional[float] = Query(None, description="Prix minimum"),
-    prix_max: Optional[float] = Query(None, description="Prix maximum"),
-    surface_min: Optional[float] = Query(None, description="Surface minimum"),
-    surface_max: Optional[float] = Query(None, description="Surface maximum")
+    prix_min: Optional[float] = Query(None, ge=0, description="Prix minimum"),
+    prix_max: Optional[float] = Query(None, ge=0, description="Prix maximum"),
+    surface_min: Optional[float] = Query(None, ge=0, description="Surface minimum"),
+    surface_max: Optional[float] = Query(None, ge=0, description="Surface maximum")
 ):
-    """
-    Exporte les transactions DVF en CSV avec filtres
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.get(API_DVF, params={"code_commune": code_insee})
-            response.raise_for_status()
-            data = response.json()
+    """Exporte les transactions DVF en CSV avec filtres"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
 
-            transactions = data.get("resultats", [])
+    try:
+        data = await dvf_client.get("", params={"code_commune": code_insee})
+        transactions = data.get("resultats", [])
 
-            # Filtrage
-            if type_local:
-                transactions = [t for t in transactions if t.get("type_local") == type_local]
-            if prix_min is not None:
-                transactions = [t for t in transactions if (t.get("valeur_fonciere") or 0) >= prix_min]
-            if prix_max is not None:
-                transactions = [t for t in transactions if (t.get("valeur_fonciere") or 0) <= prix_max]
-            if surface_min is not None:
-                transactions = [t for t in transactions if (t.get("surface_reelle_bati") or 0) >= surface_min]
-            if surface_max is not None:
-                transactions = [t for t in transactions if (t.get("surface_reelle_bati") or 0) <= surface_max]
+        # Filtrage
+        if type_local:
+            transactions = [t for t in transactions if t.get("type_local") == type_local]
+        if prix_min is not None:
+            transactions = [t for t in transactions if (t.get("valeur_fonciere") or 0) >= prix_min]
+        if prix_max is not None:
+            transactions = [t for t in transactions if (t.get("valeur_fonciere") or 0) <= prix_max]
+        if surface_min is not None:
+            transactions = [t for t in transactions if (t.get("surface_reelle_bati") or 0) >= surface_min]
+        if surface_max is not None:
+            transactions = [t for t in transactions if (t.get("surface_reelle_bati") or 0) <= surface_max]
 
-            # Génération CSV
-            output = io.StringIO()
-            writer = csv.writer(output, delimiter=';')
+        # Generation CSV
+        output = io.StringIO()
+        writer = csv.writer(output, delimiter=';')
+        writer.writerow([
+            "Date mutation", "Nature mutation", "Valeur fonciere", "Adresse",
+            "Code postal", "Commune", "Type local", "Surface bati",
+            "Nombre pieces", "Surface terrain", "Longitude", "Latitude", "Prix m2"
+        ])
 
-            # En-têtes
+        for t in transactions:
+            valeur = t.get("valeur_fonciere", 0) or 0
+            surface = t.get("surface_reelle_bati", 0) or 0
+            prix_m2 = round(valeur / surface, 2) if surface > 0 else ""
+
             writer.writerow([
-                "Date mutation", "Nature mutation", "Valeur fonciere", "Adresse",
-                "Code postal", "Commune", "Type local", "Surface bati",
-                "Nombre pieces", "Surface terrain", "Longitude", "Latitude", "Prix m2"
+                t.get("date_mutation", ""), t.get("nature_mutation", ""), valeur,
+                t.get("adresse_nom_voie", ""), t.get("code_postal", ""),
+                t.get("nom_commune", ""), t.get("type_local", ""), surface,
+                t.get("nombre_pieces_principales", ""), t.get("surface_terrain", ""),
+                t.get("longitude", ""), t.get("latitude", ""), prix_m2
             ])
 
-            # Données
-            for t in transactions:
-                valeur = t.get("valeur_fonciere", 0) or 0
-                surface = t.get("surface_reelle_bati", 0) or 0
-                prix_m2 = round(valeur / surface, 2) if surface > 0 else ""
+        output.seek(0)
+        filename = f"dvf_{code_insee}_{datetime.now().strftime('%Y%m%d')}.csv"
 
-                writer.writerow([
-                    t.get("date_mutation", ""),
-                    t.get("nature_mutation", ""),
-                    valeur,
-                    t.get("adresse_nom_voie", ""),
-                    t.get("code_postal", ""),
-                    t.get("nom_commune", ""),
-                    t.get("type_local", ""),
-                    surface,
-                    t.get("nombre_pieces_principales", ""),
-                    t.get("surface_terrain", ""),
-                    t.get("longitude", ""),
-                    t.get("latitude", ""),
-                    prix_m2
-                ])
-
-            output.seek(0)
-
-            return StreamingResponse(
-                iter([output.getvalue()]),
-                media_type="text/csv",
-                headers={
-                    "Content-Disposition": f"attachment; filename=dvf_{code_insee}_{datetime.now().strftime('%Y%m%d')}.csv"
-                }
-            )
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API DVF: {str(e)}")
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API DVF: {str(e)}")
 
 
 @app.get("/api/export/dvf/geojson")
+@limiter.limit("5/minute")
 async def export_dvf_geojson(
-    code_insee: str = Query(..., description="Code INSEE de la commune"),
+    request: Request,
+    code_insee: str = Query(..., min_length=5, max_length=5, description="Code INSEE"),
     type_local: Optional[str] = Query(None, description="Filtrer par type de local"),
-    prix_min: Optional[float] = Query(None, description="Prix minimum"),
-    prix_max: Optional[float] = Query(None, description="Prix maximum")
+    prix_min: Optional[float] = Query(None, ge=0, description="Prix minimum"),
+    prix_max: Optional[float] = Query(None, ge=0, description="Prix maximum")
 ):
-    """
-    Exporte les transactions DVF en GeoJSON
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            response = await client.get(API_DVF, params={"code_commune": code_insee})
-            response.raise_for_status()
-            data = response.json()
+    """Exporte les transactions DVF en GeoJSON"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
 
-            transactions = data.get("resultats", [])
+    try:
+        data = await dvf_client.get("", params={"code_commune": code_insee})
+        transactions = data.get("resultats", [])
 
-            # Filtrage
-            if type_local:
-                transactions = [t for t in transactions if t.get("type_local") == type_local]
-            if prix_min is not None:
-                transactions = [t for t in transactions if (t.get("valeur_fonciere") or 0) >= prix_min]
-            if prix_max is not None:
-                transactions = [t for t in transactions if (t.get("valeur_fonciere") or 0) <= prix_max]
+        if type_local:
+            transactions = [t for t in transactions if t.get("type_local") == type_local]
+        if prix_min is not None:
+            transactions = [t for t in transactions if (t.get("valeur_fonciere") or 0) >= prix_min]
+        if prix_max is not None:
+            transactions = [t for t in transactions if (t.get("valeur_fonciere") or 0) <= prix_max]
 
-            # Génération GeoJSON
-            features = []
-            for t in transactions:
-                if t.get("longitude") and t.get("latitude"):
-                    valeur = t.get("valeur_fonciere", 0) or 0
-                    surface = t.get("surface_reelle_bati", 0) or 0
+        features = []
+        for t in transactions:
+            if t.get("longitude") and t.get("latitude"):
+                valeur = t.get("valeur_fonciere", 0) or 0
+                surface = t.get("surface_reelle_bati", 0) or 0
+                features.append({
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [float(t["longitude"]), float(t["latitude"])]},
+                    "properties": {
+                        "date_mutation": t.get("date_mutation"),
+                        "valeur_fonciere": valeur,
+                        "type_local": t.get("type_local"),
+                        "surface_reelle_bati": surface,
+                        "prix_m2": round(valeur / surface, 2) if surface > 0 else None
+                    }
+                })
 
-                    features.append({
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [float(t["longitude"]), float(t["latitude"])]
-                        },
-                        "properties": {
-                            "date_mutation": t.get("date_mutation"),
-                            "nature_mutation": t.get("nature_mutation"),
-                            "valeur_fonciere": valeur,
-                            "adresse": t.get("adresse_nom_voie"),
-                            "code_postal": t.get("code_postal"),
-                            "commune": t.get("nom_commune"),
-                            "type_local": t.get("type_local"),
-                            "surface_reelle_bati": surface,
-                            "nombre_pieces": t.get("nombre_pieces_principales"),
-                            "surface_terrain": t.get("surface_terrain"),
-                            "prix_m2": round(valeur / surface, 2) if surface > 0 else None
-                        }
-                    })
+        geojson = {"type": "FeatureCollection", "features": features}
+        filename = f"dvf_{code_insee}_{datetime.now().strftime('%Y%m%d')}.geojson"
 
-            geojson = {
-                "type": "FeatureCollection",
-                "features": features
-            }
-
-            return StreamingResponse(
-                iter([json.dumps(geojson, ensure_ascii=False, indent=2)]),
-                media_type="application/geo+json",
-                headers={
-                    "Content-Disposition": f"attachment; filename=dvf_{code_insee}_{datetime.now().strftime('%Y%m%d')}.geojson"
-                }
-            )
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API DVF: {str(e)}")
+        return StreamingResponse(
+            iter([json.dumps(geojson, ensure_ascii=False, indent=2)]),
+            media_type="application/geo+json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API DVF: {str(e)}")
 
 
 @app.get("/api/export/parcelles/geojson")
+@limiter.limit("5/minute")
 async def export_parcelles_geojson(
-    code_insee: str = Query(..., description="Code INSEE de la commune"),
-    section: Optional[str] = Query(None, description="Filtrer par section cadastrale")
+    request: Request,
+    code_insee: str = Query(..., min_length=5, max_length=5, description="Code INSEE"),
+    section: Optional[str] = Query(None, max_length=10, description="Section cadastrale")
 ):
-    """
-    Exporte les parcelles cadastrales en GeoJSON
-    """
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            url = f"{API_CADASTRE}/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
-            response = await client.get(url)
-            response.raise_for_status()
-            data = response.json()
+    """Exporte les parcelles cadastrales en GeoJSON"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
 
-            features = data.get("features", [])
+    try:
+        url = f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+        data = await cadastre_client.get(url)
+        features = data.get("features", [])
 
-            if section:
-                features = [f for f in features if f.get("properties", {}).get("section", "").upper() == section.upper()]
+        if section:
+            features = [f for f in features if f.get("properties", {}).get("section", "").upper() == section.upper()]
 
-            geojson = {
-                "type": "FeatureCollection",
-                "features": features
-            }
+        geojson = {"type": "FeatureCollection", "features": features}
+        section_suffix = f"_{section}" if section else ""
+        filename = f"parcelles_{code_insee}{section_suffix}.geojson"
 
-            section_suffix = f"_{section}" if section else ""
-
-            return StreamingResponse(
-                iter([json.dumps(geojson, ensure_ascii=False)]),
-                media_type="application/geo+json",
-                headers={
-                    "Content-Disposition": f"attachment; filename=parcelles_{code_insee}{section_suffix}.geojson"
-                }
-            )
-        except httpx.HTTPError as e:
-            raise HTTPException(status_code=502, detail=f"Erreur API Cadastre: {str(e)}")
+        return StreamingResponse(
+            iter([json.dumps(geojson, ensure_ascii=False)]),
+            media_type="application/geo+json",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    except APIError:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Erreur API Cadastre: {str(e)}")
 
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "app.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
+        log_level=settings.log_level.lower(),
+    )

@@ -1,39 +1,82 @@
-# Docker Compose pour Prospection Fonciere
+# Docker Compose pour Prospection Fonciere - Production
 # Usage: docker-compose up -d
 
 version: '3.8'
 
 services:
+  # Redis pour le cache
+  redis:
+    image: redis:7-alpine
+    container_name: prospection-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - prospection-internal
+
   # Backend API FastAPI
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
     container_name: prospection-backend
-    ports:
-      - "8000:8000"
     environment:
-      - PORT=8000
+      - ENVIRONMENT=production
       - DEBUG=false
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:80
+      - REDIS_URL=redis://redis:6379/0
+      - RATE_LIMIT_REQUESTS=100
+      - RATE_LIMIT_WINDOW=60
+      - CACHE_ENABLED=true
+      - CACHE_TTL=300
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - API_TIMEOUT=30.0
+      - API_MAX_RETRIES=3
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
     restart: unless-stopped
+    networks:
+      - prospection-internal
+    expose:
+      - "8000"
 
-  # Frontend React
+  # Frontend React (Nginx)
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
     container_name: prospection-frontend
     ports:
-      - "5173:80"
+      - "80:80"
+      - "443:443"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    networks:
+      - prospection-internal
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+
+volumes:
+  redis_data:
+    driver: local
 
 networks:
-  default:
+  prospection-internal:
     name: prospection-network
+    driver: bridge
