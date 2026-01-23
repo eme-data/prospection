@@ -6,16 +6,27 @@ import {
   Download,
   AlertTriangle,
   Star,
+  FolderOpen,
+  Clock,
+  Bell,
+  FileText,
+  Moon,
+  Sun,
 } from 'lucide-react'
+import { useTheme } from './contexts/ThemeContext'
 import { SearchBar } from './components/SearchBar'
 import { MapView } from './components/MapView'
 import { LayerControl } from './components/LayerControl'
 import { InfoPanel } from './components/InfoPanel'
 import { FilterPanel } from './components/FilterPanel'
-import { StatsPanel } from './components/StatsPanel'
 import { ExportPanel } from './components/ExportPanel'
 import { RiskPanel } from './components/RiskPanel'
 import { FavoritesPanel } from './components/FavoritesPanel'
+import { ProjectsPanel } from './components/ProjectsPanel'
+import { Dashboard } from './components/Dashboard'
+import { HistoryPanel } from './components/HistoryPanel'
+import { AlertsPanel } from './components/AlertsPanel'
+import { ReportGenerator } from './components/ReportGenerator'
 import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions } from './api'
 import type {
   MapViewState,
@@ -26,6 +37,9 @@ import type {
   DVFFilters,
   FavoriteParcelle,
   GeoJSONFeatureCollection,
+  Project,
+  SearchHistory,
+  Alert,
 } from './types'
 
 const INITIAL_VIEW_STATE: MapViewState = {
@@ -35,8 +49,12 @@ const INITIAL_VIEW_STATE: MapViewState = {
 }
 
 const FAVORITES_STORAGE_KEY = 'prospection-favorites'
+const PROJECTS_STORAGE_KEY = 'prospection-projects'
+const HISTORY_STORAGE_KEY = 'prospection-history'
+const ALERTS_STORAGE_KEY = 'prospection-alerts'
 
 function App() {
+  const { theme, toggleTheme } = useTheme()
   const [viewState, setViewState] = useState<MapViewState>(INITIAL_VIEW_STATE)
   const [activeLayers, setActiveLayers] = useState<Set<LayerType>>(
     new Set(['parcelles', 'dvf'])
@@ -49,7 +67,6 @@ function App() {
   // Nouveaux états pour les fonctionnalités avancées
   const [filters, setFilters] = useState<DVFFilters>({})
   const [showFilters, setShowFilters] = useState(false)
-  const [showStats, setShowStats] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showRisks, setShowRisks] = useState(false)
   const [showFavorites, setShowFavorites] = useState(false)
@@ -58,10 +75,48 @@ function App() {
     return saved ? JSON.parse(saved) : []
   })
 
+  // Nouveaux états pour les fonctionnalités avancées
+  const [showProjects, setShowProjects] = useState(false)
+  const [showDashboard, setShowDashboard] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+  const [showAlerts, setShowAlerts] = useState(false)
+  const [showReportGenerator, setShowReportGenerator] = useState(false)
+
+  const [projects, setProjects] = useState<Project[]>(() => {
+    const saved = localStorage.getItem(PROJECTS_STORAGE_KEY)
+    return saved ? JSON.parse(saved) : []
+  })
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+
+  const [searchHistory, setSearchHistory] = useState<SearchHistory[]>(() => {
+    const saved = localStorage.getItem(HISTORY_STORAGE_KEY)
+    return saved ? JSON.parse(saved) : []
+  })
+
+  const [alerts, setAlerts] = useState<Alert[]>(() => {
+    const saved = localStorage.getItem(ALERTS_STORAGE_KEY)
+    return saved ? JSON.parse(saved) : []
+  })
+
   // Sauvegarde des favoris dans localStorage
   useEffect(() => {
     localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites))
   }, [favorites])
+
+  // Sauvegarde des projets
+  useEffect(() => {
+    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects))
+  }, [projects])
+
+  // Sauvegarde de l'historique
+  useEffect(() => {
+    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory))
+  }, [searchHistory])
+
+  // Sauvegarde des alertes
+  useEffect(() => {
+    localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(alerts))
+  }, [alerts])
 
   // Récupération du code INSEE quand la vue change
   useEffect(() => {
@@ -119,7 +174,17 @@ function App() {
     if (address.citycode) {
       setCurrentCodeInsee(address.citycode)
     }
-  }, [])
+
+    // Ajouter à l'historique
+    const historyItem: SearchHistory = {
+      id: Date.now().toString(),
+      query: address.label,
+      address,
+      timestamp: new Date().toISOString(),
+      filters: Object.keys(filters).length > 0 ? filters : undefined,
+    }
+    setSearchHistory((prev) => [historyItem, ...prev.slice(0, 49)]) // Limiter à 50
+  }, [filters])
 
   const handleToggleLayer = useCallback((layer: LayerType) => {
     setActiveLayers((prev) => {
@@ -184,26 +249,143 @@ function App() {
     ? favorites.some((f) => f.id === selectedParcelle.properties.id)
     : false
 
+  // Gestion des projets
+  const handleCreateProject = useCallback((project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newProject: Project = {
+      ...project,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    setProjects((prev) => [newProject, ...prev])
+  }, [])
+
+  const handleUpdateProject = useCallback((projectId: string, updates: Partial<Project>) => {
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
+      )
+    )
+  }, [])
+
+  const handleDeleteProject = useCallback((projectId: string) => {
+    setProjects((prev) => prev.filter((p) => p.id !== projectId))
+    if (selectedProjectId === projectId) {
+      setSelectedProjectId(null)
+    }
+  }, [selectedProjectId])
+
+  // Gestion de l'historique
+  const handleDeleteHistory = useCallback((id: string) => {
+    setSearchHistory((prev) => prev.filter((h) => h.id !== id))
+  }, [])
+
+  const handleClearHistory = useCallback(() => {
+    setSearchHistory([])
+  }, [])
+
+  // Gestion des alertes
+  const handleCreateAlert = useCallback((alert: Omit<Alert, 'id' | 'createdAt'>) => {
+    const newAlert: Alert = {
+      ...alert,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString(),
+    }
+    setAlerts((prev) => [newAlert, ...prev])
+  }, [])
+
+  const handleUpdateAlert = useCallback((alertId: string, updates: Partial<Alert>) => {
+    setAlerts((prev) => prev.map((a) => (a.id === alertId ? { ...a, ...updates } : a)))
+  }, [])
+
+  const handleDeleteAlert = useCallback((alertId: string) => {
+    setAlerts((prev) => prev.filter((a) => a.id !== alertId))
+  }, [])
+
   // Nombre de filtres actifs
   const activeFiltersCount = Object.values(filters).filter((v) => v !== undefined).length
 
+  // Projet sélectionné
+  const selectedProject = projects.find((p) => p.id === selectedProjectId)
+
   return (
-    <div className="h-full w-full flex flex-col">
+    <div className="h-full w-full flex flex-col bg-gray-50 dark:bg-gray-900 transition-colors">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 z-10">
-        <h1 className="text-xl font-bold text-gray-800 whitespace-nowrap">
-          Prospection Fonciere
+      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3 z-10 shadow-sm">
+        <h1 className="text-xl font-bold text-gray-800 dark:text-white whitespace-nowrap">
+          Prospection Foncière
         </h1>
         <SearchBar onSelectAddress={handleSelectAddress} />
 
         {/* Boutons d'action */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setShowProjects(!showProjects)}
+            className={`p-2 rounded-lg transition-colors ${
+              showProjects
+                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+            title="Projets"
+          >
+            <FolderOpen className="h-5 w-5" />
+          </button>
+
+          <button
+            onClick={() => setShowDashboard(!showDashboard)}
+            className={`p-2 rounded-lg transition-colors ${
+              showDashboard
+                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+            title="Dashboard"
+            disabled={!currentCodeInsee}
+          >
+            <BarChart3 className="h-5 w-5" />
+          </button>
+
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={`p-2 rounded-lg transition-colors relative ${
+              showHistory
+                ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+            title="Historique"
+          >
+            <Clock className="h-5 w-5" />
+            {searchHistory.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-purple-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                {Math.min(searchHistory.length, 9)}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setShowAlerts(!showAlerts)}
+            className={`p-2 rounded-lg transition-colors relative ${
+              showAlerts
+                ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+            title="Alertes"
+          >
+            <Bell className="h-5 w-5" />
+            {alerts.filter(a => a.enabled).length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
+                {alerts.filter(a => a.enabled).length}
+              </span>
+            )}
+          </button>
+
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`p-2 rounded-lg transition-colors relative ${
               showFilters || activeFiltersCount > 0
-                ? 'bg-blue-100 text-blue-600'
-                : 'hover:bg-gray-100 text-gray-600'
+                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
             }`}
             title="Filtres"
           >
@@ -216,20 +398,11 @@ function App() {
           </button>
 
           <button
-            onClick={() => setShowStats(!showStats)}
-            className={`p-2 rounded-lg transition-colors ${
-              showStats ? 'bg-green-100 text-green-600' : 'hover:bg-gray-100 text-gray-600'
-            }`}
-            title="Statistiques"
-            disabled={!currentCodeInsee}
-          >
-            <BarChart3 className="h-5 w-5" />
-          </button>
-
-          <button
             onClick={() => setShowRisks(!showRisks)}
             className={`p-2 rounded-lg transition-colors ${
-              showRisks ? 'bg-red-100 text-red-600' : 'hover:bg-gray-100 text-gray-600'
+              showRisks
+                ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
             }`}
             title="Risques & PLU"
             disabled={!currentCodeInsee}
@@ -238,9 +411,24 @@ function App() {
           </button>
 
           <button
+            onClick={() => setShowReportGenerator(!showReportGenerator)}
+            className={`p-2 rounded-lg transition-colors ${
+              showReportGenerator
+                ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+            }`}
+            title="Rapport PDF"
+            disabled={!currentCodeInsee}
+          >
+            <FileText className="h-5 w-5" />
+          </button>
+
+          <button
             onClick={() => setShowExport(!showExport)}
             className={`p-2 rounded-lg transition-colors ${
-              showExport ? 'bg-purple-100 text-purple-600' : 'hover:bg-gray-100 text-gray-600'
+              showExport
+                ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
             }`}
             title="Exporter"
             disabled={!currentCodeInsee}
@@ -251,7 +439,9 @@ function App() {
           <button
             onClick={() => setShowFavorites(!showFavorites)}
             className={`p-2 rounded-lg transition-colors relative ${
-              showFavorites ? 'bg-yellow-100 text-yellow-600' : 'hover:bg-gray-100 text-gray-600'
+              showFavorites
+                ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
             }`}
             title="Favoris"
           >
@@ -262,13 +452,32 @@ function App() {
               </span>
             )}
           </button>
+
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+            title={theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
+          >
+            {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+          </button>
         </div>
 
         <div className="flex-1" />
 
         {selectedAddress && (
-          <div className="text-sm text-gray-500 hidden md:block">
+          <div className="text-sm text-gray-500 dark:text-gray-400 hidden lg:block">
             {selectedAddress.city} ({selectedAddress.postcode})
+          </div>
+        )}
+        {selectedProject && (
+          <div className="hidden lg:flex items-center gap-2 text-sm">
+            <div
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: selectedProject.color }}
+            />
+            <span className="text-gray-700 dark:text-gray-300">{selectedProject.name}</span>
           </div>
         )}
       </header>
@@ -293,6 +502,41 @@ function App() {
           />
         </div>
 
+        {/* Panneaux latéraux gauche */}
+        <div className="absolute top-4 left-4 z-10 space-y-4" style={{ width: '400px' }}>
+          {showProjects && (
+            <ProjectsPanel
+              projects={projects}
+              selectedProject={selectedProjectId}
+              onSelectProject={setSelectedProjectId}
+              onCreateProject={handleCreateProject}
+              onUpdateProject={handleUpdateProject}
+              onDeleteProject={handleDeleteProject}
+              onClose={() => setShowProjects(false)}
+            />
+          )}
+
+          {showHistory && (
+            <HistoryPanel
+              history={searchHistory}
+              onSelectHistory={handleSelectAddress}
+              onDeleteHistory={handleDeleteHistory}
+              onClearAll={handleClearHistory}
+              onClose={() => setShowHistory(false)}
+            />
+          )}
+
+          {showAlerts && (
+            <AlertsPanel
+              alerts={alerts}
+              onCreateAlert={handleCreateAlert}
+              onUpdateAlert={handleUpdateAlert}
+              onDeleteAlert={handleDeleteAlert}
+              onClose={() => setShowAlerts(false)}
+            />
+          )}
+        </div>
+
         {/* Panneaux latéraux droite */}
         <div className="absolute top-4 right-4 z-10 space-y-4 max-w-sm">
           {showFilters && (
@@ -300,14 +544,6 @@ function App() {
               filters={filters}
               onFiltersChange={setFilters}
               onClose={() => setShowFilters(false)}
-            />
-          )}
-
-          {showStats && currentCodeInsee && (
-            <StatsPanel
-              codeInsee={currentCodeInsee}
-              filters={filters}
-              onClose={() => setShowStats(false)}
             />
           )}
 
@@ -337,7 +573,29 @@ function App() {
               onClose={() => setShowFavorites(false)}
             />
           )}
+
+          {showReportGenerator && currentCodeInsee && (
+            <ReportGenerator
+              codeInsee={currentCodeInsee}
+              communeName={selectedAddress?.city}
+              filters={filters}
+              projectName={selectedProject?.name}
+              onClose={() => setShowReportGenerator(false)}
+            />
+          )}
         </div>
+
+        {/* Dashboard fullscreen overlay */}
+        {showDashboard && currentCodeInsee && (
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 p-4">
+            <Dashboard
+              codeInsee={currentCodeInsee}
+              filters={filters}
+              projectName={selectedProject?.name}
+              onClose={() => setShowDashboard(false)}
+            />
+          </div>
+        )}
 
         {/* Info panel avec bouton favoris */}
         {(selectedParcelle || selectedTransaction) && (
@@ -371,17 +629,17 @@ function App() {
 
         {/* Zoom indicator */}
         {viewState.zoom < 15 && activeLayers.has('parcelles') && (
-          <div className="absolute bottom-4 right-4 z-10 bg-yellow-100 text-yellow-800 px-4 py-2 rounded-lg shadow-lg text-sm">
+          <div className="absolute bottom-4 right-4 z-10 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-4 py-2 rounded-lg shadow-lg text-sm">
             Zoomez pour voir les parcelles cadastrales (zoom {viewState.zoom.toFixed(0)}/15)
           </div>
         )}
 
         {/* Current commune indicator */}
         {currentCodeInsee && (
-          <div className="absolute bottom-4 right-4 z-10 bg-white px-3 py-1.5 rounded-lg shadow text-sm text-gray-700">
+          <div className="absolute bottom-4 right-4 z-10 bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg shadow text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
             Code INSEE: {currentCodeInsee}
             {transactions && (
-              <span className="ml-2 text-blue-600">
+              <span className="ml-2 text-blue-600 dark:text-blue-400">
                 ({transactions.features.length} transactions)
               </span>
             )}
