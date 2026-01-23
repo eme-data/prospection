@@ -164,3 +164,35 @@ export interface FavoriteParcelle {
   addedAt: string
   transactions?: DVFTransaction[]
 }
+
+// Gestion de projets
+export interface Project {
+  id: string
+  name: string
+  description: string
+  color: string
+  parcelles: string[] // IDs des parcelles
+  createdAt: string
+  updatedAt: string
+  status: 'active' | 'archived' | 'completed'
+}
+
+// Historique des recherches
+export interface SearchHistory {
+  id: string
+  query: string
+  address: AddressResult
+  timestamp: string
+  filters?: DVFFilters
+}
+
+// Alertes personnalisées
+export interface Alert {
+  id: string
+  name: string
+  codeInsee: string
+  filters: DVFFilters
+  enabled: boolean
+  createdAt: string
+  lastChecked?: string
+}

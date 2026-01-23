@@ -30,3 +30,7 @@ httpx>=0.26.0
 # Utils
 python-dotenv==1.0.0
 tenacity==8.2.3
+
+# PDF Generation
+reportlab==4.0.9
+Pillow==10.2.0

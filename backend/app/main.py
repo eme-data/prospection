@@ -38,6 +38,7 @@ from app.http_client import (
     gpu_client,
     APIError,
 )
+from app.report_generator import generate_prospection_report
 
 # Configuration du logging
 setup_logging()
@@ -823,6 +824,219 @@ async def export_parcelles_geojson(
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erreur API Cadastre: {str(e)}")
+
+
+@app.get("/api/enrichissement/demographics/{code_insee}")
+@limiter.limit("30/minute")
+async def get_demographics(request: Request, code_insee: str):
+    """Récupère les données démographiques d'une commune"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    cache_key = f"demographics:{code_insee}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        # Récupérer les données de la commune
+        commune_data = await geo_client.get(f"/communes/{code_insee}?fields=nom,code,population,surface,codesPostaux,centre,departement")
+
+        result = {
+            "code_insee": code_insee,
+            "nom": commune_data.get("nom", ""),
+            "population": commune_data.get("population", 0),
+            "surface_km2": round(commune_data.get("surface", 0) / 100, 2),
+            "densite": round(commune_data.get("population", 0) / (commune_data.get("surface", 1) / 100), 1) if commune_data.get("surface") else 0,
+            "codes_postaux": commune_data.get("codesPostaux", []),
+            "departement": commune_data.get("departement", {}),
+        }
+
+        await cache_set(cache_key, result, ttl=3600)
+        return result
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("demographics_error", error=str(e), code_insee=code_insee)
+        raise HTTPException(status_code=500, detail=f"Erreur démographiques: {str(e)}")
+
+
+@app.get("/api/enrichissement/aerial-photos")
+@limiter.limit("20/minute")
+async def get_aerial_photos(
+    request: Request,
+    lon: float = Query(..., ge=-180, le=180),
+    lat: float = Query(..., ge=-90, le=90),
+):
+    """Récupère les informations sur les photos aériennes disponibles"""
+    if not validate_coordinates(lon, lat):
+        raise HTTPException(status_code=400, detail="Coordonnées invalides")
+
+    result = {
+        "longitude": lon,
+        "latitude": lat,
+        "wms_url": "https://data.geopf.fr/wms-r",
+        "tile_url": f"https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&TILEMATRIX={{z}}&TILEROW={{y}}&TILECOL={{x}}&FORMAT=image/jpeg",
+    }
+    return result
+
+
+@app.get("/api/enrichissement/potential/{code_insee}")
+@limiter.limit("30/minute")
+async def get_development_potential(request: Request, code_insee: str):
+    """Calcule le potentiel de développement d'une commune"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    cache_key = f"potential:{code_insee}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        commune_data = await geo_client.get(f"/communes/{code_insee}?fields=nom,population,surface")
+        dvf_stats_url = f"/dvf?code_insee={code_insee}"
+        dvf_stats = await dvf_client.get(f"/statistiques?{dvf_stats_url.split('?')[1]}")
+
+        score = 0
+        factors = []
+
+        nb_transactions = dvf_stats.get("nb_transactions", 0)
+        if nb_transactions > 100:
+            score += 30
+            factors.append({"name": "Marché très actif", "score": 30})
+        elif nb_transactions > 50:
+            score += 20
+            factors.append({"name": "Marché actif", "score": 20})
+
+        evolution = dvf_stats.get("evolution", [])
+        if len(evolution) >= 2:
+            recent = evolution[-1].get("prix_moyen")
+            previous = evolution[-2].get("prix_moyen")
+            if recent and previous:
+                growth = ((recent - previous) / previous) * 100
+                if growth > 5:
+                    score += 25
+                    factors.append({"name": "Forte hausse", "score": 25})
+
+        max_score = 55
+        normalized = min(100, int((score / max_score) * 100)) if max_score > 0 else 0
+
+        level = "excellent" if normalized >= 75 else "good" if normalized >= 60 else "moderate" if normalized >= 40 else "limited"
+        color = "#10b981" if level == "excellent" else "#3b82f6" if level == "good" else "#f59e0b" if level == "moderate" else "#ef4444"
+
+        result = {
+            "code_insee": code_insee,
+            "commune": commune_data.get("nom", ""),
+            "score": normalized,
+            "level": level,
+            "color": color,
+            "factors": factors,
+        }
+
+        await cache_set(cache_key, result, ttl=3600)
+        return result
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("potential_error", error=str(e), code_insee=code_insee)
+        raise HTTPException(status_code=500, detail=f"Erreur potentiel: {str(e)}")
+
+
+@app.post("/api/reports/generate")
+@limiter.limit("5/minute")
+async def generate_report(
+    request: Request,
+    project_name: str = Query(..., description="Nom du projet"),
+    code_insee: str = Query(..., min_length=5, max_length=5, description="Code INSEE"),
+    type_local: Optional[str] = Query(None),
+    prix_min: Optional[float] = Query(None),
+    prix_max: Optional[float] = Query(None),
+    surface_min: Optional[float] = Query(None),
+    surface_max: Optional[float] = Query(None),
+    annee_min: Optional[int] = Query(None),
+    annee_max: Optional[int] = Query(None),
+):
+    """Génère un rapport PDF de prospection"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    try:
+        # Récupérer le nom de la commune
+        commune_data = await geo_client.get(f"/communes/{code_insee}")
+        commune_name = commune_data.get('nom', code_insee)
+
+        # Récupérer les statistiques
+        cache_key = f"stats:{code_insee}:{type_local}:{prix_min}:{prix_max}:{surface_min}:{surface_max}:{annee_min}:{annee_max}"
+        stats = await cache_get(cache_key)
+
+        if not stats:
+            url = f"/dvf?code_insee={code_insee}"
+            filters_params = []
+            if type_local:
+                filters_params.append(f"type_local={type_local}")
+            if prix_min:
+                filters_params.append(f"prix_min={prix_min}")
+            if prix_max:
+                filters_params.append(f"prix_max={prix_max}")
+            if surface_min:
+                filters_params.append(f"surface_min={surface_min}")
+            if surface_max:
+                filters_params.append(f"surface_max={surface_max}")
+            if annee_min:
+                filters_params.append(f"annee_min={annee_min}")
+            if annee_max:
+                filters_params.append(f"annee_max={annee_max}")
+
+            if filters_params:
+                url += "&" + "&".join(filters_params)
+
+            stats = await dvf_client.get(f"/statistiques?{url.split('?')[1]}")
+            await cache_set(cache_key, stats, ttl=settings.cache_ttl)
+
+        # Récupérer les parcelles
+        parcelles_data = await cadastre_client.get(f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles")
+        parcelles = parcelles_data.get('features', [])[:100]  # Limiter à 100 parcelles
+
+        # Préparer les filtres pour le rapport
+        filters = {}
+        if type_local:
+            filters['typeLocal'] = type_local
+        if prix_min:
+            filters['prixMin'] = prix_min
+        if prix_max:
+            filters['prixMax'] = prix_max
+        if surface_min:
+            filters['surfaceMin'] = surface_min
+        if surface_max:
+            filters['surfaceMax'] = surface_max
+        if annee_min:
+            filters['anneeMin'] = annee_min
+        if annee_max:
+            filters['anneeMax'] = annee_max
+
+        # Générer le PDF
+        pdf_content = generate_prospection_report(
+            project_name=project_name,
+            code_insee=code_insee,
+            commune_name=commune_name,
+            stats=stats,
+            parcelles=parcelles,
+            filters=filters if filters else None,
+        )
+
+        filename = f"rapport_{sanitize_string(project_name)}_{code_insee}.pdf"
+        return StreamingResponse(
+            io.BytesIO(pdf_content),
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("report_generation_error", error=str(e), code_insee=code_insee)
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la génération du rapport: {str(e)}")
 
 
 if __name__ == "__main__":
