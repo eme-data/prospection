@@ -45,6 +45,7 @@ from app.fiches import fiches_manager
 from app.search import create_search_engine
 from app.heatmap import create_heatmap_generator
 from app.clustering import create_clusterer
+from app.evolution import evolution_analyzer
 
 # Configuration du logging
 setup_logging()
@@ -2147,6 +2148,126 @@ async def cluster_parcelles(
     except Exception as e:
         logger.error("clustering_error", error=str(e), code_insee=code_insee, method=method)
         raise HTTPException(status_code=500, detail=f"Erreur clustering: {str(e)}")
+
+
+# ============== ÉVOLUTION TEMPORELLE ==============
+
+@app.get("/api/evolution/{code_insee}")
+@limiter.limit("10/minute")
+async def get_price_evolution(
+    request: Request,
+    code_insee: str,
+    grouping: str = Query('month', regex='^(month|quarter|year)$'),
+    type_local: Optional[str] = None
+):
+    """
+    Analyse l'évolution temporelle des prix DVF
+
+    Grouping:
+    - month: Par mois
+    - quarter: Par trimestre
+    - year: Par année
+
+    type_local: Filtrer par type de bien (optionnel)
+    """
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    cache_key = f"evolution:{code_insee}:{grouping}:{type_local or 'all'}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        # Récupérer les transactions DVF
+        transactions_data = await dvf_client.get(f"/dvf?code_insee={code_insee}")
+        transactions = transactions_data.get('resultats', [])
+
+        if not transactions:
+            return {
+                'series': [],
+                'stats': {'total_transactions': 0},
+                'metadata': {'grouping': grouping, 'error': 'Aucune transaction trouvée'}
+            }
+
+        # Analyser l'évolution
+        evolution = evolution_analyzer.analyze_evolution(
+            transactions=transactions,
+            grouping=grouping,
+            type_local=type_local
+        )
+
+        # Mettre en cache (1 heure)
+        await cache_set(cache_key, evolution, ttl=3600)
+
+        logger.info(
+            "evolution_analyzed",
+            code_insee=code_insee,
+            grouping=grouping,
+            periods=len(evolution.get('series', []))
+        )
+
+        return evolution
+
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("evolution_error", error=str(e), code_insee=code_insee)
+        raise HTTPException(status_code=500, detail=f"Erreur analyse évolution: {str(e)}")
+
+
+@app.get("/api/evolution/{code_insee}/by-type")
+@limiter.limit("10/minute")
+async def get_evolution_by_type(
+    request: Request,
+    code_insee: str,
+    grouping: str = Query('year', regex='^(month|quarter|year)$')
+):
+    """
+    Analyse l'évolution temporelle par type de bien
+    """
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    cache_key = f"evolution_by_type:{code_insee}:{grouping}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        # Récupérer les transactions DVF
+        transactions_data = await dvf_client.get(f"/dvf?code_insee={code_insee}")
+        transactions = transactions_data.get('resultats', [])
+
+        if not transactions:
+            return {
+                'types': [],
+                'evolutions': {},
+                'metadata': {'grouping': grouping, 'error': 'Aucune transaction trouvée'}
+            }
+
+        # Analyser par type
+        evolution_by_type = evolution_analyzer.analyze_by_type(
+            transactions=transactions,
+            grouping=grouping
+        )
+
+        # Mettre en cache (1 heure)
+        await cache_set(cache_key, evolution_by_type, ttl=3600)
+
+        logger.info(
+            "evolution_by_type_analyzed",
+            code_insee=code_insee,
+            types=len(evolution_by_type.get('types', []))
+        )
+
+        return evolution_by_type
+
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("evolution_by_type_error", error=str(e), code_insee=code_insee)
+        raise HTTPException(status_code=500, detail=f"Erreur analyse par type: {str(e)}")
 
 
 if __name__ == "__main__":
