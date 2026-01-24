@@ -2,7 +2,7 @@
  * Panneau de contrôle des calques socio-économiques INSEE
  */
 
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Layers, ChevronDown, ChevronUp, Info, Eye, EyeOff } from 'lucide-react'
 import type { InseeLayerConfig, InseeIndicator } from '../types'
 
@@ -126,8 +126,8 @@ export default function InseeLayersPanel({ config, onConfigChange, onClose }: In
                         <button
                             onClick={() => onConfigChange({ ...config, visible: !config.visible })}
                             className={`p-2 rounded-lg transition-colors ${config.visible
-                                    ? 'bg-blue-500 text-white hover:bg-blue-600'
-                                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                                : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                                 }`}
                             aria-label={config.visible ? 'Masquer' : 'Afficher'}
                         >
@@ -177,8 +177,8 @@ export default function InseeLayersPanel({ config, onConfigChange, onClose }: In
                                     key={scale.name}
                                     onClick={() => onConfigChange({ ...config, colorScale: scale.colors })}
                                     className={`w-full p-3 rounded-lg border-2 transition-all ${currentColorScale.name === scale.name
-                                            ? 'border-blue-500 bg-blue-50'
-                                            : 'border-gray-200 hover:border-gray-300'
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
                                     <div className="flex items-center justify-between mb-2">
