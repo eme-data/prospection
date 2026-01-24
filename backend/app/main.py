@@ -44,14 +44,16 @@ from app.prospection import prospection_manager
 from app.fiches import fiches_manager
 from app.search import create_search_engine
 from app.heatmap import create_heatmap_generator
+from app.clustering import create_clusterer
 
 # Configuration du logging
 setup_logging()
 logger = get_logger(__name__)
 
-# Créer le moteur de recherche et le générateur de heatmap
+# Créer le moteur de recherche, le générateur de heatmap et le clusterer
 search_engine = create_search_engine(scorer, prospection_manager, fiches_manager)
 heatmap_generator = create_heatmap_generator(scorer)
+clusterer = create_clusterer(scorer)
 
 
 @asynccontextmanager
@@ -2043,6 +2045,108 @@ async def generate_heatmap(
     except Exception as e:
         logger.error("heatmap_error", error=str(e), code_insee=code_insee, type=heatmap_type)
         raise HTTPException(status_code=500, detail=f"Erreur génération heatmap: {str(e)}")
+
+
+# ============== CLUSTERING ==============
+
+@app.get("/api/clustering/{code_insee}")
+@limiter.limit("10/minute")
+async def cluster_parcelles(
+    request: Request,
+    code_insee: str,
+    method: str = Query('mixed', regex='^(proximity|score|mixed)$'),
+    distance_threshold: float = Query(0.01, gt=0, le=0.1),
+    min_cluster_size: int = Query(2, ge=2, le=20),
+    limit: int = Query(200, le=500)
+):
+    """
+    Crée des clusters de parcelles avec regroupement intelligent
+
+    Méthodes disponibles:
+    - proximity: Regroupement par proximité géographique uniquement
+    - score: Regroupement par score ET proximité (tranches de 20 pts)
+    - mixed: Regroupement mixte (proximité + similarité de score ±15 pts)
+    """
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    cache_key = f"clusters:{code_insee}:{method}:{distance_threshold}:{min_cluster_size}:{limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        # Récupérer les parcelles
+        parcelles_data = await cadastre_client.get(
+            f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+        )
+        parcelles = parcelles_data.get('features', [])[:limit]
+
+        if not parcelles:
+            return {
+                'type': 'FeatureCollection',
+                'features': [],
+                'metadata': {'method': method, 'error': 'Aucune parcelle trouvée'}
+            }
+
+        # Données contextuelles pour le scoring (si nécessaire)
+        stats_marche = None
+        demographics = None
+        transactions = None
+
+        if method in ['score', 'mixed']:
+            # Récupérer stats marché
+            stats_marche = await cache_get(f"stats:{code_insee}")
+            if not stats_marche:
+                dvf_stats_url = f"/dvf?code_insee={code_insee}"
+                stats_marche = await dvf_client.get(f"/statistiques?{dvf_stats_url.split('?')[1]}")
+                await cache_set(f"stats:{code_insee}", stats_marche, ttl=3600)
+
+            # Récupérer démographie
+            demographics = await cache_get(f"demographics:{code_insee}")
+            if not demographics:
+                commune_data = await geo_client.get(
+                    f"/communes/{code_insee}?fields=nom,code,population,surface"
+                )
+                demographics = {
+                    "population": commune_data.get("population", 0),
+                    "surface_km2": commune_data.get("surface", 0) / 100,
+                    "densite": commune_data.get("population", 0) / (commune_data.get("surface", 1) / 100)
+                }
+                await cache_set(f"demographics:{code_insee}", demographics, ttl=3600)
+
+            # Récupérer transactions DVF
+            transactions_data = await dvf_client.get(f"/dvf?code_insee={code_insee}")
+            transactions = transactions_data.get('resultats', [])
+
+        # Générer les clusters
+        clusters = clusterer.cluster_parcelles(
+            parcelles=parcelles,
+            method=method,
+            distance_threshold=distance_threshold,
+            min_cluster_size=min_cluster_size,
+            stats_marche=stats_marche,
+            demographics=demographics,
+            transactions=transactions
+        )
+
+        # Mettre en cache (30 minutes)
+        await cache_set(cache_key, clusters, ttl=1800)
+
+        logger.info(
+            "clusters_generated",
+            code_insee=code_insee,
+            method=method,
+            clusters=len(clusters.get('features', []))
+        )
+
+        return clusters
+
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("clustering_error", error=str(e), code_insee=code_insee, method=method)
+        raise HTTPException(status_code=500, detail=f"Erreur clustering: {str(e)}")
 
 
 if __name__ == "__main__":
