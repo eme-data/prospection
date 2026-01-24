@@ -45,6 +45,7 @@ from app.fiches import fiches_manager
 from app.search import create_search_engine
 from app.activity import activity_manager, Activity
 from app.insee import insee_manager, InseeData, TerritoryStats, InseeIndicator
+from app.economic_layers import router as economic_router
 
 # Configuration du logging
 setup_logging()
@@ -94,6 +95,9 @@ app.add_middleware(RequestLoggingMiddleware)
 
 # Routes de sante
 app.include_router(health_router)
+
+# Routes calques économiques
+app.include_router(economic_router)
 
 
 # ============== GESTION DES ERREURS ==============
