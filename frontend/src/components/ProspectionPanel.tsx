@@ -7,14 +7,15 @@ import {
   Phone,
   Mail,
   FileText,
-  Calendar,
-  CheckCircle,
-  XCircle,
   ChevronRight,
   Loader,
+  MessageSquare,
+  Plus,
 } from 'lucide-react'
-import { ProspectionBadge, STATUT_CONFIG } from './ProspectionBadge'
-import type { Parcelle, ProspectionInfo, StatutProspection } from '../types'
+import { ProspectionBadge } from './ProspectionBadge'
+import { ActivityTimeline } from './ActivityTimeline'
+import { ActivityForm } from './ActivityForm'
+import type { Parcelle, ProspectionInfo, StatutProspection, Activity } from '../types'
 
 interface ProspectionPanelProps {
   parcelle: Parcelle
@@ -24,6 +25,8 @@ interface ProspectionPanelProps {
 export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
   const parcelleId = parcelle.properties.id
   const queryClient = useQueryClient()
+  const [showActivityForm, setShowActivityForm] = useState(false)
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
 
   // Récupérer les données de prospection
   const { data: prospection, isLoading } = useQuery({
@@ -179,10 +182,52 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
               isLoading={addNoteMutation.isPending}
             />
 
+            {/* Section Activités CRM */}
+            <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Activités CRM
+                </h3>
+                <button
+                  onClick={() => setShowActivityForm(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="h-4 w-4" />
+                  Nouvelle activité
+                </button>
+              </div>
+              <ActivityTimeline
+                parcelleId={parcelleId}
+                onEdit={(activity) => {
+                  setEditingActivity(activity)
+                  setShowActivityForm(true)
+                }}
+              />
+            </div>
+
             <HistoryTimeline historique={prospection.historique} />
           </>
         )}
       </div>
+
+      {/* Modal formulaire d'activité */}
+      {showActivityForm && (
+        <ActivityForm
+          parcelleId={parcelleId}
+          initialActivity={editingActivity || undefined}
+          onSuccess={() => {
+            setShowActivityForm(false)
+            setEditingActivity(null)
+            // Invalider le cache pour rafraîchir la timeline
+            queryClient.invalidateQueries({ queryKey: ['activities', parcelleId] })
+          }}
+          onCancel={() => {
+            setShowActivityForm(false)
+            setEditingActivity(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -217,11 +262,10 @@ function InitialProspectionForm({
                 key={s}
                 type="button"
                 onClick={() => setStatut(s)}
-                className={`px-4 py-2 rounded-lg transition-all ${
-                  statut === s
-                    ? 'ring-2 ring-blue-500 scale-105'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
+                className={`px-4 py-2 rounded-lg transition-all ${statut === s
+                  ? 'ring-2 ring-blue-500 scale-105'
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }`}
               >
                 <ProspectionBadge statut={s} />
               </button>
@@ -307,11 +351,10 @@ function StatusWorkflow({
                 key={statut}
                 onClick={() => setSelectedStatut(statut)}
                 disabled={isLoading}
-                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
-                  selectedStatut === statut
-                    ? 'ring-2 ring-blue-500 scale-105'
-                    : 'hover:bg-white dark:hover:bg-gray-800'
-                } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${selectedStatut === statut
+                  ? 'ring-2 ring-blue-500 scale-105'
+                  : 'hover:bg-white dark:hover:bg-gray-800'
+                  } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <ChevronRight className="h-4 w-4 text-blue-600" />
                 <ProspectionBadge statut={statut} size="sm" />

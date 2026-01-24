@@ -27,6 +27,7 @@ import { Dashboard } from './components/Dashboard'
 import { HistoryPanel } from './components/HistoryPanel'
 import { AlertsPanel } from './components/AlertsPanel'
 import { ReportGenerator } from './components/ReportGenerator'
+import { RappelsPanel } from './components/RappelsPanel'
 import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions } from './api'
 import type {
   MapViewState,
@@ -81,6 +82,7 @@ function App() {
   const [showHistory, setShowHistory] = useState(false)
   const [showAlerts, setShowAlerts] = useState(false)
   const [showReportGenerator, setShowReportGenerator] = useState(false)
+  const [showRappels, setShowRappels] = useState(false)
 
   const [projects, setProjects] = useState<Project[]>(() => {
     const saved = localStorage.getItem(PROJECTS_STORAGE_KEY)
@@ -159,9 +161,9 @@ function App() {
   // Filtrage des transactions
   const transactions: GeoJSONFeatureCollection<DVFTransaction> | null = rawTransactions
     ? {
-        ...rawTransactions,
-        features: filterTransactions(rawTransactions.features, filters),
-      }
+      ...rawTransactions,
+      features: filterTransactions(rawTransactions.features, filters),
+    }
     : null
 
   const handleSelectAddress = useCallback((address: AddressResult) => {
@@ -321,11 +323,10 @@ function App() {
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setShowProjects(!showProjects)}
-            className={`p-2 rounded-lg transition-colors ${
-              showProjects
-                ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${showProjects
+              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Projets"
           >
             <FolderOpen className="h-5 w-5" />
@@ -333,11 +334,10 @@ function App() {
 
           <button
             onClick={() => setShowDashboard(!showDashboard)}
-            className={`p-2 rounded-lg transition-colors ${
-              showDashboard
-                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${showDashboard
+              ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Dashboard"
             disabled={!currentCodeInsee}
           >
@@ -346,11 +346,10 @@ function App() {
 
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className={`p-2 rounded-lg transition-colors relative ${
-              showHistory
-                ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors relative ${showHistory
+              ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Historique"
           >
             <Clock className="h-5 w-5" />
@@ -363,11 +362,10 @@ function App() {
 
           <button
             onClick={() => setShowAlerts(!showAlerts)}
-            className={`p-2 rounded-lg transition-colors relative ${
-              showAlerts
-                ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors relative ${showAlerts
+              ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Alertes"
           >
             <Bell className="h-5 w-5" />
@@ -378,15 +376,28 @@ function App() {
             )}
           </button>
 
+          <button
+            onClick={() => setShowRappels(!showRappels)}
+            className={`p-2 rounded-lg transition-colors relative ${showRappels
+              ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
+            title="Rappels CRM"
+          >
+            <Bell className="h-5 w-5" />
+            <span className="absolute -top-1 -right-1 bg-indigo-500 text-white text-xs px-1 min-w-[16px] h-4 rounded-full flex items-center justify-center font-semibold">
+              !
+            </span>
+          </button>
+
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 rounded-lg transition-colors relative ${
-              showFilters || activeFiltersCount > 0
-                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors relative ${showFilters || activeFiltersCount > 0
+              ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Filtres"
           >
             <Filter className="h-5 w-5" />
@@ -399,11 +410,10 @@ function App() {
 
           <button
             onClick={() => setShowRisks(!showRisks)}
-            className={`p-2 rounded-lg transition-colors ${
-              showRisks
-                ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${showRisks
+              ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Risques & PLU"
             disabled={!currentCodeInsee}
           >
@@ -412,11 +422,10 @@ function App() {
 
           <button
             onClick={() => setShowReportGenerator(!showReportGenerator)}
-            className={`p-2 rounded-lg transition-colors ${
-              showReportGenerator
-                ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${showReportGenerator
+              ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Rapport PDF"
             disabled={!currentCodeInsee}
           >
@@ -425,11 +434,10 @@ function App() {
 
           <button
             onClick={() => setShowExport(!showExport)}
-            className={`p-2 rounded-lg transition-colors ${
-              showExport
-                ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors ${showExport
+              ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Exporter"
             disabled={!currentCodeInsee}
           >
@@ -438,11 +446,10 @@ function App() {
 
           <button
             onClick={() => setShowFavorites(!showFavorites)}
-            className={`p-2 rounded-lg transition-colors relative ${
-              showFavorites
-                ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-            }`}
+            className={`p-2 rounded-lg transition-colors relative ${showFavorites
+              ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
             title="Favoris"
           >
             <Star className="h-5 w-5" />
@@ -574,6 +581,12 @@ function App() {
             />
           )}
 
+          {showRappels && (
+            <div className="absolute top-16 right-4 z-10">
+              <RappelsPanel onClose={() => setShowRappels(false)} />
+            </div>
+          )}
+
           {showReportGenerator && currentCodeInsee && (
             <ReportGenerator
               codeInsee={currentCodeInsee}
@@ -613,11 +626,10 @@ function App() {
                       ? handleRemoveFavorite(selectedParcelle.properties.id)
                       : handleAddFavorite(selectedParcelle)
                   }
-                  className={`absolute top-3 right-12 p-1.5 rounded transition-colors ${
-                    isParcelleInFavorites
-                      ? 'text-yellow-500 bg-yellow-50'
-                      : 'text-gray-400 hover:text-yellow-500 hover:bg-yellow-50'
-                  }`}
+                  className={`absolute top-3 right-12 p-1.5 rounded transition-colors ${isParcelleInFavorites
+                    ? 'text-yellow-500 bg-yellow-50'
+                    : 'text-gray-400 hover:text-yellow-500 hover:bg-yellow-50'
+                    }`}
                   title={isParcelleInFavorites ? 'Retirer des favoris' : 'Ajouter aux favoris'}
                 >
                   <Star className={`h-5 w-5 ${isParcelleInFavorites ? 'fill-current' : ''}`} />

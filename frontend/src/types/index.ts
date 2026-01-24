@@ -197,6 +197,49 @@ export interface Alert {
   lastChecked?: string
 }
 
+// ============== MODULE CRM AVANCÉ ==============
+
+// Types d'activités CRM
+export type ActivityType = 'appel' | 'email' | 'rdv' | 'note' | 'document' | 'changement_statut'
+
+// Activité CRM
+export interface Activity {
+  id: string
+  parcelle_id: string
+  type: ActivityType
+  date: string
+  titre: string
+  description: string
+  auteur: string
+  statut_avant?: string
+  statut_apres?: string
+  prochaine_action?: string
+  date_rappel?: string
+  documents: string[]
+  metadata: Record<string, any>
+}
+
+// Réponse API pour les activités
+export interface ActivitiesResponse {
+  parcelle_id: string
+  activities: Activity[]
+  count: number
+}
+
+// Réponse API pour les rappels
+export interface RappelsResponse {
+  rappels: Activity[]
+  count: number
+}
+
+// Statistiques des activités
+export interface ActivitiesStats {
+  total_activities: number
+  total_parcelles: number
+  by_type: Record<ActivityType, number>
+  rappels_actifs: number
+}
+
 // ============== PHASE 1 : Fonctionnalités Professionnelles ==============
 
 // 1. Scoring des parcelles
