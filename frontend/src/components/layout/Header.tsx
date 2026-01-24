@@ -2,7 +2,7 @@
  * Header principal - Style Promolead
  */
 
-import { Search, Download, Bell, FileText, Moon, Sun, User } from 'lucide-react'
+import { Download, Bell, FileText, Moon, Sun, User } from 'lucide-react'
 import { useTheme } from '../../contexts/ThemeContext'
 import { SearchBar } from '../SearchBar'
 import type { AddressResult } from '../../types'
@@ -44,7 +44,7 @@ export function Header({
 
             {/* Search Bar */}
             <div className="flex-1 max-w-2xl">
-                <SearchBar onAddressSelect={onAddressSelect} />
+                <SearchBar onSelectAddress={onAddressSelect} />
             </div>
 
             {/* Toolbar */}
