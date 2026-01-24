@@ -24,7 +24,7 @@ interface FicheTerrainProps {
 
 export function FicheTerrain({ parcelle, onClose }: FicheTerrainProps) {
   const parcelleId = parcelle.properties.id
-  const queryClient = useQueryClient()
+  // const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'photos' | 'documents' | 'notes' | 'tags'>('photos')
 
   // Récupérer la fiche
@@ -134,19 +134,17 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-        active
+      className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${active
           ? 'bg-white text-green-600 shadow-lg'
           : 'bg-white/20 text-white hover:bg-white/30'
-      }`}
+        }`}
     >
       {icon}
       <span className="font-medium">{label}</span>
       {count > 0 && (
         <span
-          className={`px-2 py-0.5 rounded-full text-xs ${
-            active ? 'bg-green-100 text-green-800' : 'bg-white/30 text-white'
-          }`}
+          className={`px-2 py-0.5 rounded-full text-xs ${active ? 'bg-green-100 text-green-800' : 'bg-white/30 text-white'
+            }`}
         >
           {count}
         </span>

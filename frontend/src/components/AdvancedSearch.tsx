@@ -10,7 +10,6 @@ import {
   TrendingUp,
   MapPin,
   Calendar,
-  Tag,
   FileText,
 } from 'lucide-react'
 import { ScoreBadge } from './ScoreBadge'
@@ -437,7 +436,7 @@ export function AdvancedSearch({
                         {Object.entries(results.facettes.scores).map(([niveau, count]) => (
                           <div key={niveau} className="flex items-center justify-between text-sm">
                             <span className="capitalize">{niveau}</span>
-                            <span className="font-medium">{count}</span>
+                            <span className="font-medium">{String(count)}</span>
                           </div>
                         ))}
                       </div>
@@ -448,7 +447,7 @@ export function AdvancedSearch({
                         {Object.entries(results.facettes.statuts).map(([statut, count]) => (
                           <div key={statut} className="flex items-center justify-between text-sm">
                             <ProspectionBadge statut={statut as StatutProspection} size="sm" />
-                            <span className="font-medium">{count}</span>
+                            <span className="font-medium">{String(count)}</span>
                           </div>
                         ))}
                       </div>
