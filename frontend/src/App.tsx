@@ -30,6 +30,7 @@ import { AlertsPanel } from './components/AlertsPanel'
 import { ReportGenerator } from './components/ReportGenerator'
 import { RappelsPanel } from './components/RappelsPanel'
 import InseeLayersPanel from './components/InseeLayersPanel'
+import { EconomicLayersPanel } from './components/EconomicLayersPanel'
 import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions } from './api'
 import type {
   MapViewState,
@@ -92,6 +93,7 @@ function App() {
   const [showReportGenerator, setShowReportGenerator] = useState(false)
   const [showRappels, setShowRappels] = useState(false)
   const [showInseeLayers, setShowInseeLayers] = useState(false)
+  const [showEconomicLayers, setShowEconomicLayers] = useState(false)
 
   // Configuration des calques INSEE
   const [inseeLayerConfig, setInseeLayerConfig] = useState<InseeLayerConfig>({
@@ -434,6 +436,17 @@ function App() {
             <TrendingUp className="h-5 w-5" />
           </button>
 
+          <button
+            onClick={() => setShowEconomicLayers(!showEconomicLayers)}
+            className={`p-2 rounded-lg transition-colors ${showEconomicLayers
+              ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
+            title="Calques Économiques DVF"
+          >
+            <BarChart3 className="h-5 w-5" />
+          </button>
+
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
 
           <button
@@ -585,6 +598,17 @@ function App() {
                 onClose={() => setShowInseeLayers(false)}
               />
             </div>
+          )}
+
+          {showEconomicLayers && (
+            <EconomicLayersPanel
+              isOpen={showEconomicLayers}
+              onClose={() => setShowEconomicLayers(false)}
+              onLayerToggle={(layerId, enabled) => {
+                console.log('Economic layer toggled:', layerId, enabled)
+                // TODO: Connect to map layer rendering
+              }}
+            />
           )}
 
           {showAlerts && (

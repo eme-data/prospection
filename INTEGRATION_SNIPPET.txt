@@ -1,0 +1,25 @@
+// Snippet pour App.tsx - À ajouter après le bouton INSEE layers (environ ligne 485)
+
+// Dans la toolbar, ajoutez ce bouton:
+<button
+  onClick={() => setShowEconomicLayers(!showEconomicLayers)}
+  className={`p-2 rounded-lg transition-colors ${showEconomicLayers
+    ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300'
+    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+    }`}
+  title="Calques Économiques"
+>
+  <TrendingUp className="h-5 w-5" />
+</button>
+
+// Dans la zone de rendu des panneaux (après InseeLayersPanel, environ ligne 595):
+{showEconomicLayers && (
+  <EconomicLayersPanel
+    isOpen={showEconomicLayers}
+    onClose={() => setShowEconomicLayers(false)}
+    onLayerToggle={(layerId, enabled) => {
+      console.log('Economic layer toggled:', layerId, enabled)
+      // TODO: Gérer l'activation du layer
+    }}
+  />
+)}
