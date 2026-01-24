@@ -9,7 +9,10 @@ import MapGL, {
   MapLayerMouseEvent,
 } from 'react-map-gl/maplibre'
 import 'maplibre-gl/dist/maplibre-gl.css'
-import type { MapViewState, LayerType, Parcelle, DVFTransaction, GeoJSONFeatureCollection } from '../types'
+import type { MapViewState, LayerType, Parcelle, DVFTransaction, GeoJSONFeatureCollection, InseeLayerConfig, InseeData } from '../types'
+import { useInseeLayer, generateChoroplethStyle } from '../hooks/useInseeLayer'
+import InseeLegend from './insee/InseeLegend'
+import InseeTooltip from './insee/InseeTooltip'
 
 // Style de carte OpenStreetMap
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
@@ -23,6 +26,7 @@ interface MapViewProps {
   transactions: GeoJSONFeatureCollection<DVFTransaction> | null
   onSelectParcelle: (parcelle: Parcelle | null) => void
   onSelectTransaction: (transaction: DVFTransaction | null) => void
+  inseeLayerConfig?: InseeLayerConfig
 }
 
 export function MapView({
@@ -33,9 +37,31 @@ export function MapView({
   transactions,
   onSelectParcelle,
   onSelectTransaction,
+  inseeLayerConfig,
 }: MapViewProps) {
   const mapRef = useRef<MapRef>(null)
   const [hoveredParcelleId, setHoveredParcelleId] = useState<string | null>(null)
+  const [hoveredInseeCommune, setHoveredInseeCommune] = useState<{ code: string; data: InseeData; position: { x: number; y: number } } | null>(null)
+
+  // Codes communes de démonstration (à remplacer par viewport-based loading)
+  const [testCommuneCodes] = useState([
+    '75056', // Paris
+    '13055', // Marseille
+    '69123', // Lyon
+    '31555', // Toulouse
+    '06088', // Nice
+    '44109', // Nantes
+    '67482', // Strasbourg
+    '33063', // Bordeaux
+    '59350', // Lille
+    '35238', // Rennes
+  ])
+
+  // Charger les données INSEE
+  const { geoJsonData: inseeGeoJson, minValue, maxValue } = useInseeLayer(
+    inseeLayerConfig?.visible ? testCommuneCodes : [],
+    inseeLayerConfig?.indicator || 'revenu_median'
+  )
 
   const mapStyle = activeLayers.has('satellite') ? SATELLITE_STYLE : MAP_STYLE
 
@@ -75,17 +101,35 @@ export function MapView({
 
   const handleMouseMove = useCallback((evt: MapLayerMouseEvent) => {
     const features = evt.features || []
-    const parcelleFeature = features.find((f) => f.layer?.id === 'parcelles-fill')
 
+    // Vérifier les features INSEE en premier
+    const inseeFeature = features.find((f) => f.layer?.id === 'insee-fill')
+    if (inseeFeature && inseeFeature.properties?.insee) {
+      const code = inseeFeature.properties.code
+      const data = inseeFeature.properties.insee as InseeData
+      setHoveredInseeCommune({
+        code,
+        data,
+        position: { x: evt.point.x, y: evt.point.y },
+      })
+      setHoveredParcelleId(null)
+      return
+    }
+
+    // Vérifier les parcelles
+    const parcelleFeature = features.find((f) => f.layer?.id === 'parcelles-fill')
     if (parcelleFeature) {
       setHoveredParcelleId(parcelleFeature.properties?.id || null)
+      setHoveredInseeCommune(null)
     } else {
       setHoveredParcelleId(null)
+      setHoveredInseeCommune(null)
     }
   }, [])
 
   const handleMouseLeave = useCallback(() => {
     setHoveredParcelleId(null)
+    setHoveredInseeCommune(null)
   }, [])
 
   // Couche des parcelles cadastrales
@@ -141,36 +185,75 @@ export function MapView({
   }
 
   return (
-    <MapGL
-      ref={mapRef}
-      {...viewState}
-      onMove={handleMove}
-      onClick={handleClick}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      mapStyle={mapStyle}
-      style={{ width: '100%', height: '100%' }}
-      interactiveLayerIds={['parcelles-fill', 'dvf-points']}
-      cursor={hoveredParcelleId ? 'pointer' : 'grab'}
-    >
-      <NavigationControl position="top-right" />
-      <GeolocateControl position="top-right" />
-      <ScaleControl position="bottom-left" />
+    <>
+      <MapGL
+        ref={mapRef}
+        {...viewState}
+        onMove={handleMove}
+        onClick={handleClick}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        mapStyle={mapStyle}
+        style={{ width: '100%', height: '100%' }}
+        interactiveLayerIds={['parcelles-fill', 'dvf-points', 'insee-fill']}
+        cursor={hoveredParcelleId || hoveredInseeCommune ? 'pointer' : 'grab'}
+      >
+        <NavigationControl position="top-right" />
+        <GeolocateControl position="top-right" />
+        <ScaleControl position="bottom-left" />
 
-      {/* Couche des parcelles cadastrales */}
-      {activeLayers.has('parcelles') && parcelles && parcelles.features.length > 0 && (
-        <Source id="parcelles" type="geojson" data={parcelles}>
-          <Layer {...parcellesFillLayer} />
-          <Layer {...parcellesLineLayer} />
-        </Source>
+        {/* Calques INSEE */}
+        {inseeLayerConfig?.visible && inseeGeoJson && (() => {
+          const styles = generateChoroplethStyle(
+            inseeLayerConfig.indicator,
+            inseeLayerConfig.colorScale,
+            minValue,
+            maxValue,
+            inseeLayerConfig.opacity
+          )
+          return (
+            <Source id="insee" type="geojson" data={inseeGeoJson}>
+              <Layer {...styles.fillLayer} />
+              <Layer {...styles.lineLayer} />
+            </Source>
+          )
+        })()}
+
+        {/* Couche des parcelles cad astrales */}
+        {activeLayers.has('parcelles') && parcelles && parcelles.features.length > 0 && (
+          <Source id="parcelles" type="geojson" data={parcelles}>
+            <Layer {...parcellesFillLayer} />
+            <Layer {...parcellesLineLayer} />
+          </Source>
+        )}
+
+        {/* Couche des transactions DVF */}
+        {activeLayers.has('dvf') && transactions && transactions.features.length > 0 && (
+          <Source id="dvf" type="geojson" data={transactions}>
+            <Layer {...dvfLayer} />
+          </Source>
+        )}
+      </MapGL>
+
+      {/* Légende INSEE */}
+      {inseeLayerConfig?.visible && (
+        <InseeLegend
+          indicator={inseeLayerConfig.indicator}
+          colorScale={inseeLayerConfig.colorScale}
+          min={minValue}
+          max={maxValue}
+          position="bottom-right"
+        />
       )}
 
-      {/* Couche des transactions DVF */}
-      {activeLayers.has('dvf') && transactions && transactions.features.length > 0 && (
-        <Source id="dvf" type="geojson" data={transactions}>
-          <Layer {...dvfLayer} />
-        </Source>
+      {/* Tooltip INSEE */}
+      {hoveredInseeCommune && inseeLayerConfig && (
+        <InseeTooltip
+          data={hoveredInseeCommune.data}
+          indicator={inseeLayerConfig.indicator}
+          position={hoveredInseeCommune.position}
+        />
       )}
-    </MapGL>
+    </>
   )
 }
