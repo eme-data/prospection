@@ -44,6 +44,7 @@ from app.prospection import prospection_manager
 from app.fiches import fiches_manager
 from app.search import create_search_engine
 from app.activity import activity_manager, Activity
+from app.insee import insee_manager, InseeData, TerritoryStats, InseeIndicator
 
 # Configuration du logging
 setup_logging()
@@ -2118,6 +2119,144 @@ async def get_activities_stats(request: Request):
     except Exception as e:
         logger.error("get_activities_stats_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Erreur récupération statistiques: {str(e)}")
+
+
+# =============================================================================
+# ENDPOINTS INSEE - Données Socio-Économiques
+# =============================================================================
+
+@app.get(
+    "/api/insee/commune/{code_commune}",
+    response_model=InseeData,
+    tags=["INSEE"],
+    summary="Récupérer les données INSEE d'une commune"
+)
+async def get_insee_commune(code_commune: str) -> InseeData:
+    """
+    Récupère les données socio-économiques INSEE pour une commune donnée.
+    
+    Args:
+        code_commune: Code INSEE de la commune (5 chiffres)
+    
+    Returns:
+        Données socio-économiques de la commune
+    """
+    try:
+        data = insee_manager.get_commune(code_commune)
+        if not data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Données INSEE non disponibles pour la commune {code_commune}"
+            )
+        return data
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Erreur récupération données INSEE commune {code_commune}: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur récupération données: {str(e)}")
+
+
+@app.get(
+    "/api/insee/communes",
+    response_model=List[InseeData],
+    tags=["INSEE"],
+    summary="Récupérer les données INSEE de plusieurs communes"
+)
+async def get_insee_communes(
+    codes_commune: List[str] = Query(..., description="Liste des codes INSEE")
+) -> List[InseeData]:
+    """
+    Récupère les données socio-économiques INSEE pour plusieurs communes.
+    
+    Args:
+        codes_commune: Liste de codes INSEE (5 chiffres chacun)
+    
+    Returns:
+        Liste des données socio-économiques disponibles
+    """
+    try:
+        return insee_manager.get_communes(codes_commune)
+    except Exception as e:
+        logger.error(f"Erreur récupération données INSEE communes: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur récupération données: {str(e)}")
+
+
+@app.get(
+    "/api/insee/stats-territoire",
+    response_model=TerritoryStats,
+    tags=["INSEE"],
+    summary="Statistiques agrégées pour un territoire"
+)
+async def get_territory_stats(
+    codes_commune: List[str] = Query(..., description="Liste des codes INSEE du territoire")
+) -> TerritoryStats:
+    """
+    Calcule les statistiques socio-économiques agrégées pour un territoire.
+    
+    Args:
+        codes_commune: Liste de codes INSEE formant le territoire
+    
+    Returns:
+        Statistiques agrégées (moyennes pondérées, distributions, ranges)
+    """
+    try:
+        return insee_manager.get_territory_stats(codes_commune)
+    except Exception as e:
+        logger.error(f"Erreur calcul statistiques territoire: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur calcul statistiques: {str(e)}")
+
+
+@app.post(
+    "/api/insee/commune",
+    response_model=dict,
+    tags=["INSEE"],
+    summary="Ajouter/mettre à jour des données INSEE"
+)
+async def add_insee_data(data: InseeData) -> dict:
+    """
+    Ajoute ou met à jour les données socio-économiques d'une commune.
+    
+    Args:
+        data: Données INSEE à ajouter
+    
+    Returns:
+        Confirmation de l'ajout
+    """
+    try:
+        success = insee_manager.add_commune_data(data)
+        if not success:
+            raise HTTPException(status_code=500, detail="Échec de l'ajout des données")
+        
+        return {
+            "success": True,
+            "message": f"Données INSEE ajoutées pour commune {data.code_commune}",
+            "code_commune": data.code_commune
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Erreur ajout données INSEE: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur ajout données: {str(e)}")
+
+
+@app.get(
+    "/api/insee/cache-info",
+    response_model=dict,
+    tags=["INSEE"],
+    summary="Informations sur le cache INSEE"
+)
+async def get_insee_cache_info() -> dict:
+    """
+    Récupère des informations sur l'état du cache INSEE.
+    
+    Returns:
+        Informations sur le cache (nombre de communes, date de MAJ, etc.)
+    """
+    try:
+        return insee_manager.get_cache_info()
+    except Exception as e:
+        logger.error(f"Erreur récupération info cache INSEE: {e}")
+        raise HTTPException(status_code=500, detail=f"Erreur récupération info: {str(e)}")
 
 
 if __name__ == "__main__":
