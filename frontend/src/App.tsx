@@ -12,6 +12,7 @@ import {
   FileText,
   Moon,
   Sun,
+  TrendingUp,
 } from 'lucide-react'
 import { useTheme } from './contexts/ThemeContext'
 import { SearchBar } from './components/SearchBar'
@@ -28,6 +29,7 @@ import { HistoryPanel } from './components/HistoryPanel'
 import { AlertsPanel } from './components/AlertsPanel'
 import { ReportGenerator } from './components/ReportGenerator'
 import { RappelsPanel } from './components/RappelsPanel'
+import InseeLayersPanel from './components/InseeLayersPanel'
 import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions } from './api'
 import type {
   MapViewState,
@@ -41,6 +43,7 @@ import type {
   Project,
   SearchHistory,
   Alert,
+  InseeLayerConfig,
 } from './types'
 
 const INITIAL_VIEW_STATE: MapViewState = {
@@ -83,6 +86,16 @@ function App() {
   const [showAlerts, setShowAlerts] = useState(false)
   const [showReportGenerator, setShowReportGenerator] = useState(false)
   const [showRappels, setShowRappels] = useState(false)
+  const [showInseeLayers, setShowInseeLayers] = useState(false)
+
+  // Configuration des calques INSEE
+  const [inseeLayerConfig, setInseeLayerConfig] = useState<InseeLayerConfig>({
+    type: 'choropleth',
+    indicator: 'revenu_median',
+    colorScale: ['#10b981', '#84cc16', '#fbbf24', '#fb923c', '#ef4444'],
+    opacity: 0.6,
+    visible: false,
+  })
 
   const [projects, setProjects] = useState<Project[]>(() => {
     const saved = localStorage.getItem(PROJECTS_STORAGE_KEY)
@@ -388,6 +401,17 @@ function App() {
             <span className="absolute -top-1 -right-1 bg-indigo-500 text-white text-xs px-1 min-w-[16px] h-4 rounded-full flex items-center justify-center font-semibold">
               !
             </span>
+          </button>
+
+          <button
+            onClick={() => setShowInseeLayers(!showInseeLayers)}
+            className={`p-2 rounded-lg transition-colors ${showInseeLayers
+                ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-300'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              }`}
+            title="Calques INSEE"
+          >
+            <TrendingUp className="h-5 w-5" />
           </button>
 
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
