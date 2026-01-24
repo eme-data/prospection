@@ -43,6 +43,7 @@ from app.scoring import scorer
 from app.prospection import prospection_manager
 from app.fiches import fiches_manager
 from app.search import create_search_engine
+from app.activity import activity_manager, Activity
 
 # Configuration du logging
 setup_logging()
@@ -1939,6 +1940,184 @@ async def advanced_search(request: Request):
     except Exception as e:
         logger.error("advanced_search_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Erreur recherche avancée: {str(e)}")
+
+
+# ============== ACTIVITÉS CRM ==============
+
+@app.post("/api/activities")
+@limiter.limit("30/minute")
+async def create_activity(
+    request: Request,
+    parcelle_id: str = Query(..., description="ID de la parcelle"),
+    type: str = Query(..., description="Type d'activité (appel, email, rdv, note, document)"),
+    titre: str = Query(..., max_length=200, description="Titre de l'activité"),
+    description: str = Query(default="", description="Description détaillée"),
+    auteur: str = Query(default="Système", description="Nom de l'utilisateur"),
+    statut_avant: Optional[str] = Query(None, description="Statut avant l'activité"),
+    statut_apres: Optional[str] = Query(None, description="Statut après l'activité"),
+    prochaine_action: Optional[str] = Query(None, description="Prochaine action à effectuer"),
+    date_rappel: Optional[str] = Query(None, description="Date du rappel (ISO format)")
+):
+    """Crée une nouvelle activité CRM pour une parcelle"""
+    try:
+        activity = activity_manager.create_activity(
+            parcelle_id=parcelle_id,
+            type=type,
+            titre=titre,
+            description=description,
+            auteur=auteur,
+            statut_avant=statut_avant,
+            statut_apres=statut_apres,
+            prochaine_action=prochaine_action,
+            date_rappel=date_rappel
+        )
+        
+        logger.info("activity_created", parcelle_id=parcelle_id, activity_id=activity.id, type=type)
+        return activity.model_dump()
+    
+    except Exception as e:
+        logger.error("activity_creation_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur création activité: {str(e)}")
+
+
+@app.get("/api/activities/{parcelle_id}")
+@limiter.limit("60/minute")
+async def get_activities(
+    request: Request,
+    parcelle_id: str,
+    type: Optional[str] = Query(None, description="Filtrer par type d'activité"),
+    limit: int = Query(100, ge=1, le=500, description="Nombre maximum d'activités"),
+    offset: int = Query(0, ge=0, description="Décalage pour pagination")
+):
+    """Récupère les activités d'une parcelle"""
+    try:
+        activities = activity_manager.get_activities(
+            parcelle_id=parcelle_id,
+            type=type,
+            limit=limit,
+            offset=offset
+        )
+        
+        return {
+            "parcelle_id": parcelle_id,
+            "activities": [a.model_dump() for a in activities],
+            "count": len(activities)
+        }
+    
+    except Exception as e:
+        logger.error("get_activities_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur récupération activités: {str(e)}")
+
+
+@app.get("/api/activities/detail/{activity_id}")
+@limiter.limit("60/minute")
+async def get_activity_detail(request: Request, activity_id: str):
+    """Récupère les détails d'une activité spécifique"""
+    try:
+        activity = activity_manager.get_activity(activity_id)
+        
+        if not activity:
+            raise HTTPException(status_code=404, detail="Activité non trouvée")
+        
+        return activity.model_dump()
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("get_activity_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur récupération activité: {str(e)}")
+
+
+@app.put("/api/activities/{activity_id}")
+@limiter.limit("30/minute")
+async def update_activity(
+    request: Request,
+    activity_id: str,
+    titre: Optional[str] = Query(None, max_length=200, description="Nouveau titre"),
+    description: Optional[str] = Query(None, description="Nouvelle description"),
+    prochaine_action: Optional[str] = Query(None, description="Nouvelle prochaine action"),
+    date_rappel: Optional[str] = Query(None, description="Nouvelle date de rappel")
+):
+    """Met à jour une activité"""
+    try:
+        activity = activity_manager.update_activity(
+            activity_id=activity_id,
+            titre=titre,
+            description=description,
+            prochaine_action=prochaine_action,
+            date_rappel=date_rappel
+        )
+        
+        if not activity:
+            raise HTTPException(status_code=404, detail="Activité non trouvée")
+        
+        logger.info("activity_updated", activity_id=activity_id)
+        return activity.model_dump()
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("activity_update_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur mise à jour activité: {str(e)}")
+
+
+@app.delete("/api/activities/{activity_id}")
+@limiter.limit("20/minute")
+async def delete_activity(request: Request, activity_id: str):
+    """Supprime une activité"""
+    try:
+        success = activity_manager.delete_activity(activity_id)
+        
+        if not success:
+            raise HTTPException(status_code=404, detail="Activité non trouvée")
+        
+        logger.info("activity_deleted", activity_id=activity_id)
+        return {"success": True, "message": "Activité supprimée"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("activity_deletion_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur suppression activité: {str(e)}")
+
+
+@app.get("/api/activities/rappels/list")
+@limiter.limit("30/minute")
+async def get_rappels(
+    request: Request,
+    date_debut: Optional[str] = Query(None, description="Date de début (ISO format)"),
+    date_fin: Optional[str] = Query(None, description="Date de fin (ISO format)"),
+    limit: int = Query(100, ge=1, le=500, description="Nombre maximum de rappels")
+):
+    """Récupère les rappels à venir"""
+    try:
+        rappels = activity_manager.get_rappels(
+            date_debut=date_debut,
+            date_fin=date_fin,
+            limit=limit
+        )
+        
+        return {
+            "rappels": [r.model_dump() for r in rappels],
+            "count": len(rappels)
+        }
+    
+    except Exception as e:
+        logger.error("get_rappels_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur récupération rappels: {str(e)}")
+
+
+@app.get("/api/activities/stats")
+@limiter.limit("20/minute")
+async def get_activities_stats(request: Request):
+    """Récupère les statistiques des activités"""
+    try:
+        stats = activity_manager.get_stats()
+        return stats
+    
+    except Exception as e:
+        logger.error("get_activities_stats_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur récupération statistiques: {str(e)}")
 
 
 if __name__ == "__main__":
