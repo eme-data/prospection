@@ -177,7 +177,6 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
             />
 
             <NotesSection
-              prospection={prospection}
               onAddNote={addNoteMutation.mutate}
               isLoading={addNoteMutation.isPending}
             />
