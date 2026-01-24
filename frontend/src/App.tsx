@@ -75,8 +75,13 @@ function App() {
   const [showRisks, setShowRisks] = useState(false)
   const [showFavorites, setShowFavorites] = useState(false)
   const [favorites, setFavorites] = useState<FavoriteParcelle[]>(() => {
-    const saved = localStorage.getItem(FAVORITES_STORAGE_KEY)
-    return saved ? JSON.parse(saved) : []
+    try {
+      const saved = localStorage.getItem(FAVORITES_STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch (error) {
+      console.error('Failed to load favorites:', error)
+      return []
+    }
   })
 
   // Nouveaux états pour les fonctionnalités avancées
@@ -98,19 +103,34 @@ function App() {
   })
 
   const [projects, setProjects] = useState<Project[]>(() => {
-    const saved = localStorage.getItem(PROJECTS_STORAGE_KEY)
-    return saved ? JSON.parse(saved) : []
+    try {
+      const saved = localStorage.getItem(PROJECTS_STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch (error) {
+      console.error('Failed to load projects:', error)
+      return []
+    }
   })
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
 
   const [searchHistory, setSearchHistory] = useState<SearchHistory[]>(() => {
-    const saved = localStorage.getItem(HISTORY_STORAGE_KEY)
-    return saved ? JSON.parse(saved) : []
+    try {
+      const saved = localStorage.getItem(HISTORY_STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch (error) {
+      console.error('Failed to load history:', error)
+      return []
+    }
   })
 
   const [alerts, setAlerts] = useState<Alert[]>(() => {
-    const saved = localStorage.getItem(ALERTS_STORAGE_KEY)
-    return saved ? JSON.parse(saved) : []
+    try {
+      const saved = localStorage.getItem(ALERTS_STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch (error) {
+      console.error('Failed to load alerts:', error)
+      return []
+    }
   })
 
   // Sauvegarde des favoris dans localStorage
