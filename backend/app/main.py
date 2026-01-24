@@ -5,7 +5,7 @@ Agregue les donnees opendata francaises pour la prospection fonciere
 
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 import csv
 import io
 import json
