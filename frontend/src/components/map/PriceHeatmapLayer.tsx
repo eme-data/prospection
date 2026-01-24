@@ -4,7 +4,7 @@
 
 import { useEffect } from 'react'
 import { useMap } from 'react-map-gl/maplibre'
-import type { PriceHeatmapData } from '../hooks/useEconomicLayers'
+import type { PriceHeatmapData } from '../../hooks/useEconomicLayers'
 
 interface PriceHeatmapLayerProps {
     data: PriceHeatmapData | undefined
@@ -30,10 +30,10 @@ export function PriceHeatmapLayer({ data, opacity = 0.6 }: PriceHeatmapLayerProp
                 data: data as any,
             })
         } else {
-            // Mettre à jour les données
-            const source = map.getSource(sourceId)
+            // Mettre à jour les données (cast to GeoJSONSource for setData)
+            const source = map.getSource(sourceId) as any
             if (source && source.type === 'geojson') {
-                source.setData(data as any)
+                source.setData(data)
             }
         }
 
