@@ -41,6 +41,7 @@ from app.http_client import (
 from app.report_generator import generate_prospection_report
 from app.scoring import scorer
 from app.prospection import prospection_manager
+from app.fiches import fiches_manager
 
 # Configuration du logging
 setup_logging()
@@ -1474,6 +1475,359 @@ async def get_prospection_stats(request: Request):
     except Exception as e:
         logger.error("prospection_stats_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Erreur stats: {str(e)}")
+
+
+# ============== FICHES TERRAIN ENRICHIES ==============
+
+@app.get("/api/fiches/{parcelle_id}")
+@limiter.limit("30/minute")
+async def get_fiche(request: Request, parcelle_id: str):
+    """Récupère la fiche terrain enrichie d'une parcelle"""
+    parcelle_id = sanitize_string(parcelle_id)
+
+    fiche = fiches_manager.get_fiche(parcelle_id)
+
+    if not fiche:
+        # Retourner une fiche vide
+        return {
+            'parcelleId': parcelle_id,
+            'photos': [],
+            'documents': [],
+            'notes': [],
+            'tags': [],
+        }
+
+    return fiche
+
+
+@app.post("/api/fiches/{parcelle_id}/photos")
+@limiter.limit("20/minute")
+async def add_photo(request: Request, parcelle_id: str):
+    """Ajoute une photo à la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        body = await request.json()
+
+        url = sanitize_string(body.get('url', ''))
+        if not url:
+            raise HTTPException(status_code=400, detail="url requis")
+
+        photo_type = body.get('type', 'terrain')
+        description = sanitize_string(body.get('description', '')) if body.get('description') else None
+        source = sanitize_string(body.get('source', '')) if body.get('source') else None
+
+        fiche = fiches_manager.add_photo(
+            parcelle_id=parcelle_id,
+            url=url,
+            photo_type=photo_type,
+            description=description,
+            source=source
+        )
+
+        logger.info("photo_added", parcelle_id=parcelle_id, type=photo_type)
+        return fiche
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("add_photo_error", error=str(e), parcelle_id=parcelle_id)
+        raise HTTPException(status_code=500, detail=f"Erreur ajout photo: {str(e)}")
+
+
+@app.delete("/api/fiches/{parcelle_id}/photos/{photo_id}")
+@limiter.limit("20/minute")
+async def delete_photo(request: Request, parcelle_id: str, photo_id: str):
+    """Supprime une photo de la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        photo_id = sanitize_string(photo_id)
+
+        deleted = fiches_manager.delete_photo(parcelle_id, photo_id)
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Photo non trouvée")
+
+        logger.info("photo_deleted", parcelle_id=parcelle_id, photo_id=photo_id)
+        return {"success": True, "message": "Photo supprimée"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("delete_photo_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur suppression photo: {str(e)}")
+
+
+@app.post("/api/fiches/{parcelle_id}/documents")
+@limiter.limit("20/minute")
+async def add_document(request: Request, parcelle_id: str):
+    """Ajoute un document à la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        body = await request.json()
+
+        nom = sanitize_string(body.get('nom', ''))
+        url = sanitize_string(body.get('url', ''))
+
+        if not nom or not url:
+            raise HTTPException(status_code=400, detail="nom et url requis")
+
+        doc_type = body.get('type', 'autre')
+        taille = body.get('taille')
+
+        fiche = fiches_manager.add_document(
+            parcelle_id=parcelle_id,
+            nom=nom,
+            url=url,
+            doc_type=doc_type,
+            taille=taille
+        )
+
+        logger.info("document_added", parcelle_id=parcelle_id, type=doc_type)
+        return fiche
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("add_document_error", error=str(e), parcelle_id=parcelle_id)
+        raise HTTPException(status_code=500, detail=f"Erreur ajout document: {str(e)}")
+
+
+@app.delete("/api/fiches/{parcelle_id}/documents/{document_id}")
+@limiter.limit("20/minute")
+async def delete_document(request: Request, parcelle_id: str, document_id: str):
+    """Supprime un document de la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        document_id = sanitize_string(document_id)
+
+        deleted = fiches_manager.delete_document(parcelle_id, document_id)
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Document non trouvé")
+
+        logger.info("document_deleted", parcelle_id=parcelle_id, document_id=document_id)
+        return {"success": True, "message": "Document supprimé"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("delete_document_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur suppression document: {str(e)}")
+
+
+@app.post("/api/fiches/{parcelle_id}/notes")
+@limiter.limit("30/minute")
+async def add_fiche_note(request: Request, parcelle_id: str):
+    """Ajoute une note à la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        body = await request.json()
+
+        contenu = sanitize_string(body.get('contenu', ''))
+        if not contenu:
+            raise HTTPException(status_code=400, detail="contenu requis")
+
+        auteur = sanitize_string(body.get('auteur', '')) if body.get('auteur') else None
+        tags = body.get('tags', [])
+
+        fiche = fiches_manager.add_note(
+            parcelle_id=parcelle_id,
+            contenu=contenu,
+            auteur=auteur,
+            tags=tags
+        )
+
+        logger.info("fiche_note_added", parcelle_id=parcelle_id)
+        return fiche
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("add_fiche_note_error", error=str(e), parcelle_id=parcelle_id)
+        raise HTTPException(status_code=500, detail=f"Erreur ajout note: {str(e)}")
+
+
+@app.put("/api/fiches/{parcelle_id}/notes/{note_id}")
+@limiter.limit("30/minute")
+async def update_fiche_note(request: Request, parcelle_id: str, note_id: str):
+    """Met à jour une note de la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        note_id = sanitize_string(note_id)
+        body = await request.json()
+
+        contenu = sanitize_string(body.get('contenu', ''))
+        if not contenu:
+            raise HTTPException(status_code=400, detail="contenu requis")
+
+        tags = body.get('tags')
+
+        fiche = fiches_manager.update_note(
+            parcelle_id=parcelle_id,
+            note_id=note_id,
+            contenu=contenu,
+            tags=tags
+        )
+
+        if not fiche:
+            raise HTTPException(status_code=404, detail="Note non trouvée")
+
+        logger.info("fiche_note_updated", parcelle_id=parcelle_id, note_id=note_id)
+        return fiche
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("update_fiche_note_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur mise à jour note: {str(e)}")
+
+
+@app.delete("/api/fiches/{parcelle_id}/notes/{note_id}")
+@limiter.limit("20/minute")
+async def delete_fiche_note(request: Request, parcelle_id: str, note_id: str):
+    """Supprime une note de la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        note_id = sanitize_string(note_id)
+
+        deleted = fiches_manager.delete_note(parcelle_id, note_id)
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Note non trouvée")
+
+        logger.info("fiche_note_deleted", parcelle_id=parcelle_id, note_id=note_id)
+        return {"success": True, "message": "Note supprimée"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("delete_fiche_note_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur suppression note: {str(e)}")
+
+
+@app.post("/api/fiches/{parcelle_id}/tags")
+@limiter.limit("30/minute")
+async def add_tag(request: Request, parcelle_id: str):
+    """Ajoute un tag à la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        body = await request.json()
+
+        tag = sanitize_string(body.get('tag', ''))
+        if not tag:
+            raise HTTPException(status_code=400, detail="tag requis")
+
+        fiche = fiches_manager.add_tag(parcelle_id, tag)
+
+        logger.info("tag_added", parcelle_id=parcelle_id, tag=tag)
+        return fiche
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("add_tag_error", error=str(e), parcelle_id=parcelle_id)
+        raise HTTPException(status_code=500, detail=f"Erreur ajout tag: {str(e)}")
+
+
+@app.delete("/api/fiches/{parcelle_id}/tags/{tag}")
+@limiter.limit("30/minute")
+async def remove_tag(request: Request, parcelle_id: str, tag: str):
+    """Retire un tag de la fiche terrain"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        tag = sanitize_string(tag)
+
+        fiche = fiches_manager.remove_tag(parcelle_id, tag)
+
+        logger.info("tag_removed", parcelle_id=parcelle_id, tag=tag)
+        return fiche
+
+    except Exception as e:
+        logger.error("remove_tag_error", error=str(e), parcelle_id=parcelle_id)
+        raise HTTPException(status_code=500, detail=f"Erreur suppression tag: {str(e)}")
+
+
+@app.put("/api/fiches/{parcelle_id}/tags")
+@limiter.limit("30/minute")
+async def set_tags(request: Request, parcelle_id: str):
+    """Définit les tags de la fiche terrain (remplace tous les tags)"""
+    try:
+        parcelle_id = sanitize_string(parcelle_id)
+        body = await request.json()
+
+        tags = body.get('tags', [])
+        tags = [sanitize_string(tag) for tag in tags]
+
+        fiche = fiches_manager.set_tags(parcelle_id, tags)
+
+        logger.info("tags_set", parcelle_id=parcelle_id, count=len(tags))
+        return fiche
+
+    except Exception as e:
+        logger.error("set_tags_error", error=str(e), parcelle_id=parcelle_id)
+        raise HTTPException(status_code=500, detail=f"Erreur définition tags: {str(e)}")
+
+
+@app.get("/api/fiches")
+@limiter.limit("20/minute")
+async def search_fiches(
+    request: Request,
+    tags: Optional[str] = None,
+    has_notes: Optional[bool] = None,
+    has_photos: Optional[bool] = None,
+    has_documents: Optional[bool] = None,
+    limit: int = Query(100, le=500),
+    offset: int = Query(0, ge=0)
+):
+    """Recherche les fiches terrain avec filtres"""
+    try:
+        tags_list = [sanitize_string(t.strip()) for t in tags.split(',')] if tags else None
+
+        fiches = fiches_manager.search_fiches(
+            tags=tags_list,
+            has_notes=has_notes,
+            has_photos=has_photos,
+            has_documents=has_documents,
+            limit=limit,
+            offset=offset
+        )
+
+        return {
+            "fiches": fiches,
+            "count": len(fiches),
+            "limit": limit,
+            "offset": offset
+        }
+
+    except Exception as e:
+        logger.error("search_fiches_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur recherche: {str(e)}")
+
+
+@app.get("/api/fiches/stats/global")
+@limiter.limit("20/minute")
+async def get_fiches_stats(request: Request):
+    """Récupère les statistiques globales des fiches terrain"""
+    try:
+        stats = fiches_manager.get_stats()
+        return stats
+
+    except Exception as e:
+        logger.error("fiches_stats_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur stats: {str(e)}")
+
+
+@app.get("/api/fiches/tags/all")
+@limiter.limit("30/minute")
+async def get_all_tags(request: Request):
+    """Récupère tous les tags utilisés"""
+    try:
+        tags = fiches_manager.get_all_tags()
+        return {"tags": tags}
+
+    except Exception as e:
+        logger.error("get_all_tags_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur récupération tags: {str(e)}")
 
 
 if __name__ == "__main__":
