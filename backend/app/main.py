@@ -39,6 +39,7 @@ from app.http_client import (
     APIError,
 )
 from app.report_generator import generate_prospection_report
+from app.scoring import scorer
 
 # Configuration du logging
 setup_logging()
@@ -1037,6 +1038,230 @@ async def generate_report(
     except Exception as e:
         logger.error("report_generation_error", error=str(e), code_insee=code_insee)
         raise HTTPException(status_code=500, detail=f"Erreur lors de la génération du rapport: {str(e)}")
+
+
+# ============== PHASE 1 : SCORING DES PARCELLES ==============
+
+@app.get("/api/scoring/parcelle/{parcelle_id}")
+@limiter.limit("60/minute")
+async def score_parcelle(
+    request: Request,
+    parcelle_id: str,
+    code_insee: str = Query(..., min_length=5, max_length=5)
+):
+    """Calcule le score d'une parcelle spécifique"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    try:
+        # Récupérer les données de la parcelle
+        parcelles_data = await cadastre_client.get(
+            f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+        )
+        parcelles = parcelles_data.get('features', [])
+
+        parcelle = next(
+            (p for p in parcelles if p.get('properties', {}).get('id') == parcelle_id),
+            None
+        )
+
+        if not parcelle:
+            raise HTTPException(status_code=404, detail="Parcelle non trouvée")
+
+        # Récupérer les données de contexte
+        stats_marche = await cache_get(f"stats:{code_insee}")
+        if not stats_marche:
+            dvf_stats_url = f"/dvf?code_insee={code_insee}"
+            stats_marche = await dvf_client.get(f"/statistiques?{dvf_stats_url.split('?')[1]}")
+            await cache_set(f"stats:{code_insee}", stats_marche, ttl=3600)
+
+        demographics = await cache_get(f"demographics:{code_insee}")
+        if not demographics:
+            commune_data = await geo_client.get(
+                f"/communes/{code_insee}?fields=nom,code,population,surface"
+            )
+            demographics = {
+                "population": commune_data.get("population", 0),
+                "surface_km2": commune_data.get("surface", 0) / 100,
+                "densite": commune_data.get("population", 0) / (commune_data.get("surface", 1) / 100)
+            }
+            await cache_set(f"demographics:{code_insee}", demographics, ttl=3600)
+
+        # Récupérer les transactions
+        transactions_data = await dvf_client.get(f"/dvf?code_insee={code_insee}")
+        transactions = transactions_data.get('resultats', [])
+
+        # Calculer le score
+        score_result = scorer.calculate_score(
+            parcelle=parcelle,
+            stats_marche=stats_marche,
+            demographics=demographics,
+            transactions=transactions
+        )
+
+        return score_result
+
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("scoring_error", error=str(e), parcelle_id=parcelle_id)
+        raise HTTPException(status_code=500, detail=f"Erreur scoring: {str(e)}")
+
+
+@app.post("/api/scoring/batch")
+@limiter.limit("30/minute")
+async def score_parcelles_batch(
+    request: Request,
+    body: dict
+):
+    """Calcule les scores de plusieurs parcelles"""
+    parcelle_ids = body.get('parcelle_ids', [])
+    code_insee = body.get('code_insee')
+
+    if not code_insee or not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    if len(parcelle_ids) > 100:
+        raise HTTPException(status_code=400, detail="Maximum 100 parcelles par requête")
+
+    try:
+        # Récupérer toutes les parcelles
+        parcelles_data = await cadastre_client.get(
+            f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+        )
+        all_parcelles = parcelles_data.get('features', [])
+
+        # Filtrer les parcelles demandées
+        parcelles = [
+            p for p in all_parcelles
+            if p.get('properties', {}).get('id') in parcelle_ids
+        ]
+
+        # Récupérer les données de contexte (une seule fois)
+        stats_marche = await cache_get(f"stats:{code_insee}")
+        if not stats_marche:
+            dvf_stats_url = f"/dvf?code_insee={code_insee}"
+            stats_marche = await dvf_client.get(f"/statistiques?{dvf_stats_url.split('?')[1]}")
+            await cache_set(f"stats:{code_insee}", stats_marche, ttl=3600)
+
+        demographics = await cache_get(f"demographics:{code_insee}")
+        if not demographics:
+            commune_data = await geo_client.get(
+                f"/communes/{code_insee}?fields=nom,code,population,surface"
+            )
+            demographics = {
+                "population": commune_data.get("population", 0),
+                "surface_km2": commune_data.get("surface", 0) / 100,
+                "densite": commune_data.get("population", 0) / (commune_data.get("surface", 1) / 100)
+            }
+            await cache_set(f"demographics:{code_insee}", demographics, ttl=3600)
+
+        transactions_data = await dvf_client.get(f"/dvf?code_insee={code_insee}")
+        transactions = transactions_data.get('resultats', [])
+
+        # Calculer le score pour chaque parcelle
+        scores = []
+        for parcelle in parcelles:
+            score_result = scorer.calculate_score(
+                parcelle=parcelle,
+                stats_marche=stats_marche,
+                demographics=demographics,
+                transactions=transactions
+            )
+            scores.append(score_result)
+
+        return {
+            "scores": scores,
+            "total": len(scores),
+            "code_insee": code_insee
+        }
+
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("batch_scoring_error", error=str(e), code_insee=code_insee)
+        raise HTTPException(status_code=500, detail=f"Erreur batch scoring: {str(e)}")
+
+
+@app.get("/api/scoring/commune/{code_insee}")
+@limiter.limit("10/minute")
+async def score_commune(request: Request, code_insee: str, limit: int = Query(50, le=200)):
+    """Calcule et retourne les parcelles scorées d'une commune, triées par score décroissant"""
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    cache_key = f"commune_scores:{code_insee}:{limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        # Récupérer les parcelles
+        parcelles_data = await cadastre_client.get(
+            f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+        )
+        parcelles = parcelles_data.get('features', [])[:limit]
+
+        # Récupérer les données de contexte
+        stats_marche = await cache_get(f"stats:{code_insee}")
+        if not stats_marche:
+            dvf_stats_url = f"/dvf?code_insee={code_insee}"
+            stats_marche = await dvf_client.get(f"/statistiques?{dvf_stats_url.split('?')[1]}")
+            await cache_set(f"stats:{code_insee}", stats_marche, ttl=3600)
+
+        demographics = await cache_get(f"demographics:{code_insee}")
+        if not demographics:
+            commune_data = await geo_client.get(
+                f"/communes/{code_insee}?fields=nom,code,population,surface"
+            )
+            demographics = {
+                "population": commune_data.get("population", 0),
+                "surface_km2": commune_data.get("surface", 0) / 100,
+                "densite": commune_data.get("population", 0) / (commune_data.get("surface", 1) / 100)
+            }
+            await cache_set(f"demographics:{code_insee}", demographics, ttl=3600)
+
+        transactions_data = await dvf_client.get(f"/dvf?code_insee={code_insee}")
+        transactions = transactions_data.get('resultats', [])
+
+        # Calculer les scores
+        scores = []
+        for parcelle in parcelles:
+            score_result = scorer.calculate_score(
+                parcelle=parcelle,
+                stats_marche=stats_marche,
+                demographics=demographics,
+                transactions=transactions
+            )
+            scores.append({
+                "parcelle": parcelle,
+                "score": score_result
+            })
+
+        # Trier par score décroissant
+        scores.sort(key=lambda x: x['score']['score'], reverse=True)
+
+        result = {
+            "code_insee": code_insee,
+            "total_parcelles": len(scores),
+            "parcelles_scorees": scores,
+            "stats": {
+                "score_moyen": sum(s['score']['score'] for s in scores) / len(scores) if scores else 0,
+                "excellent": sum(1 for s in scores if s['score']['niveau'] == 'excellent'),
+                "bon": sum(1 for s in scores if s['score']['niveau'] == 'bon'),
+                "moyen": sum(1 for s in scores if s['score']['niveau'] == 'moyen'),
+                "faible": sum(1 for s in scores if s['score']['niveau'] == 'faible'),
+            }
+        }
+
+        await cache_set(cache_key, result, ttl=1800)  # Cache 30 min
+        return result
+
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("commune_scoring_error", error=str(e), code_insee=code_insee)
+        raise HTTPException(status_code=500, detail=f"Erreur scoring commune: {str(e)}")
 
 
 if __name__ == "__main__":
