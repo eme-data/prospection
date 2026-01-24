@@ -240,6 +240,125 @@ export interface ActivitiesStats {
   rappels_actifs: number
 }
 
+// ============== MODULE INSEE - DONNÉES SOCIO-ÉCONOMIQUES ==============
+
+// Catégories socio-professionnelles
+export type CSPCategory =
+  | 'agriculteurs'
+  | 'artisans_commercants'
+  | 'cadres'
+  | 'professions_intermediaires'
+  | 'employes'
+  | 'ouvriers'
+  | 'retraites'
+  | 'autres'
+
+// Indicateurs INSEE disponibles
+export type InseeIndicator =
+  | 'revenu_median'
+  | 'revenu_moyen'
+  | 'taux_pauvrete'
+  | 'taux_chomage'
+  | 'densite'
+  | 'population'
+  | 'taux_proprietaires'
+
+// Données INSEE pour une commune
+export interface InseeData {
+  // Identification
+  code_commune: string
+  nom_commune: string
+  code_departement: string
+  code_iris?: string
+
+  // Revenus (en euros)
+  revenu_median?: number
+  revenu_moyen?: number
+  taux_pauvrete?: number
+  decile_1?: number
+  decile_9?: number
+
+  // Emploi (en %)
+  taux_chomage?: number
+  taux_activite?: number
+
+  // CSP (en %)
+  csp_agriculteurs?: number
+  csp_artisans_commercants?: number
+  csp_cadres?: number
+  csp_professions_intermediaires?: number
+  csp_employes?: number
+  csp_ouvriers?: number
+  csp_retraites?: number
+  csp_autres?: number
+
+  // Démographie
+  population?: number
+  densite?: number
+  superficie?: number
+  age_moyen?: number
+  moins_20_ans?: number
+  plus_60_ans?: number
+
+  // Logement
+  nombre_logements?: number
+  logements_vacants?: number
+  residences_principales?: number
+  taux_proprietaires?: number
+  taux_hlm?: number
+  prix_m2_moyen?: number
+
+  // Métadonnées
+  annee_reference: number
+  date_maj: string
+  source: string
+}
+
+// Statistiques de territoire
+export interface TerritoryStats {
+  codes_commune: string[]
+  nombre_communes: number
+  population_totale: number
+  revenu_median_moyen?: number
+  taux_chomage_moyen?: number
+  densite_moyenne?: number
+  prix_m2_moyen?: number
+  csp_distribution: Record<CSPCategory, number>
+  revenu_min?: number
+  revenu_max?: number
+  annee_reference: number
+}
+
+// Configuration des calques INSEE
+export type InseeLayerType = 'choropleth' | 'heatmap' | 'proportional' | 'categorical'
+
+export interface InseeLayerConfig {
+  type: InseeLayerType
+  indicator: InseeIndicator
+  colorScale: string[]
+  opacity: number
+  visible: boolean
+}
+
+// Filtres INSEE
+export interface InseeFilters {
+  revenu_min?: number
+  revenu_max?: number
+  taux_chomage_max?: number
+  csp_dominantes?: CSPCategory[]
+  densite_min?: number
+  densite_max?: number
+  taux_proprietaires_min?: number
+}
+
+// Info du cache INSEE
+export interface InseeCacheInfo {
+  communes_cached: number
+  cache_ttl_days: number
+  last_update?: string
+  data_dir: string
+}
+
 // ============== PHASE 1 : Fonctionnalités Professionnelles ==============
 
 // 1. Scoring des parcelles
