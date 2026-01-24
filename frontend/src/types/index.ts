@@ -196,3 +196,160 @@ export interface Alert {
   createdAt: string
   lastChecked?: string
 }
+
+// ============== PHASE 1 : Fonctionnalités Professionnelles ==============
+
+// 1. Scoring des parcelles
+export interface ParcelleScore {
+  parcelleId: string
+  score: number // 0-100
+  details: {
+    prix: number // 0-25 points
+    surface: number // 0-20 points
+    localisation: number // 0-25 points
+    marche: number // 0-15 points
+    plu: number // 0-15 points
+  }
+  niveau: 'excellent' | 'bon' | 'moyen' | 'faible'
+  color: string
+  recommandations: string[]
+}
+
+// 2. Statuts de prospection
+export type StatutProspection =
+  | 'a_prospecter'
+  | 'en_cours'
+  | 'contacte'
+  | 'interesse'
+  | 'en_negociation'
+  | 'promesse_signee'
+  | 'acquis'
+  | 'refuse'
+  | 'abandonne'
+
+export interface ProspectionInfo {
+  parcelleId: string
+  statut: StatutProspection
+  dateContact?: string
+  dateRelance?: string
+  notesContact: string
+  interlocuteur?: string
+  telephone?: string
+  email?: string
+  historique: ProspectionHistorique[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProspectionHistorique {
+  id: string
+  date: string
+  action: string
+  statut: StatutProspection
+  notes: string
+  createdBy?: string
+}
+
+// 3. Fiche terrain enrichie
+export interface FicheTerrainEnrichie {
+  parcelle: Parcelle
+  score?: ParcelleScore
+  prospection?: ProspectionInfo
+  proprietaire?: ProprietaireInfo
+  photos: Photo[]
+  documents: Document[]
+  transactions: DVFTransaction[]
+  zonage?: ZonagePLU[]
+  risques?: Risque[]
+  notes: Note[]
+  tags: string[]
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProprietaireInfo {
+  nom?: string
+  prenom?: string
+  type: 'physique' | 'morale'
+  adresse?: string
+  codePostal?: string
+  ville?: string
+  dateAcquisition?: string
+  prixAcquisition?: number
+}
+
+export interface Photo {
+  id: string
+  url: string
+  type: 'aerienne' | 'terrain' | 'environnement' | 'autre'
+  date?: string
+  description?: string
+  source?: string
+}
+
+export interface Document {
+  id: string
+  nom: string
+  type: 'plu' | 'cadastre' | 'courrier' | 'contrat' | 'etude' | 'autre'
+  url: string
+  dateAjout: string
+  taille?: number
+}
+
+export interface Note {
+  id: string
+  contenu: string
+  auteur?: string
+  date: string
+  tags?: string[]
+}
+
+// 4. Recherche avancée
+export interface RechercheAvancee extends DVFFilters {
+  // Critères parcelle
+  surfaceParcelleMin?: number
+  surfaceParcelleMax?: number
+  section?: string
+
+  // Critères scoring
+  scoreMin?: number
+  scoreMax?: number
+  niveauScore?: ParcelleScore['niveau'][]
+
+  // Critères prospection
+  statuts?: StatutProspection[]
+  dateContactMin?: string
+  dateContactMax?: string
+
+  // Critères propriétaire
+  typeProprietaire?: ('physique' | 'morale')[]
+
+  // Critères géographiques
+  communesCodes?: string[]
+  rayonKm?: number
+  centreRecherche?: { lat: number; lon: number }
+
+  // Critères PLU/Zonage
+  zonesAutorisees?: string[]
+
+  // Tags et notes
+  tags?: string[]
+  avecNotes?: boolean
+
+  // Projets
+  projetId?: string
+  horsProjet?: boolean
+}
+
+export interface ResultatRecherche {
+  parcelles: FicheTerrainEnrichie[]
+  total: number
+  page: number
+  parPage: number
+  facettes?: {
+    statuts: Record<StatutProspection, number>
+    scores: Record<string, number>
+    communes: Record<string, number>
+  }
+}
+
