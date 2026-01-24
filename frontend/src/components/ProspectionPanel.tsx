@@ -563,11 +563,9 @@ function ContactInfoSection({
 
 // Section de notes
 function NotesSection({
-  prospection,
   onAddNote,
   isLoading,
 }: {
-  prospection: ProspectionInfo
   onAddNote: (note: string) => void
   isLoading: boolean
 }) {
