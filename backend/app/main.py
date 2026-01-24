@@ -46,6 +46,7 @@ from app.search import create_search_engine
 from app.activity import activity_manager, Activity
 from app.insee import insee_manager, InseeData, TerritoryStats, InseeIndicator
 from app.economic_layers import router as economic_router
+from app.isochrones import router as isochrone_router
 
 # Configuration du logging
 setup_logging()
@@ -98,6 +99,9 @@ app.include_router(health_router)
 
 # Routes calques économiques
 app.include_router(economic_router)
+
+# Routes isochrones
+app.include_router(isochrone_router)
 
 
 # ============== GESTION DES ERREURS ==============
