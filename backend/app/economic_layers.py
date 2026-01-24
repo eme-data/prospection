@@ -131,7 +131,7 @@ def calculate_prix_m2_for_grid(grid: List[Dict], transactions: List[Dict]) -> Li
 
 
 @router.get("/prix-m2")
-@cached(ttl=3600)
+@cached(prefix="economic-prix-m2", ttl=3600)
 async def get_prix_m2_heatmap(
     bbox: str = Query(..., description="min_lon,min_lat,max_lon,max_lat"),
     granularity: int = Query(200, ge=100, le=1000, description="Taille carreau en mètres")
@@ -189,7 +189,7 @@ async def get_prix_m2_heatmap(
 
 
 @router.get("/evolution-prix")
-@cached(ttl=7200)
+@cached(prefix="economic-evolution", ttl=7200)
 async def get_evolution_prix(
     code_insee: str = Query(..., description="Code INSEE de la commune"),
     years: int = Query(5, ge=1, le=10, description="Nombre d'années")
@@ -223,7 +223,7 @@ async def get_evolution_prix(
 
 
 @router.get("/volume-transactions")
-@cached(ttl=3600)
+@cached(prefix="economic-volume", ttl=3600)
 async def get_volume_transactions(
     bbox: str = Query(..., description="min_lon,min_lat,max_lon,max_lat"),
     period: str = Query("month", regex="^(day|week|month|year)$")
