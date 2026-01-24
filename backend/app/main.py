@@ -43,13 +43,15 @@ from app.scoring import scorer
 from app.prospection import prospection_manager
 from app.fiches import fiches_manager
 from app.search import create_search_engine
+from app.heatmap import create_heatmap_generator
 
 # Configuration du logging
 setup_logging()
 logger = get_logger(__name__)
 
-# Créer le moteur de recherche
+# Créer le moteur de recherche et le générateur de heatmap
 search_engine = create_search_engine(scorer, prospection_manager, fiches_manager)
+heatmap_generator = create_heatmap_generator(scorer)
 
 
 @asynccontextmanager
@@ -1939,6 +1941,108 @@ async def advanced_search(request: Request):
     except Exception as e:
         logger.error("advanced_search_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Erreur recherche avancée: {str(e)}")
+
+
+# ============== HEATMAPS ==============
+
+@app.get("/api/heatmap/{code_insee}")
+@limiter.limit("10/minute")
+async def generate_heatmap(
+    request: Request,
+    code_insee: str,
+    heatmap_type: str = Query('score', regex='^(score|prix|potentiel|densite)$'),
+    grid_size: float = Query(0.01, gt=0, le=0.1),
+    limit: int = Query(200, le=500)
+):
+    """
+    Génère une heatmap pour visualisation cartographique
+
+    Types disponibles:
+    - score: Densité des scores de parcelles
+    - prix: Densité des prix au m² (DVF)
+    - potentiel: Potentiel global (score + prix)
+    - densite: Densité de parcelles
+    """
+    if not validate_code_insee(code_insee):
+        raise HTTPException(status_code=400, detail="Code INSEE invalide")
+
+    cache_key = f"heatmap:{code_insee}:{heatmap_type}:{grid_size}:{limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        # Récupérer les parcelles
+        parcelles_data = await cadastre_client.get(
+            f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+        )
+        parcelles = parcelles_data.get('features', [])[:limit]
+
+        if not parcelles:
+            return {
+                'type': 'FeatureCollection',
+                'features': [],
+                'metadata': {'type': heatmap_type, 'error': 'Aucune parcelle trouvée'}
+            }
+
+        # Données contextuelles pour scoring
+        stats_marche = None
+        demographics = None
+        transactions = None
+
+        if heatmap_type in ['score', 'potentiel']:
+            # Récupérer stats marché
+            stats_marche = await cache_get(f"stats:{code_insee}")
+            if not stats_marche:
+                dvf_stats_url = f"/dvf?code_insee={code_insee}"
+                stats_marche = await dvf_client.get(f"/statistiques?{dvf_stats_url.split('?')[1]}")
+                await cache_set(f"stats:{code_insee}", stats_marche, ttl=3600)
+
+            # Récupérer démographie
+            demographics = await cache_get(f"demographics:{code_insee}")
+            if not demographics:
+                commune_data = await geo_client.get(
+                    f"/communes/{code_insee}?fields=nom,code,population,surface"
+                )
+                demographics = {
+                    "population": commune_data.get("population", 0),
+                    "surface_km2": commune_data.get("surface", 0) / 100,
+                    "densite": commune_data.get("population", 0) / (commune_data.get("surface", 1) / 100)
+                }
+                await cache_set(f"demographics:{code_insee}", demographics, ttl=3600)
+
+        if heatmap_type in ['prix', 'potentiel', 'score']:
+            # Récupérer transactions DVF
+            transactions_data = await dvf_client.get(f"/dvf?code_insee={code_insee}")
+            transactions = transactions_data.get('resultats', [])
+
+        # Générer la heatmap
+        heatmap = heatmap_generator.generate_heatmap(
+            parcelles=parcelles,
+            heatmap_type=heatmap_type,
+            grid_size=grid_size,
+            stats_marche=stats_marche,
+            demographics=demographics,
+            transactions=transactions
+        )
+
+        # Mettre en cache (30 minutes)
+        await cache_set(cache_key, heatmap, ttl=1800)
+
+        logger.info(
+            "heatmap_generated",
+            code_insee=code_insee,
+            type=heatmap_type,
+            cells=len(heatmap.get('features', []))
+        )
+
+        return heatmap
+
+    except APIError:
+        raise
+    except Exception as e:
+        logger.error("heatmap_error", error=str(e), code_insee=code_insee, type=heatmap_type)
+        raise HTTPException(status_code=500, detail=f"Erreur génération heatmap: {str(e)}")
 
 
 if __name__ == "__main__":
