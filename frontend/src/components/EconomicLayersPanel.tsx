@@ -4,7 +4,6 @@
 
 import { useState } from 'react'
 import { TrendingUp, DollarSign, BarChart3, X } from 'lucide-react'
-import { LoadingSpinner } from './LoadingSpinner'
 
 interface EconomicLayersPanelProps {
     isOpen: boolean

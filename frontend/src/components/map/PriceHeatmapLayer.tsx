@@ -2,7 +2,7 @@
  * Composant MapLibre pour afficher la heatmap des prix au m²
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useMap } from 'react-map-gl/maplibre'
 import type { PriceHeatmapData } from '../hooks/useEconomicLayers'
 
@@ -12,15 +12,16 @@ interface PriceHeatmapLayerProps {
 }
 
 export function PriceHeatmapLayer({ data, opacity = 0.6 }: PriceHeatmapLayerProps) {
-    const { current: map } = useMap()
-    const sourceIdRef = useRef('economic-prix-m2-source')
-    const layerIdRef = useRef('economic-prix-m2-layer')
+    const { current: mapRef } = useMap()
 
     useEffect(() => {
-        if (!map || !data) return
+        if (!mapRef || !data) return
 
-        const sourceId = sourceIdRef.current
-        const layerId = layerIdRef.current
+        const map = mapRef.getMap()
+        if (!map) return
+
+        const sourceId = 'economic-prix-m2-source'
+        const layerId = 'economic-prix-m2-layer'
 
         // Ajouter la source si elle n'existe pas
         if (!map.getSource(sourceId)) {
@@ -74,10 +75,8 @@ export function PriceHeatmapLayer({ data, opacity = 0.6 }: PriceHeatmapLayerProp
             })
 
             // Ajouter interaction hover
-            map.on('mousemove', layerId, (e) => {
-                if (e.features && e.features.length > 0) {
-                    map.getCanvas().style.cursor = 'pointer'
-                }
+            map.on('mousemove', layerId, () => {
+                map.getCanvas().style.cursor = 'pointer'
             })
 
             map.on('mouseleave', layerId, () => {
@@ -97,7 +96,7 @@ export function PriceHeatmapLayer({ data, opacity = 0.6 }: PriceHeatmapLayerProp
                 map.removeSource(sourceId)
             }
         }
-    }, [map, data, opacity])
+    }, [mapRef, data, opacity])
 
     // This component doesn't render anything directly
     return null
