@@ -199,7 +199,7 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
               </div>
               <ActivityTimeline
                 parcelleId={parcelleId}
-                onEdit={(activity) => {
+                onEdit={(activity: any) => {
                   setEditingActivity(activity)
                   setShowActivityForm(true)
                 }}
