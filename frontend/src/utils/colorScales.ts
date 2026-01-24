@@ -26,7 +26,7 @@ export const COLOR_SCALES = {
 
     // Palette accessible (daltonisme)
     accessible: ['#0173b2', '#029e73', '#fbdd85', '#cc78bc', '#ca9161'],
-} as const
+}
 
 /**
  * Configuration des échelles par indicateur

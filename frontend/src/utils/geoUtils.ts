@@ -2,8 +2,6 @@
  * Utilitaires géographiques pour la cartographie
  */
 
-import type { LatLngBounds } from 'leaflet'
-
 /**
  * Calculer le centroïde d'une géométrie
  */
@@ -241,9 +239,9 @@ function getSquareSegmentDistance(
 export function isPointInBounds(
     lat: number,
     lng: number,
-    bounds: LatLngBounds
+    bounds: { minLat: number; maxLat: number; minLng: number; maxLng: number }
 ): boolean {
-    return bounds.contains([lat, lng])
+    return lat >= bounds.minLat && lat <= bounds.maxLat && lng >= bounds.minLng && lng <= bounds.maxLng
 }
 
 /**

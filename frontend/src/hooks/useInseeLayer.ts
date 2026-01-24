@@ -4,9 +4,9 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
-import type { InseeIndicator, InseeData } from '../types'
+import type { InseeIndicator } from '../types'
 import { useInseeCommunes } from './useInseeData'
-import { getIndicatorColor, getMinMax } from '../utils/colorScales'
+import { getMinMax } from '../utils/colorScales'
 
 interface UseInseeLayerResult {
     geoJsonData: GeoJSON.FeatureCollection | null
@@ -128,7 +128,7 @@ export function useInseeLayer(
  * Générer le style MapLibre pour un calque choroplèthe
  */
 export function generateChoroplethStyle(
-    indicator: InseeIndicator,
+    _indicator: InseeIndicator,
     colorScale: string[],
     minValue: number,
     maxValue: number,

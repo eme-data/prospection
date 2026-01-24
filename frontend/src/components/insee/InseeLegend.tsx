@@ -4,8 +4,8 @@
  */
 
 import { useMemo } from 'react'
-import type { InseeIndicator } from '../types'
-import { COLOR_SCALES, INDICATOR_SCALES, formatValue } from '../utils/colorScales'
+import type { InseeIndicator } from '../../types'
+import { INDICATOR_SCALES, formatValue } from '../../utils/colorScales'
 
 interface InseeLegendProps {
     indicator: InseeIndicator
