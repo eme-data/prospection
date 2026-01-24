@@ -406,8 +406,8 @@ function App() {
           <button
             onClick={() => setShowInseeLayers(!showInseeLayers)}
             className={`p-2 rounded-lg transition-colors ${showInseeLayers
-                ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-300'
-                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
               }`}
             title="Calques INSEE"
           >
@@ -555,6 +555,16 @@ function App() {
               onClearAll={handleClearHistory}
               onClose={() => setShowHistory(false)}
             />
+          )}
+
+          {showInseeLayers && (
+            <div className="absolute top-20 right-4 z-20">
+              <InseeLayersPanel
+                config={inseeLayerConfig}
+                onConfigChange={setInseeLayerConfig}
+                onClose={() => setShowInseeLayers(false)}
+              />
+            </div>
           )}
 
           {showAlerts && (
