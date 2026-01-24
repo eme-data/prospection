@@ -42,10 +42,14 @@ from app.report_generator import generate_prospection_report
 from app.scoring import scorer
 from app.prospection import prospection_manager
 from app.fiches import fiches_manager
+from app.search import create_search_engine
 
 # Configuration du logging
 setup_logging()
 logger = get_logger(__name__)
+
+# Créer le moteur de recherche
+search_engine = create_search_engine(scorer, prospection_manager, fiches_manager)
 
 
 @asynccontextmanager
@@ -1828,6 +1832,113 @@ async def get_all_tags(request: Request):
     except Exception as e:
         logger.error("get_all_tags_error", error=str(e))
         raise HTTPException(status_code=500, detail=f"Erreur récupération tags: {str(e)}")
+
+
+# ============== RECHERCHE AVANCÉE ==============
+
+@app.post("/api/search/advanced")
+@limiter.limit("10/minute")
+async def advanced_search(request: Request):
+    """Recherche avancée avec combinaison de filtres"""
+    try:
+        body = await request.json()
+
+        # Extraire les paramètres
+        code_insee = body.get('code_insee')
+        if not code_insee or not validate_code_insee(code_insee):
+            raise HTTPException(status_code=400, detail="code_insee requis et valide")
+
+        # Récupérer les parcelles
+        limit_parcelles = body.get('limit_parcelles', 200)
+        parcelles_data = await cadastre_client.get(
+            f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+        )
+        parcelles = parcelles_data.get('features', [])[:limit_parcelles]
+
+        # Récupérer les données de contexte
+        stats_marche = None
+        demographics = None
+        transactions = None
+
+        if body.get('include_score', True):
+            # Récupérer stats marché
+            stats_marche = await cache_get(f"stats:{code_insee}")
+            if not stats_marche:
+                dvf_stats_url = f"/dvf?code_insee={code_insee}"
+                stats_marche = await dvf_client.get(f"/statistiques?{dvf_stats_url.split('?')[1]}")
+                await cache_set(f"stats:{code_insee}", stats_marche, ttl=3600)
+
+            # Récupérer démographie
+            demographics = await cache_get(f"demographics:{code_insee}")
+            if not demographics:
+                commune_data = await geo_client.get(
+                    f"/communes/{code_insee}?fields=nom,code,population,surface"
+                )
+                demographics = {
+                    "population": commune_data.get("population", 0),
+                    "surface_km2": commune_data.get("surface", 0) / 100,
+                    "densite": commune_data.get("population", 0) / (commune_data.get("surface", 1) / 100)
+                }
+                await cache_set(f"demographics:{code_insee}", demographics, ttl=3600)
+
+            # Récupérer transactions DVF
+            transactions_data = await dvf_client.get(f"/dvf?code_insee={code_insee}")
+            transactions = transactions_data.get('resultats', [])
+
+        # Préparer les filtres
+        filters = {
+            # Pagination
+            'page': body.get('page', 1),
+            'per_page': body.get('per_page', 50),
+
+            # Tri
+            'sort_by': body.get('sort_by', 'score'),
+
+            # Options
+            'include_score': body.get('include_score', True),
+
+            # Filtres parcelle
+            'surface_parcelle_min': body.get('surface_parcelle_min'),
+            'surface_parcelle_max': body.get('surface_parcelle_max'),
+            'section': body.get('section'),
+            'communes_codes': body.get('communes_codes'),
+
+            # Filtres scoring
+            'score_min': body.get('score_min'),
+            'score_max': body.get('score_max'),
+            'niveau_score': body.get('niveau_score'),
+
+            # Filtres prospection
+            'statuts': body.get('statuts'),
+            'date_contact_min': body.get('date_contact_min'),
+            'date_contact_max': body.get('date_contact_max'),
+
+            # Filtres fiche
+            'tags': body.get('tags'),
+            'avec_notes': body.get('avec_notes'),
+            'avec_photos': body.get('avec_photos'),
+            'avec_documents': body.get('avec_documents'),
+        }
+
+        # Effectuer la recherche
+        results = await search_engine.search(
+            parcelles=parcelles,
+            filters=filters,
+            stats_marche=stats_marche,
+            demographics=demographics,
+            transactions=transactions
+        )
+
+        logger.info("advanced_search_completed", code_insee=code_insee, total=results['total'])
+        return results
+
+    except APIError:
+        raise
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("advanced_search_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur recherche avancée: {str(e)}")
 
 
 if __name__ == "__main__":
