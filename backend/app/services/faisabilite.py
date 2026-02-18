@@ -47,27 +47,31 @@ class FaisabiliteService:
         
         # Urbanisme (PLU)
         zonage = []
+        
+        # Essai 1: Par partition (ID Parcelle), plus précis
         try:
-            # Essai 1: Par partition (ID Parcelle), plus précis
             gpu_resp = await gpu_client.get("/zone-urba", params={"partition": parcelle_id})
             zonage = gpu_resp.get("features", [])
-
-            # Essai 2: Fallback Géométrie (Point) si partition ne donne rien
-            if not zonage:
-                 gpu_resp = await gpu_client.get("/zone-urba", params={"geom": f"POINT({lon} {lat})"})
-                 zonage = gpu_resp.get("features", [])
-            
-            # Essai 3: Fallback Document si toujours rien
-            if not zonage:
-                 try:
-                     doc_resp = await gpu_client.get("/document", params={"geom": f"POINT({lon} {lat})"})
-                     docs = doc_resp.get("features", [])
-                     if docs:
-                        zonage = [{"properties": {"typezone": "INFO_DOC", "libelle": f"Document: {docs[0].get('properties', {}).get('typeDocument')}"}}]
-                 except Exception:
-                     pass
         except Exception as e:
-            logger.warning(f"Erreur GPU: {e}")
+            logger.warning(f"GPU Partition ({parcelle_id}) Echec: {e}")
+
+        # Essai 2: Fallback Géométrie (Point) si partition ne donne rien
+        if not zonage:
+            try:
+                gpu_resp = await gpu_client.get("/zone-urba", params={"geom": f"POINT({lon} {lat})"})
+                zonage = gpu_resp.get("features", [])
+            except Exception as e:
+                logger.warning(f"GPU Géométrie (Point) Echec: {e}")
+        
+        # Essai 3: Fallback Document si toujours rien
+        if not zonage:
+            try:
+                 doc_resp = await gpu_client.get("/document", params={"geom": f"POINT({lon} {lat})"})
+                 docs = doc_resp.get("features", [])
+                 if docs:
+                    zonage = [{"properties": {"typezone": "INFO_DOC", "libelle": f"Document: {docs[0].get('properties', {}).get('typeDocument')}"}}]
+            except Exception:
+                 pass
 
         # Risques
         risques = []
