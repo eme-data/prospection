@@ -31,7 +31,7 @@ import { ReportGenerator } from './components/ReportGenerator'
 import { RappelsPanel } from './components/RappelsPanel'
 import InseeLayersPanel from './components/InseeLayersPanel'
 import { EconomicLayersPanel } from './components/EconomicLayersPanel'
-import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions } from './api'
+import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions, searchParcelles } from './api'
 import type {
   MapViewState,
   LayerType,
@@ -177,13 +177,37 @@ function App() {
     return () => clearTimeout(timer)
   }, [viewState.longitude, viewState.latitude, viewState.zoom])
 
-  // Récupération des parcelles cadastrales
-  const { data: parcelles } = useQuery({
-    queryKey: ['parcelles', currentCodeInsee],
-    queryFn: () => getParcelles(currentCodeInsee!),
+  // Récupération des parcelles (Standard ou Recherche Avancée)
+  const { data: parcellesData } = useQuery({
+    queryKey: ['parcelles', currentCodeInsee, filters], // Ajouter filters aux dépendances
+    queryFn: async () => {
+      if (!currentCodeInsee) return null
+
+      // Vérifier si on doit utiliser la recherche avancée
+      const hasAdvancedFilters =
+        filters.zoneTypes?.length ||
+        filters.surfaceParcelleMin ||
+        filters.surfaceParcelleMax ||
+        filters.section
+
+      if (hasAdvancedFilters) {
+        const result = await searchParcelles(currentCodeInsee, filters)
+        // searchParcelles retourne { parcelles: [...], facettes: ... }
+        // On doit adapter pour retourner un GeoJSONFeatureCollection comme attendu par MapView
+        return {
+          type: 'FeatureCollection',
+          features: result.parcelles.map((p: any) => p.parcelle) // p est enrichi {parcelle, score, ...}
+        } as GeoJSONFeatureCollection<Parcelle>
+      } else {
+        return getParcelles(currentCodeInsee)
+      }
+    },
     enabled: !!currentCodeInsee && activeLayers.has('parcelles') && viewState.zoom >= 15,
-    staleTime: 10 * 60 * 1000,
+    staleTime: 5 * 60 * 1000, // Réduire un peu le cache pour la recherche
   })
+
+  // Adapter pour MapView (qui attend parcelles)
+  const parcelles = parcellesData
 
   // Récupération des transactions DVF
   const { data: rawTransactions } = useQuery({

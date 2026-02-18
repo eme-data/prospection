@@ -96,6 +96,10 @@ fi
 
 cd "$INSTALL_DIR"
 
+# Fix git safe directory issues (CVE-2022-24765)
+git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
+sudo -u "$APP_USER" git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
+
 echo ""
 echo "=============================================="
 echo "  Mise à Jour Prospection Foncière"
@@ -175,7 +179,7 @@ fi
 #===============================================================================
 log_info "Analyse des changements..."
 
-CHANGED_FILES=$(git diff --name-only "$CURRENT_COMMIT" "$NEW_COMMIT" || echo "")
+CHANGED_FILES=$(sudo -u "$APP_USER" git diff --name-only "$CURRENT_COMMIT" "$NEW_COMMIT" || echo "")
 
 BACKEND_CHANGED=false
 FRONTEND_CHANGED=false
@@ -303,10 +307,10 @@ echo "Version déployée:   $VERSION"
 echo ""
 
 # Résumé des changements
-COMMITS_COUNT=$(git rev-list --count "$CURRENT_COMMIT..$NEW_COMMIT" 2>/dev/null || echo "0")
+COMMITS_COUNT=$(sudo -u "$APP_USER" git rev-list --count "$CURRENT_COMMIT..$NEW_COMMIT" 2>/dev/null || echo "0")
 if [[ "$COMMITS_COUNT" -gt 0 ]]; then
     echo "Changements déployés ($COMMITS_COUNT commits):"
-    git log --oneline "$CURRENT_COMMIT..$NEW_COMMIT" | head -10
+    sudo -u "$APP_USER" git log --oneline "$CURRENT_COMMIT..$NEW_COMMIT" | head -10
     echo ""
 fi
 

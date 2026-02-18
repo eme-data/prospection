@@ -6,6 +6,14 @@ from datetime import datetime
 import json
 
 
+try:
+    from shapely.geometry import shape
+    from shapely.strtree import STRtree
+    HAS_SHAPELY = True
+except ImportError:
+    HAS_SHAPELY = False
+
+
 class AdvancedSearch:
     """Moteur de recherche avancée pour parcelles"""
 
@@ -21,22 +29,35 @@ class AdvancedSearch:
         stats_marche: Optional[Dict[str, Any]] = None,
         demographics: Optional[Dict[str, Any]] = None,
         transactions: Optional[List[Dict[str, Any]]] = None,
+        zones: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Recherche avancée avec filtres combinés
-
-        Args:
-            parcelles: Liste des parcelles brutes
-            filters: Dictionnaire de filtres
-            stats_marche: Stats du marché
-            demographics: Données démographiques
-            transactions: Transactions DVF
-
-        Returns:
-            Résultats avec parcelles enrichies et facettes
         """
         # Liste pour stocker les résultats enrichis
         results = []
+
+        # Préparation du filtre géographique (Zones PLU)
+        allowed_geometry_index = None
+        allowed_zones_geoms = []
+        
+        if zones and filters.get('zone_types') and HAS_SHAPELY:
+            # Filtrer les zones selon le type demandé (U, AU, etc.)
+            target_types = set(filters['zone_types'])
+            for zone in zones:
+                props = zone.get('properties', {})
+                # typezone est souvent 'U', 'N', 'AU', 'A'
+                if props.get('typezone') in target_types:
+                    try:
+                        geom = shape(zone.get('geometry'))
+                        if geom.is_valid:
+                            allowed_zones_geoms.append(geom)
+                    except Exception:
+                        pass
+            
+            # Créer un index spatial pour optimiser
+            # Mais pour l'instant simple check intersection
+            pass
 
         # Récupérer toutes les prospections et fiches pour optimiser
         all_prospections = {
@@ -50,6 +71,19 @@ class AdvancedSearch:
 
         # Traiter chaque parcelle
         for parcelle in parcelles:
+            # Filtrage Géométrique
+            if allowed_zones_geoms:
+                try:
+                    parcelle_geom = shape(parcelle.get('geometry'))
+                    # Vérifier si la parcelle intersecte UNE des zones autorisées
+                    # Optimisation: utiliser STRtree si beaucoup de zones
+                    if not any(z.intersects(parcelle_geom) for z in allowed_zones_geoms):
+                        continue
+                except Exception:
+                    # Si erreur géométrie, on exclut par sécurité ou on inclut ? 
+                    # On exclut si on est strict
+                    continue
+
             parcelle_id = parcelle.get('properties', {}).get('id', '')
 
             # Enrichir la parcelle avec toutes les données
@@ -82,7 +116,7 @@ class AdvancedSearch:
         per_page = filters.get('per_page', 50)
         start_idx = (page - 1) * per_page
         end_idx = start_idx + per_page
-
+        
         paginated_results = results[start_idx:end_idx]
 
         # Calculer les facettes
@@ -109,6 +143,10 @@ class AdvancedSearch:
 
         # Surface parcelle
         surface = props.get('contenance', 0)
+        if filters.get('surface_min') and surface < filters['surface_min']:
+            return False
+        if filters.get('surface_max') and surface > filters['surface_max']:
+            return False
         if filters.get('surface_parcelle_min') and surface < filters['surface_parcelle_min']:
             return False
         if filters.get('surface_parcelle_max') and surface > filters['surface_parcelle_max']:
@@ -121,6 +159,8 @@ class AdvancedSearch:
 
         # Commune
         if filters.get('communes_codes'):
+            # Note: Si on filtre par code_insee dans SearchFilters, ce filtre est redondant 
+            # mais utile si multi-commune
             commune_code = props.get('commune', '')
             if commune_code not in filters['communes_codes']:
                 return False
@@ -144,9 +184,16 @@ class AdvancedSearch:
         # Statut prospection
         if filters.get('statuts'):
             if not prospection:
-                return False
-            if prospection.get('statut') not in filters['statuts']:
-                return False
+                # Si on filtre par statut et qu'il n'y a pas de prospection
+                # Est-ce qu'on inclut "a_prospecter" (par defaut) ?
+                # Souvent 'a_prospecter' n'a pas d'objet prospection créé
+                if 'a_prospecter' in filters['statuts']:
+                    pass # OK
+                else:
+                    return False
+            else:
+                if prospection.get('statut') not in filters['statuts']:
+                    return False
 
         # Dates de contact
         if prospection:
@@ -259,12 +306,16 @@ class AdvancedSearch:
             if prospection:
                 statut = prospection.get('statut', 'a_prospecter')
                 facettes['statuts'][statut] = facettes['statuts'].get(statut, 0) + 1
+            else:
+                 # Par defaut une parcelle sans prospection est 'a_prospecter'
+                 facettes['statuts']['a_prospecter'] = facettes['statuts'].get('a_prospecter', 0) + 1
 
             # Facette scores
             score = result.get('score')
             if score:
                 niveau = score.get('niveau', 'faible')
-                facettes['scores'][niveau] += 1
+                if niveau in facettes['scores']:
+                    facettes['scores'][niveau] += 1
 
             # Facette communes
             commune = result['parcelle'].get('properties', {}).get('commune', '')

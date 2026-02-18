@@ -67,3 +67,39 @@ async def get_prescriptions_plu(
         return {"longitude": lon, "latitude": lat, "prescriptions": prescriptions, "count": len(prescriptions)}
     except Exception:
         return {"longitude": lon, "latitude": lat, "prescriptions": [], "count": 0}
+
+
+@router.get("/commune/{code_insee}/zones")
+@limiter.limit("20/minute")
+async def get_zones_commune(
+    request: Request,
+    code_insee: str
+):
+    """Recupere toutes les zones d'une commune (partition)"""
+    try:
+        # GPU API utilise souvent le code INSEE comme partition
+        # On recupere les zones d'urbanisme (zone-urba)
+        data = await gpu_client.get("/zone-urba", params={"partition": f"DU_{code_insee}"})
+
+        zones = []
+        for feature in data.get("features", []):
+            props = feature.get("properties", {})
+            geom = feature.get("geometry", {})
+            zones.append({
+                "type": "Feature",
+                "geometry": geom,
+                "properties": {
+                    "libelle": props.get("libelle"),
+                    "libelong": props.get("libelong"),
+                    "typezone": props.get("typezone"),
+                    "destdomi": props.get("destdomi"),
+                    "nomfic": props.get("nomfic"),
+                    "urlfic": props.get("urlfic"),
+                    "partition": props.get("partition"),
+                }
+            })
+
+        return {"code_insee": code_insee, "zones": zones, "count": len(zones)}
+    except Exception as e:
+        logger.error(f"Erreur recuperation zones commune {code_insee}: {str(e)}")
+        return {"code_insee": code_insee, "zones": [], "count": 0, "error": str(e)}

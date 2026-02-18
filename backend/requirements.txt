@@ -34,3 +34,6 @@ tenacity==8.2.3
 # PDF Generation
 reportlab==4.0.9
 Pillow==10.2.0
+
+# Geometry
+shapely

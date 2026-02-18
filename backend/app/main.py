@@ -49,7 +49,8 @@ from app.routers import (
     geo,
     risks,
     urbanism,
-    export
+    export,
+    search
 )
 
 # Configuration du logging
@@ -109,6 +110,7 @@ app.include_router(geo.router)
 app.include_router(risks.router)
 app.include_router(urbanism.router)
 app.include_router(export.router)
+app.include_router(search.router)
 
 # Routes existantes non refactorees (a deplacer plus tard)
 app.include_router(economic_router)

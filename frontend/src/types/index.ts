@@ -92,6 +92,11 @@ export interface DVFFilters {
   surfaceMax?: number
   anneeMin?: number
   anneeMax?: number
+  // Nouveaux filtres
+  surfaceParcelleMin?: number
+  surfaceParcelleMax?: number
+  section?: string
+  zoneTypes?: string[]
 }
 
 export interface DVFStatistiques {

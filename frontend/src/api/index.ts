@@ -12,8 +12,8 @@ import type {
 
 const API_BASE = '/api'
 
-async function fetchJSON<T>(url: string): Promise<T> {
-  const response = await fetch(url)
+async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(url, options)
   if (!response.ok) {
     throw new Error(`HTTP error! status: ${response.status}`)
   }
@@ -217,5 +217,34 @@ export function filterTransactions(
     }
 
     return true
+  })
+}
+// ============== RECHERCHE AVANCÉE ==============
+
+export async function searchParcelles(
+  codeInsee: string,
+  filters: DVFFilters
+): Promise<any> {
+  const body = {
+    code_insee: codeInsee,
+    section: filters.section,
+    surface_min: filters.surfaceParcelleMin,
+    surface_max: filters.surfaceParcelleMax,
+    zone_types: filters.zoneTypes?.length ? filters.zoneTypes : undefined,
+    score_min: undefined,
+    include_score: true,
+    page: 1,
+    per_page: 200,
+    sort_by: 'score'
+  }
+
+  // Nettoyage des undefined recursif si besoin, mais ici JSON.stringify ignore undefined
+
+  return fetchJSON(`${API_BASE}/search`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
   })
 }
