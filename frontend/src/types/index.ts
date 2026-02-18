@@ -97,6 +97,7 @@ export interface DVFFilters {
   surfaceParcelleMax?: number
   section?: string
   zoneTypes?: string[]
+  nonBati?: boolean
 }
 
 export interface DVFStatistiques {

@@ -10,6 +10,7 @@ from app.http_client import cadastre_client, dvf_client, geo_client, gpu_client
 from app.cache import cache_get, cache_set
 from app.security import limiter, validate_code_insee
 from app.logging_config import get_logger
+from app.services.ign import get_batiments_by_insee
 
 # Initialisation du moteur de recherche
 search_engine = create_search_engine(scorer, prospection_manager, fiches_manager)
@@ -30,8 +31,9 @@ class SearchFilters(BaseModel):
     surface_min: Optional[float] = None
     surface_max: Optional[float] = None
     
-    # Filtres Urbanisme (Nouveau)
-    zone_types: Optional[List[str]] = None  # Ex: ['U', 'AU']
+    # Filtres Urbanisme
+    zone_types: Optional[List[str]] = None
+    non_bati: Optional[bool] = None  # Nouveau filtre
     
     # Filtres Scoring
     score_min: Optional[float] = None
@@ -111,14 +113,20 @@ async def search_parcelles(
             except Exception as e:
                 logger.warning(f"Impossible de récupérer les zones PLU: {str(e)}", extra={"code_insee": filters.code_insee})
 
-        # 4. Lancer la recherche via le moteur
+        # 4. Récupérer les bâtiments (si filtre non_bati actif)
+        batiments = []
+        if filters.non_bati:
+             batiments = await get_batiments_by_insee(filters.code_insee)
+
+        # 5. Lancer la recherche via le moteur
         results = await search_engine.search(
             parcelles=all_parcelles,
             filters=filters.model_dump(),
             stats_marche=stats_marche,
             demographics=demographics,
             transactions=transactions,
-            zones=zones
+            zones=zones,
+            batiments=batiments
         )
         
         return results

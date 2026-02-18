@@ -231,6 +231,7 @@ export async function searchParcelles(
     surface_min: filters.surfaceParcelleMin,
     surface_max: filters.surfaceParcelleMax,
     zone_types: filters.zoneTypes?.length ? filters.zoneTypes : undefined,
+    non_bati: filters.nonBati,
     score_min: undefined,
     include_score: true,
     page: 1,

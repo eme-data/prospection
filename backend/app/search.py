@@ -30,6 +30,7 @@ class AdvancedSearch:
         demographics: Optional[Dict[str, Any]] = None,
         transactions: Optional[List[Dict[str, Any]]] = None,
         zones: Optional[List[Dict[str, Any]]] = None,
+        batiments: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Recherche avancée avec filtres combinés
@@ -38,7 +39,6 @@ class AdvancedSearch:
         results = []
 
         # Préparation du filtre géographique (Zones PLU)
-        allowed_geometry_index = None
         allowed_zones_geoms = []
         
         if zones and filters.get('zone_types') and HAS_SHAPELY:
@@ -54,10 +54,26 @@ class AdvancedSearch:
                             allowed_zones_geoms.append(geom)
                     except Exception:
                         pass
+        
+        # Préparation du filtre Bâti (IGN)
+        batiments_index = None
+        batiments_geoms = []
+        if batiments and filters.get('non_bati') and HAS_SHAPELY:
+            for bat in batiments:
+                try:
+                    geom = shape(bat.get('geometry'))
+                    if geom.is_valid:
+                        batiments_geoms.append(geom)
+                except Exception:
+                    pass
             
-            # Créer un index spatial pour optimiser
-            # Mais pour l'instant simple check intersection
-            pass
+            if batiments_geoms:
+                # Créer un index spatial pour optimiser les intersections
+                try:
+                    batiments_index = STRtree(batiments_geoms)
+                except Exception:
+                    # Fallback si STRtree pas dispo ou erreur
+                    pass
 
         # Récupérer toutes les prospections et fiches pour optimiser
         all_prospections = {
@@ -71,18 +87,46 @@ class AdvancedSearch:
 
         # Traiter chaque parcelle
         for parcelle in parcelles:
-            # Filtrage Géométrique
+            # Filtrage Géométrique (PLU)
             if allowed_zones_geoms:
                 try:
                     parcelle_geom = shape(parcelle.get('geometry'))
+                    if not parcelle_geom.is_valid:
+                        continue
+                        
                     # Vérifier si la parcelle intersecte UNE des zones autorisées
-                    # Optimisation: utiliser STRtree si beaucoup de zones
                     if not any(z.intersects(parcelle_geom) for z in allowed_zones_geoms):
                         continue
                 except Exception:
-                    # Si erreur géométrie, on exclut par sécurité ou on inclut ? 
-                    # On exclut si on est strict
                     continue
+
+            # Filtrage Non Bâti (IGN)
+            if batiments_geoms and filters.get('non_bati'):
+                try:
+                    parcelle_geom = shape(parcelle.get('geometry'))
+                    if not parcelle_geom.is_valid:
+                         continue
+                         
+                    # Si index spatial dispo (STRtree)
+                    if batiments_index:
+                        # query retourne les indices des géométries qui intersectent potentiellement
+                        potential_indices = batiments_index.query(parcelle_geom)
+                        is_built = False
+                        for idx in potential_indices:
+                            if batiments_geoms[idx].intersects(parcelle_geom):
+                                is_built = True
+                                break
+                        if is_built:
+                            continue
+                    else:
+                        # Fallback lent
+                        if any(b.intersects(parcelle_geom) for b in batiments_geoms):
+                            continue
+                            
+                except Exception:
+                    # En cas d'erreur géométrique, on ignore ou on laisse passer ?
+                    # Laissons passer par défaut pour ne pas bloquer, ou continue pour être strict.
+                    pass
 
             parcelle_id = parcelle.get('properties', {}).get('id', '')
 

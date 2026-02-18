@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     api_dvf_url: str = "https://api.cquest.org/dvf"
     api_georisques_url: str = "https://georisques.gouv.fr/api/v1"
     api_gpu_url: str = "https://apicarto.ign.fr/api/gpu"
+    api_ign_wfs_url: str = "https://data.geopf.fr/wfs/ows"
 
     @property
     def is_production(self) -> bool:
