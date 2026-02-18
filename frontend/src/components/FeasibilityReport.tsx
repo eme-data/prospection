@@ -69,55 +69,67 @@ export function FeasibilityReport({ report, onClose }: FeasibilityReportProps) {
                                 </span>
                             </div>
 
-                            <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                                <span className="text-gray-600">État du Terrain</span>
-                                <span className={`font-medium px-3 py-1 rounded-full text-sm ${report.is_built ? 'bg-orange-50 text-orange-700' : 'bg-green-50 text-green-700'}`}>
-                                    {report.is_built ? 'Bâti (Dents Creuses ?)' : 'Terrain Nu'}
-                                </span>
-                            </div>
-
-                            {/* Points de Vigilance */}
-                            {report.synthese.points_vigilance.length > 0 && (
-                                <div className="mt-4 bg-red-50 border border-red-100 rounded-lg p-3">
-                                    <p className="text-red-800 font-medium text-sm mb-2">Points de Vigilance :</p>
-                                    <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
-                                        {report.synthese.points_vigilance.map((pt: string, idx: number) => (
-                                            <li key={idx}>{pt}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
+                            {report.is_built ? 'Bâti (Dents Creuses ?)' : 'Terrain Nu'}
+                        </span>
                     </div>
 
-                    {/* Détails Risques */}
-                    {report.risques.length > 0 && (
-                        <div>
-                            <h3 className="text-md font-semibold text-gray-700 mb-3">Risques Naturels</h3>
-                            <div className="grid gap-2">
-                                {report.risques.map((r: { libelle: string, niveau: string }, idx: number) => (
-                                    <div key={idx} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
-                                        <span>{r.libelle}</span>
-                                        <span className={`font-medium ${r.niveau === 'Fort' ? 'text-red-600' : 'text-gray-600'}`}>{r.niveau}</span>
+                    {/* Liste détaillée des zones */}
+                    {report.zonage && report.zonage.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-100">
+                            <p className="text-gray-500 text-xs mb-1">Détail des zones :</p>
+                            <div className="space-y-1">
+                                {report.zonage.map((z: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between items-center text-sm bg-blue-50/50 p-1.5 rounded">
+                                        <span className="font-medium text-blue-900">{z.typezone}</span>
+                                        <span className="text-blue-700 truncate max-w-[200px]" title={z.libelong || z.libelle}>{z.libelle}</span>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
 
-                </div>
-
-                {/* Footer Actions */}
-                <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-xl">
-                    <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-200 rounded-lg transition-colors">
-                        Fermer
-                    </button>
-                    <button className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-2">
-                        <span>Télécharger PDF</span>
-                        {/* Icone PDF */}
-                    </button>
+                    {/* Points de Vigilance */}
+                    {report.synthese.points_vigilance.length > 0 && (
+                        <div className="mt-4 bg-red-50 border border-red-100 rounded-lg p-3">
+                            <p className="text-red-800 font-medium text-sm mb-2">Points de Vigilance :</p>
+                            <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                                {report.synthese.points_vigilance.map((pt: string, idx: number) => (
+                                    <li key={idx}>{pt}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                 </div>
             </div>
+
+            {/* Détails Risques */}
+            {report.risques.length > 0 && (
+                <div>
+                    <h3 className="text-md font-semibold text-gray-700 mb-3">Risques Naturels</h3>
+                    <div className="grid gap-2">
+                        {report.risques.map((r: { libelle: string, niveau: string }, idx: number) => (
+                            <div key={idx} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
+                                <span>{r.libelle}</span>
+                                <span className={`font-medium ${r.niveau === 'Fort' ? 'text-red-600' : 'text-gray-600'}`}>{r.niveau}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
         </div>
+
+                {/* Footer Actions */ }
+    <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-xl">
+        <button onClick={onClose} className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-200 rounded-lg transition-colors">
+            Fermer
+        </button>
+        <button className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-2">
+            <span>Télécharger PDF</span>
+            {/* Icone PDF */}
+        </button>
+    </div>
+            </div >
+        </div >
     )
 }

@@ -48,8 +48,24 @@ class FaisabiliteService:
         # Urbanisme (PLU)
         zonage = []
         try:
-            gpu_resp = await gpu_client.get("/zone-urba", params={"geom": f"POINT({lon} {lat})"})
+            # Essai 1: Par partition (ID Parcelle), plus précis
+            gpu_resp = await gpu_client.get("/zone-urba", params={"partition": parcelle_id})
             zonage = gpu_resp.get("features", [])
+
+            # Essai 2: Fallback Géométrie (Point) si partition ne donne rien
+            if not zonage:
+                 gpu_resp = await gpu_client.get("/zone-urba", params={"geom": f"POINT({lon} {lat})"})
+                 zonage = gpu_resp.get("features", [])
+            
+            # Essai 3: Fallback Document si toujours rien
+            if not zonage:
+                 try:
+                     doc_resp = await gpu_client.get("/document", params={"geom": f"POINT({lon} {lat})"})
+                     docs = doc_resp.get("features", [])
+                     if docs:
+                        zonage = [{"properties": {"typezone": "INFO_DOC", "libelle": f"Document: {docs[0].get('properties', {}).get('typeDocument')}"}}]
+                 except Exception:
+                     pass
         except Exception as e:
             logger.warning(f"Erreur GPU: {e}")
 
@@ -103,6 +119,16 @@ class FaisabiliteService:
             constructibilite_plu = "Non Constructible (Zone N)"
         elif "A" in zones_codes:
             constructibilite_plu = "Agricole (Zone A)"
+        elif "INFO_DOC" in zones_codes:
+            # On récupère le libellé du document
+            doc_info = next((z.get("properties", {}).get("libelle") for z in zonage if z.get("properties", {}).get("typezone") == "INFO_DOC"), "Document existant")
+            constructibilite_plu = "À vérifier (Zone non précise)"
+            conclusion = "À vérifier en mairie"
+            details.append(f"{doc_info} - Zonage précis non disponible via API")
+        elif not zones_codes:
+            constructibilite_plu = "RNU / Non numérisé"
+            conclusion = "À vérifier en mairie"
+            details.append("Aucun document d'urbanisme numérique trouvé sur le Géoportail")
 
         # Conclusion Globale
         conclusion = "Favorable"

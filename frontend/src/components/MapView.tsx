@@ -16,7 +16,32 @@ import InseeTooltip from './insee/InseeTooltip'
 
 // Style de carte OpenStreetMap
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
-const SATELLITE_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
+
+// Style Google Satellite (Hybrid)
+const SATELLITE_STYLE = {
+  version: 8,
+  sources: {
+    'google-satellite': {
+      type: 'raster',
+      tiles: [
+        'https://mt0.google.com/vt/lyrs=y&hl=fr&x={x}&y={y}&z={z}',
+        'https://mt1.google.com/vt/lyrs=y&hl=fr&x={x}&y={y}&z={z}',
+        'https://mt2.google.com/vt/lyrs=y&hl=fr&x={x}&y={y}&z={z}',
+        'https://mt3.google.com/vt/lyrs=y&hl=fr&x={x}&y={y}&z={z}',
+      ],
+      tileSize: 256,
+    },
+  },
+  layers: [
+    {
+      id: 'google-satellite',
+      type: 'raster',
+      source: 'google-satellite',
+      minzoom: 0,
+      maxzoom: 22,
+    },
+  ],
+}
 
 interface MapViewProps {
   viewState: MapViewState

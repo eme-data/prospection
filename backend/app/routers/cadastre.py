@@ -49,7 +49,7 @@ async def get_parcelles(
 
     return {
         "type": "FeatureCollection",
-        "features": features[:100]
+        "features": features
     }
 
 
