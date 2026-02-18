@@ -43,7 +43,7 @@ class TestAddressSearch:
 
     def test_search_address_success(self, test_client, mock_ban_response):
         """Recherche d'adresse avec resultats"""
-        with patch('app.main.ban_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.address.ban_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_ban_response
 
             response = test_client.get("/api/address/search", params={"q": "1 rue de la paix paris"})
@@ -66,7 +66,7 @@ class TestAddressSearch:
 
     def test_reverse_geocode_success(self, test_client, mock_ban_response):
         """Geocodage inverse avec resultats"""
-        with patch('app.main.ban_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.address.ban_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_ban_response
 
             response = test_client.get("/api/address/reverse", params={"lon": 2.3488, "lat": 48.8534})
@@ -86,9 +86,9 @@ class TestCadastreEndpoints:
 
     def test_get_parcelles_success(self, test_client, mock_cadastre_response):
         """Recuperation des parcelles avec succes"""
-        with patch('app.main.cadastre_client.get', new_callable=AsyncMock) as mock_get, \
-             patch('app.main.cache_get', new_callable=AsyncMock) as mock_cache_get, \
-             patch('app.main.cache_set', new_callable=AsyncMock) as mock_cache_set:
+        with patch('app.routers.cadastre.cadastre_client.get', new_callable=AsyncMock) as mock_get, \
+             patch('app.routers.cadastre.cache_get', new_callable=AsyncMock) as mock_cache_get, \
+             patch('app.routers.cadastre.cache_set', new_callable=AsyncMock) as mock_cache_set:
             mock_get.return_value = mock_cadastre_response
             mock_cache_get.return_value = None
             mock_cache_set.return_value = True
@@ -107,9 +107,9 @@ class TestCadastreEndpoints:
 
     def test_get_parcelles_with_section_filter(self, test_client, mock_cadastre_response):
         """Filtrage par section cadastrale"""
-        with patch('app.main.cadastre_client.get', new_callable=AsyncMock) as mock_get, \
-             patch('app.main.cache_get', new_callable=AsyncMock) as mock_cache_get, \
-             patch('app.main.cache_set', new_callable=AsyncMock) as mock_cache_set:
+        with patch('app.routers.cadastre.cadastre_client.get', new_callable=AsyncMock) as mock_get, \
+             patch('app.routers.cadastre.cache_get', new_callable=AsyncMock) as mock_cache_get, \
+             patch('app.routers.cadastre.cache_set', new_callable=AsyncMock) as mock_cache_set:
             mock_get.return_value = mock_cadastre_response
             mock_cache_get.return_value = None
             mock_cache_set.return_value = True
@@ -123,7 +123,7 @@ class TestCadastreEndpoints:
 
     def test_get_parcelle_detail_success(self, test_client, mock_cadastre_response):
         """Details d'une parcelle specifique"""
-        with patch('app.main.cadastre_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.cadastre.cadastre_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_cadastre_response
 
             response = test_client.get("/api/cadastre/parcelle/75102000AB0001")
@@ -132,7 +132,7 @@ class TestCadastreEndpoints:
 
     def test_get_parcelle_detail_not_found(self, test_client, mock_cadastre_response):
         """Parcelle non trouvee"""
-        with patch('app.main.cadastre_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.cadastre.cadastre_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = {"features": []}
 
             response = test_client.get("/api/cadastre/parcelle/75102000XX9999")
@@ -145,7 +145,7 @@ class TestDVFEndpoints:
 
     def test_get_dvf_by_insee(self, test_client, mock_dvf_response):
         """Transactions DVF par code INSEE"""
-        with patch('app.main.dvf_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.dvf.dvf_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_dvf_response
 
             response = test_client.get("/api/dvf/transactions", params={"code_insee": "75102"})
@@ -158,7 +158,7 @@ class TestDVFEndpoints:
 
     def test_get_dvf_by_coordinates(self, test_client, mock_dvf_response):
         """Transactions DVF par coordonnees"""
-        with patch('app.main.dvf_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.dvf.dvf_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_dvf_response
 
             response = test_client.get(
@@ -175,7 +175,7 @@ class TestDVFEndpoints:
 
     def test_get_dvf_statistiques(self, test_client, mock_dvf_response):
         """Statistiques DVF"""
-        with patch('app.main.dvf_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.dvf.dvf_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_dvf_response
 
             response = test_client.get(
@@ -194,7 +194,7 @@ class TestGeoEndpoints:
 
     def test_search_communes(self, test_client, mock_geo_communes_response):
         """Recherche de communes"""
-        with patch('app.main.geo_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.geo.geo_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_geo_communes_response
 
             response = test_client.get("/api/geo/communes", params={"nom": "Paris"})
@@ -205,7 +205,7 @@ class TestGeoEndpoints:
 
     def test_get_commune_by_insee(self, test_client):
         """Details d'une commune"""
-        with patch('app.main.geo_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.geo.geo_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = {"nom": "Paris", "code": "75056"}
 
             response = test_client.get("/api/geo/commune/75056")
@@ -214,9 +214,9 @@ class TestGeoEndpoints:
 
     def test_get_departements(self, test_client):
         """Liste des departements"""
-        with patch('app.main.geo_client.get', new_callable=AsyncMock) as mock_get, \
-             patch('app.main.cache_get', new_callable=AsyncMock) as mock_cache_get, \
-             patch('app.main.cache_set', new_callable=AsyncMock) as mock_cache_set:
+        with patch('app.routers.geo.geo_client.get', new_callable=AsyncMock) as mock_get, \
+             patch('app.routers.cadastre.cache_get', new_callable=AsyncMock) as mock_cache_get, \
+             patch('app.routers.cadastre.cache_set', new_callable=AsyncMock) as mock_cache_set:
             mock_get.return_value = [{"code": "75", "nom": "Paris"}]
             mock_cache_get.return_value = None
             mock_cache_set.return_value = True
@@ -233,7 +233,7 @@ class TestRisquesEndpoints:
 
     def test_get_risques_commune(self, test_client, mock_georisques_response):
         """Risques d'une commune"""
-        with patch('app.main.georisques_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.risks.georisques_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_georisques_response
 
             response = test_client.get("/api/risques/commune/75102")
@@ -245,7 +245,7 @@ class TestRisquesEndpoints:
 
     def test_get_risques_parcelle(self, test_client, mock_georisques_response):
         """Risques pour une localisation"""
-        with patch('app.main.georisques_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.risks.georisques_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_georisques_response
 
             response = test_client.get(
@@ -257,7 +257,7 @@ class TestRisquesEndpoints:
 
     def test_get_risques_inondation(self, test_client):
         """Zones inondables"""
-        with patch('app.main.georisques_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.risks.georisques_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = {"data": []}
 
             response = test_client.get(
@@ -273,7 +273,7 @@ class TestUrbanismeEndpoints:
 
     def test_get_zonage_plu(self, test_client, mock_gpu_response):
         """Zonage PLU"""
-        with patch('app.main.gpu_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.urbanism.gpu_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_gpu_response
 
             response = test_client.get(
@@ -287,7 +287,7 @@ class TestUrbanismeEndpoints:
 
     def test_get_prescriptions_plu(self, test_client):
         """Prescriptions PLU"""
-        with patch('app.main.gpu_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.urbanism.gpu_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = {"features": []}
 
             response = test_client.get(
@@ -303,7 +303,7 @@ class TestExportEndpoints:
 
     def test_export_dvf_csv(self, test_client, mock_dvf_response):
         """Export DVF en CSV"""
-        with patch('app.main.dvf_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.dvf.dvf_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_dvf_response
 
             response = test_client.get(
@@ -317,7 +317,7 @@ class TestExportEndpoints:
 
     def test_export_dvf_geojson(self, test_client, mock_dvf_response):
         """Export DVF en GeoJSON"""
-        with patch('app.main.dvf_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.dvf.dvf_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_dvf_response
 
             response = test_client.get(
@@ -330,7 +330,7 @@ class TestExportEndpoints:
 
     def test_export_parcelles_geojson(self, test_client, mock_cadastre_response):
         """Export parcelles en GeoJSON"""
-        with patch('app.main.cadastre_client.get', new_callable=AsyncMock) as mock_get:
+        with patch('app.routers.cadastre.cadastre_client.get', new_callable=AsyncMock) as mock_get:
             mock_get.return_value = mock_cadastre_response
 
             response = test_client.get(
