@@ -1,6 +1,7 @@
 from typing import Dict, Any, List, Optional
 from shapely.geometry import shape, Point
 from app.http_client import cadastre_client, gpu_client, georisques_client, ign_client
+from app.cache import cache_get
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -9,17 +10,33 @@ class FaisabiliteService:
     """Service pour générer des rapports de faisabilité foncière"""
 
     async def get_parcelle_data(self, parcelle_id: str) -> Dict[str, Any]:
-        """Récupère les données cadastrales brutes"""
+        """Récupère les données cadastrales (Cache > API)"""
         code_insee = parcelle_id[:5]
+        cache_key = f"parcelles:{code_insee}"
+        
+        # 1. Check Cache
+        try:
+            cached_data = await cache_get(cache_key)
+            if cached_data:
+                for feature in cached_data.get("features", []):
+                     if feature.get("properties", {}).get("id") == parcelle_id:
+                         return feature
+        except Exception as e:
+            logger.warning(f"Faisabilité: Erreur lecture cache {e}")
+
+        # 2. API Fallback
         try:
             url = f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+            logger.info(f"Faisabilité: Fetching API Cadastre pour {code_insee}")
             data = await cadastre_client.get(url)
             for feature in data.get("features", []):
                 if feature.get("properties", {}).get("id") == parcelle_id:
                     return feature
+            
+            logger.error(f"Faisabilité: Parcelle {parcelle_id} introuvable dans la commune {code_insee}")
             return None
         except Exception as e:
-            logger.error(f"Erreur cadastre pour {parcelle_id}: {e}")
+            logger.error(f"Erreur API Cadastre pour {parcelle_id}: {e}")
             return None
 
     async def generate_report(self, parcelle_id: str) -> Dict[str, Any]:
