@@ -8,6 +8,7 @@ import type {
   DVFStatistiques,
   RisquesResponse,
   ZonageResponse,
+  FaisabiliteReport,
 } from '../types'
 
 const API_BASE = '/api'
