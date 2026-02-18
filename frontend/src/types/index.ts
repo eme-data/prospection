@@ -521,3 +521,20 @@ export interface ResultatRecherche {
   }
 }
 
+
+export interface FaisabiliteReport {
+  parcelle_id: string
+  adresse: string
+  surface: number
+  zonage: any[]
+  risques: {
+    libelle: string
+    niveau: string
+  }[]
+  is_built: boolean
+  synthese: {
+    constructibilite: string
+    conclusion: string
+    points_vigilance: string[]
+  }
+}

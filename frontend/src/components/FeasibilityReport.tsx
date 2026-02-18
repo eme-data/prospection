@@ -1,4 +1,3 @@
-import React from 'react'
 import { FaisabiliteReport } from '../types'
 import { CheckCircle, AlertTriangle, XCircle, Home, Map as MapIcon, Activity } from 'lucide-react'
 
@@ -82,7 +81,7 @@ export function FeasibilityReport({ report, onClose }: FeasibilityReportProps) {
                                 <div className="mt-4 bg-red-50 border border-red-100 rounded-lg p-3">
                                     <p className="text-red-800 font-medium text-sm mb-2">Points de Vigilance :</p>
                                     <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
-                                        {report.synthese.points_vigilance.map((pt, idx) => (
+                                        {report.synthese.points_vigilance.map((pt: string, idx: number) => (
                                             <li key={idx}>{pt}</li>
                                         ))}
                                     </ul>
@@ -96,7 +95,7 @@ export function FeasibilityReport({ report, onClose }: FeasibilityReportProps) {
                         <div>
                             <h3 className="text-md font-semibold text-gray-700 mb-3">Risques Naturels</h3>
                             <div className="grid gap-2">
-                                {report.risques.map((r, idx) => (
+                                {report.risques.map((r: { libelle: string, niveau: string }, idx: number) => (
                                     <div key={idx} className="flex justify-between text-sm bg-gray-50 p-2 rounded">
                                         <span>{r.libelle}</span>
                                         <span className={`font-medium ${r.niveau === 'Fort' ? 'text-red-600' : 'text-gray-600'}`}>{r.niveau}</span>
