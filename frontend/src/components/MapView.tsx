@@ -17,7 +17,6 @@ import InseeTooltip from './insee/InseeTooltip'
 // Style de carte OpenStreetMap
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json'
 
-// Style Google Satellite (Hybrid)
 const SATELLITE_STYLE = {
   version: 8,
   sources: {
@@ -41,7 +40,7 @@ const SATELLITE_STYLE = {
       maxzoom: 22,
     },
   ],
-}
+} as any
 
 interface MapViewProps {
   viewState: MapViewState
