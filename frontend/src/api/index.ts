@@ -249,3 +249,7 @@ export async function searchParcelles(
     body: JSON.stringify(body),
   })
 }
+
+export async function getFaisabiliteReport(parcelleId: string): Promise<FaisabiliteReport> {
+  return fetchJSON<FaisabiliteReport>(`${API_BASE}/faisabilite/${parcelleId}`)
+}

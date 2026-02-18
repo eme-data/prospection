@@ -31,7 +31,8 @@ import { ReportGenerator } from './components/ReportGenerator'
 import { RappelsPanel } from './components/RappelsPanel'
 import InseeLayersPanel from './components/InseeLayersPanel'
 import { EconomicLayersPanel } from './components/EconomicLayersPanel'
-import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions, searchParcelles } from './api'
+import { FeasibilityReport } from './components/FeasibilityReport'
+import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions, searchParcelles, getFaisabiliteReport } from './api'
 import type {
   MapViewState,
   LayerType,
@@ -45,6 +46,7 @@ import type {
   SearchHistory,
   Alert,
   InseeLayerConfig,
+  FaisabiliteReport as FaisabiliteReportType,
 } from './types'
 
 const INITIAL_VIEW_STATE: MapViewState = {
@@ -94,6 +96,7 @@ function App() {
   const [showRappels, setShowRappels] = useState(false)
   const [showInseeLayers, setShowInseeLayers] = useState(false)
   const [showEconomicLayers, setShowEconomicLayers] = useState(false)
+  const [feasibilityReport, setFeasibilityReport] = useState<FaisabiliteReportType | null>(null)
 
   // Configuration des calques INSEE
   const [inseeLayerConfig, setInseeLayerConfig] = useState<InseeLayerConfig>({
@@ -362,6 +365,17 @@ function App() {
   const handleDeleteAlert = useCallback((alertId: string) => {
     setAlerts((prev) => prev.filter((a) => a.id !== alertId))
   }, [])
+
+  const handleShowFeasibility = useCallback(async () => {
+    if (!selectedParcelle) return
+    try {
+      const report = await getFaisabiliteReport(selectedParcelle.properties.id)
+      setFeasibilityReport(report)
+    } catch (e) {
+      console.error("Erreur faisabilité", e)
+      alert("Impossible de générer le rapport pour l'instant.")
+    }
+  }, [selectedParcelle])
 
   // Nombre de filtres actifs
   const activeFiltersCount = Object.values(filters).filter((v) => v !== undefined).length
@@ -720,6 +734,7 @@ function App() {
                 parcelle={selectedParcelle}
                 transaction={selectedTransaction}
                 onClose={handleCloseInfoPanel}
+                onShowFeasibility={handleShowFeasibility}
               />
               {selectedParcelle && (
                 <button
@@ -739,6 +754,14 @@ function App() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Modal Rapport Faisabilité */}
+        {feasibilityReport && (
+          <FeasibilityReport
+            report={feasibilityReport}
+            onClose={() => setFeasibilityReport(null)}
+          />
         )}
 
         {/* Zoom indicator */}

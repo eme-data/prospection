@@ -1,13 +1,14 @@
-import { X, MapPin, Euro, Calendar, Maximize2, Home } from 'lucide-react'
+import { X, MapPin, Euro, Calendar, Maximize2, Home, FileText } from 'lucide-react'
 import type { Parcelle, DVFTransaction } from '../types'
 
 interface InfoPanelProps {
   parcelle?: Parcelle | null
   transaction?: DVFTransaction | null
   onClose: () => void
+  onShowFeasibility: () => void
 }
 
-export function InfoPanel({ parcelle, transaction, onClose }: InfoPanelProps) {
+export function InfoPanel({ parcelle, transaction, onClose, onShowFeasibility }: InfoPanelProps) {
   if (!parcelle && !transaction) return null
 
   const formatPrice = (price: number) => {
@@ -81,6 +82,16 @@ export function InfoPanel({ parcelle, transaction, onClose }: InfoPanelProps) {
             <div className="pt-2 border-t border-gray-200">
               <div className="text-sm text-gray-500 mb-1">Commune</div>
               <div className="font-medium">{parcelle.properties.commune}</div>
+            </div>
+
+            <div className="pt-3 border-t border-gray-200">
+              <button
+                onClick={onShowFeasibility}
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+              >
+                <FileText className="h-4 w-4" />
+                Étude de Faisabilité
+              </button>
             </div>
           </>
         )}
