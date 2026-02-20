@@ -64,7 +64,7 @@ export function AdvancedSearch({
   const searchMutation = useMutation({
     mutationFn: async () => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/search/advanced`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/search/advanced`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

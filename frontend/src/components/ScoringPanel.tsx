@@ -36,7 +36,7 @@ export function ScoringPanel({
     queryKey: ['scoring-commune', codeInsee, limit],
     queryFn: async () => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/scoring/commune/${codeInsee}?limit=${limit}`
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/scoring/commune/${codeInsee}?limit=${limit}`
       )
       if (!response.ok) throw new Error('Erreur lors du chargement des scores')
       return response.json()

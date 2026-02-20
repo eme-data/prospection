@@ -50,7 +50,7 @@ export interface TransactionVolume {
     total_transactions: number
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 async function fetchPriceHeatmap(bbox: string, granularity: number): Promise<PriceHeatmapData> {
     const response = await fetch(

@@ -33,7 +33,7 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
     queryKey: ['prospection', parcelleId],
     queryFn: async () => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/prospection/${parcelleId}`
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection/${parcelleId}`
       )
       if (response.status === 404) return null
       if (!response.ok) throw new Error('Erreur lors du chargement')
@@ -45,7 +45,7 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
   const createMutation = useMutation({
     mutationFn: async (data: Partial<ProspectionInfo>) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/prospection`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -64,7 +64,7 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
   const updateStatutMutation = useMutation({
     mutationFn: async (data: { statut: StatutProspection; notes?: string }) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/prospection/${parcelleId}/statut`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection/${parcelleId}/statut`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -88,7 +88,7 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
       notes?: string
     }) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/prospection/${parcelleId}/contact`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection/${parcelleId}/contact`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -107,7 +107,7 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
   const addNoteMutation = useMutation({
     mutationFn: async (notes: string) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/prospection/${parcelleId}/notes`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection/${parcelleId}/notes`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

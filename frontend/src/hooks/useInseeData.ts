@@ -5,7 +5,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import type { InseeData, TerritoryStats, InseeCacheInfo } from '../types'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
 
 // Récupérer les données d'une commune
 export function useInseeCommune(codeCommune: string | null) {

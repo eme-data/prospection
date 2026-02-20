@@ -32,7 +32,7 @@ export function FicheTerrain({ parcelle, onClose }: FicheTerrainProps) {
     queryKey: ['fiche', parcelleId],
     queryFn: async () => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}`
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}`
       )
       if (!response.ok) throw new Error('Erreur lors du chargement')
       return response.json()
@@ -167,7 +167,7 @@ function PhotosSection({ parcelleId, photos }: { parcelleId: string; photos: Pho
   const addMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/photos`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/photos`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -187,7 +187,7 @@ function PhotosSection({ parcelleId, photos }: { parcelleId: string; photos: Pho
   const deleteMutation = useMutation({
     mutationFn: async (photoId: string) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/photos/${photoId}`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/photos/${photoId}`,
         { method: 'DELETE' }
       )
       if (!response.ok) throw new Error('Erreur lors de la suppression')
@@ -353,7 +353,7 @@ function DocumentsSection({ parcelleId, documents }: { parcelleId: string; docum
   const addMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/documents`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/documents`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -373,7 +373,7 @@ function DocumentsSection({ parcelleId, documents }: { parcelleId: string; docum
   const deleteMutation = useMutation({
     mutationFn: async (documentId: string) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/documents/${documentId}`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/documents/${documentId}`,
         { method: 'DELETE' }
       )
       if (!response.ok) throw new Error('Erreur lors de la suppression')
@@ -526,7 +526,7 @@ function NotesSection({ parcelleId, notes }: { parcelleId: string; notes: Note[]
   const addMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/notes`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/notes`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -546,7 +546,7 @@ function NotesSection({ parcelleId, notes }: { parcelleId: string; notes: Note[]
   const updateMutation = useMutation({
     mutationFn: async ({ noteId, data }: { noteId: string; data: { contenu: string; tags?: string[] } }) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/notes/${noteId}`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/notes/${noteId}`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -565,7 +565,7 @@ function NotesSection({ parcelleId, notes }: { parcelleId: string; notes: Note[]
   const deleteMutation = useMutation({
     mutationFn: async (noteId: string) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/notes/${noteId}`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/notes/${noteId}`,
         { method: 'DELETE' }
       )
       if (!response.ok) throw new Error('Erreur lors de la suppression')
@@ -742,7 +742,7 @@ function TagsSection({ parcelleId, tags }: { parcelleId: string; tags: string[] 
   const addMutation = useMutation({
     mutationFn: async (tag: string) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/tags`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/tags`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -761,7 +761,7 @@ function TagsSection({ parcelleId, tags }: { parcelleId: string; tags: string[] 
   const removeMutation = useMutation({
     mutationFn: async (tag: string) => {
       const response = await fetch(
-        `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/fiches/${parcelleId}/tags/${encodeURIComponent(tag)}`,
+        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/fiches/${parcelleId}/tags/${encodeURIComponent(tag)}`,
         { method: 'DELETE' }
       )
       if (!response.ok) throw new Error('Erreur lors de la suppression')
