@@ -19,7 +19,8 @@ async def get_zonage_plu(
 ):
     """Recupere le zonage PLU/PLUi pour une localisation"""
     try:
-        geom = f"POINT({lon} {lat})"
+        import json
+        geom = json.dumps({"type": "Point", "coordinates": [lon, lat]})
         data = await gpu_client.get("/zone-urba", params={"geom": geom})
 
         zones = []
@@ -49,7 +50,8 @@ async def get_prescriptions_plu(
 ):
     """Recupere les prescriptions PLU pour une localisation"""
     try:
-        geom = f"POINT({lon} {lat})"
+        import json
+        geom = json.dumps({"type": "Point", "coordinates": [lon, lat]})
         data = await gpu_client.get("/prescription-surf", params={"geom": geom})
 
         prescriptions = []

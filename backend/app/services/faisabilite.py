@@ -72,10 +72,12 @@ class FaisabiliteService:
         except Exception as e:
             logger.warning(f"Faisabilité: GPU Partition ({parcelle_id}) Echec: {e}")
 
+        import json
         # Essai 2: Géométrie
         if not zonage and geom_shape:
             try:
-                gpu_resp = await gpu_client.get("/zone-urba", params={"geom": f"POINT({lon} {lat})"})
+                geom_geojson = json.dumps({"type": "Point", "coordinates": [lon, lat]})
+                gpu_resp = await gpu_client.get("/zone-urba", params={"geom": geom_geojson})
                 zonage = gpu_resp.get("features", [])
             except Exception as e:
                 logger.warning(f"Faisabilité: GPU Point Echec: {e}")
@@ -83,7 +85,8 @@ class FaisabiliteService:
         # Essai 3: Document
         if not zonage and geom_shape:
             try:
-                 doc_resp = await gpu_client.get("/document", params={"geom": f"POINT({lon} {lat})"})
+                 geom_geojson = json.dumps({"type": "Point", "coordinates": [lon, lat]})
+                 doc_resp = await gpu_client.get("/document", params={"geom": geom_geojson})
                  docs = doc_resp.get("features", [])
                  if docs:
                     doc_type = docs[0].get('properties', {}).get('typeDocument', 'Inconnu')
