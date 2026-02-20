@@ -407,6 +407,10 @@ services:
     container_name: prospection-backend
     env_file:
       - backend/.env
+    environment:
+      - DATA_DIR=/data
+    volumes:
+      - /data:/data
     depends_on:
       redis:
         condition: service_healthy
@@ -426,6 +430,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_URL: ""
     container_name: prospection-frontend
     ports:
       - "80:80"
