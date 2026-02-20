@@ -11,6 +11,7 @@ export interface UserCreatePayload {
     module_travaux: boolean;
     module_sav: boolean;
     module_conges: boolean;
+    module_communication?: boolean;
     manager_id?: string;
     solde_conges?: number;
 }

@@ -22,6 +22,7 @@ class UserCreate(BaseModel):
     module_travaux: bool = False
     module_sav: bool = False
     module_conges: bool = False
+    module_communication: bool = False
     manager_id: Optional[str] = None
     solde_conges: float = 25.0
 
@@ -35,6 +36,7 @@ class UserUpdate(BaseModel):
     module_travaux: Optional[bool] = None
     module_sav: Optional[bool] = None
     module_conges: Optional[bool] = None
+    module_communication: Optional[bool] = None
     manager_id: Optional[str] = None
     solde_conges: Optional[float] = None
 
@@ -73,7 +75,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 "crm": user.module_crm,
                 "travaux": user.module_travaux,
                 "sav": user.module_sav,
-                "conges": user.module_conges
+                "conges": user.module_conges,
+                "communication": user.module_communication
             },
             "manager_id": user.manager_id,
             "solde_conges": user.solde_conges
@@ -101,6 +104,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         module_travaux=user.module_travaux,
         module_sav=user.module_sav,
         module_conges=user.module_conges,
+        module_communication=user.module_communication,
         manager_id=user.manager_id,
         solde_conges=user.solde_conges
     )
@@ -117,7 +121,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
             "crm": db_user.module_crm,
             "travaux": db_user.module_travaux,
             "sav": db_user.module_sav,
-            "conges": db_user.module_conges
+            "conges": db_user.module_conges,
+            "communication": db_user.module_communication
         },
         "manager_id": db_user.manager_id,
         "solde_conges": db_user.solde_conges
@@ -135,7 +140,8 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
             "crm": current_user.module_crm,
             "travaux": current_user.module_travaux,
             "sav": current_user.module_sav,
-            "conges": current_user.module_conges
+            "conges": current_user.module_conges,
+            "communication": current_user.module_communication
         },
         "manager_id": current_user.manager_id,
         "solde_conges": current_user.solde_conges

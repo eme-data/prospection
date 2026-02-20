@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Map, Users, HardHat, Wrench, LogOut, Layout, Calendar, Settings } from 'lucide-react';
+import { Map, Users, HardHat, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Moon, Sun } from 'lucide-react';
 
@@ -33,6 +33,15 @@ export const PortalPage: React.FC = () => {
             color: 'bg-green-50 hover:bg-green-100 border-green-200 dark:bg-green-900/20 dark:hover:bg-green-900/40 dark:border-green-800',
             path: '/crm',
             active: user?.modules?.crm ?? false
+        },
+        {
+            id: 'communication',
+            name: 'Communication',
+            description: 'Gérer les réseaux sociaux et la création de contenus',
+            icon: <MessageSquare className="w-12 h-12 mb-4 text-emerald-500" />,
+            color: 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40 dark:border-emerald-800',
+            path: '/communication',
+            active: user?.modules?.communication ?? false
         },
         {
             id: 'travaux',

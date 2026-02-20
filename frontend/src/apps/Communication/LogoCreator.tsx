@@ -1,0 +1,263 @@
+import React, { useState } from 'react';
+import { Paintbrush, Download, RefreshCw } from 'lucide-react';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+export const LogoCreator: React.FC = () => {
+    const [provider, setProvider] = useState('auto');
+    const [companyName, setCompanyName] = useState('');
+    const [industry, setIndustry] = useState('');
+    const [style, setStyle] = useState('moderne');
+    const [colors, setColors] = useState('');
+    const [description, setDescription] = useState('');
+
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [currentSVG, setCurrentSVG] = useState<string | null>(null);
+
+    const buildPrompt = () => {
+        let prompt = `Tu es un designer de logos professionnel expert en création SVG. Génère un logo DÉTAILLÉ et ÉLABORÉ au format SVG pour l'entreprise suivante:\n\nNom de l'entreprise: ${companyName}`;
+        if (industry) prompt += `\nSecteur: ${industry}`;
+        prompt += `\nStyle: ${style}`;
+
+        if (colors) {
+            prompt += `\nCouleurs souhaitées: ${colors}`;
+        } else {
+            prompt += `\nChoisis une palette de couleurs harmonieuse et moderne (3-5 couleurs)`;
+        }
+
+        if (description) prompt += `\nDescription additionnelle: ${description}`;
+
+        prompt += `\n\nCRÉE UN LOGO PROFESSIONNEL ET DÉTAILLÉ en suivant ces directives OBLIGATOIRES:
+NIVEAU DE DÉTAIL REQUIS:
+- Le logo DOIT être visuellement riche et élaboré, PAS simpliste
+- Utilise des formes complexes et détaillées, PAS de simples cercles ou traits
+- Ajoute de la profondeur, des textures visuelles et des détails subtils
+
+TECHNIQUES SVG À UTILISER:
+- <path> avec courbes de Bézier pour des formes organiques et sophistiquées
+- <linearGradient> ou <radialGradient> pour ajouter de la profondeur
+- <g> pour grouper et organiser les éléments complexes
+- Utilise opacity, stroke, fill avec variations pour créer du relief
+
+COMPOSITION:
+- Design équilibré et professionnel digne d'une grande marque
+- Plusieurs éléments visuels qui se complètent
+
+STYLE VISUEL:
+- Adapté au secteur d'activité avec des références visuelles pertinentes
+- Évolutif (scalable) mais RICHE en détails à toutes les tailles
+
+IMPORTANT - FORMAT DE RÉPONSE:
+Réponds UNIQUEMENT avec le code SVG complet. Pas de markdown, pas de texte.
+Commence directement par <svg et termine par </svg>.
+Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
+
+        return prompt;
+    };
+
+    const handleGenerate = async () => {
+        if (!companyName.trim()) {
+            setError('Veuillez entrer le nom de l\'entreprise');
+            return;
+        }
+
+        setError(null);
+        setIsLoading(true);
+
+        try {
+            const prompt = buildPrompt();
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${API_URL}/api/communication/logo`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ prompt, provider })
+            });
+
+            if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.detail || 'Erreur lors de la génération du logo.');
+            }
+
+            const data = await response.json();
+
+            if (data.content && data.content[0] && data.content[0].text) {
+                setCurrentSVG(data.content[0].text);
+            } else {
+                throw new Error('Format de réponse invalide');
+            }
+
+        } catch (err: any) {
+            setError(err.message || 'Une erreur est survenue');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const downloadSVG = () => {
+        if (!currentSVG) return;
+        const blob = new Blob([currentSVG], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${companyName || 'logo'}.svg`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="mb-8">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Paintbrush className="h-8 w-8 text-emerald-500" />
+                    Générateur de Logos IA
+                </h1>
+                <p className="text-gray-600 dark:text-gray-400 mt-2">
+                    Créez des logos vectoriels uniques en utilisant la puissance de Gemini et Groq.
+                </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-fit">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Paramètres du Logo</h2>
+
+                    <div className="space-y-5">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Modèle d'IA</label>
+                            <select
+                                value={provider}
+                                onChange={(e) => setProvider(e.target.value)}
+                                className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            >
+                                <option value="auto">🔄 Auto (Gemini → Groq si échec)</option>
+                                <option value="gemini">🔵 Gemini Flash (Google)</option>
+                                <option value="groq">⚡ Llama 3.3 70B (Groq)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Nom de l'entreprise *</label>
+                            <input
+                                type="text"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                placeholder="Ex: TechCorp"
+                                className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Secteur d'activité</label>
+                                <select
+                                    value={industry}
+                                    onChange={(e) => setIndustry(e.target.value)}
+                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="">Sélectionner...</option>
+                                    <option value="technologie">Technologie</option>
+                                    <option value="immobilier">Immobilier / BTP</option>
+                                    <option value="finance">Finance</option>
+                                    <option value="restauration">Restauration</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Style</label>
+                                <select
+                                    value={style}
+                                    onChange={(e) => setStyle(e.target.value)}
+                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="moderne">Moderne & Minimaliste</option>
+                                    <option value="géométrique">Géométrique</option>
+                                    <option value="abstrait">Abstrait</option>
+                                    <option value="élégant">Élégant & Luxueux</option>
+                                    <option value="professionnel">Corporate</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Couleurs préférées</label>
+                            <input
+                                type="text"
+                                value={colors}
+                                onChange={(e) => setColors(e.target.value)}
+                                placeholder="Ex: bleu marine, doré"
+                                className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instructions additionnelles</label>
+                            <textarea
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                rows={3}
+                                placeholder="Détails spécifiques sur ce que vous souhaitez voir..."
+                                className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                        </div>
+
+                        {error && (
+                            <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-md text-sm">
+                                {error}
+                            </div>
+                        )}
+
+                        <button
+                            onClick={handleGenerate}
+                            disabled={isLoading}
+                            className="w-full flex justify-center items-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isLoading ? (
+                                <>
+                                    <RefreshCw className="animate-spin -ml-1 mr-2 h-5 w-5" />
+                                    Génération en cours...
+                                </>
+                            ) : (
+                                <>
+                                    <Paintbrush className="-ml-1 mr-2 h-5 w-5" />
+                                    Générer le Logo
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 flex flex-col h-fit sticky top-6">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Aperçu</h2>
+
+                    <div className="flex-grow flex items-center justify-center bg-gray-50 dark:bg-gray-900 rounded-lg p-8 min-h-[400px]">
+                        {currentSVG ? (
+                            <div
+                                className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-auto [&>svg]:max-h-[400px]"
+                                dangerouslySetInnerHTML={{ __html: currentSVG }}
+                            />
+                        ) : (
+                            <div className="text-center text-gray-400 flex flex-col items-center">
+                                <Paintbrush className="w-16 h-16 mb-4 opacity-20" />
+                                <p>Remplissez le formulaire à gauche<br />pour générer votre premier logo.</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {currentSVG && (
+                        <div className="mt-6 flex gap-3">
+                            <button
+                                onClick={downloadSVG}
+                                className="flex-1 flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                            >
+                                <Download className="mr-2 h-4 w-4" />
+                                Télécharger SVG
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};

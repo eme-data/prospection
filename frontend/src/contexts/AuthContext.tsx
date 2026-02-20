@@ -9,9 +9,10 @@ export interface User {
     modules?: {
         faisabilite: boolean;
         crm: boolean;
-        travaux: boolean;
-        sav: boolean;
-        conges: boolean;
+        travaux?: boolean;
+        sav?: boolean;
+        conges?: boolean;
+        communication?: boolean;
     };
     solde_conges?: number;
     manager_id?: string;

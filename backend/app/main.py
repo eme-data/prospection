@@ -55,7 +55,8 @@ from app.routers import (
     faisabilite,
     activities,
     settings as app_settings_router,
-    conges
+    conges,
+    communication
 )
 from app.auth import get_current_active_user
 from fastapi import Depends
@@ -108,6 +109,12 @@ async def lifespan(app: FastAPI):
                 conn.execute(text("ALTER TABLE users ADD COLUMN manager_id VARCHAR REFERENCES users(id)"))
                 conn.commit()
                 logger.info("Migration of Conges columns successful.")
+
+            if "module_communication" not in columns:
+                logger.info("Migrating users table: adding module_communication column...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN module_communication BOOLEAN DEFAULT 0"))
+                conn.commit()
+                logger.info("Migration of communication column successful.")
     except Exception as e:
         logger.error(f"Migration error: {e}")
 
@@ -161,6 +168,7 @@ app.include_router(faisabilite.router, dependencies=protected_dep)
 app.include_router(activities.router, dependencies=protected_dep)
 app.include_router(app_settings_router.router, prefix="/api", dependencies=protected_dep)
 app.include_router(conges.router, prefix="/api", dependencies=protected_dep)
+app.include_router(communication.router, prefix="/api", dependencies=protected_dep)
 
 # Routes existantes non refactorees protégées (a deplacer plus tard)
 app.include_router(economic_router, dependencies=protected_dep)
