@@ -341,10 +341,15 @@ function App() {
     }
   }, [selectedProjectId])
 
-  const handleAddToProject = useCallback((projectId: string, parcelleId: string) => {
+  const handleChangeProject = useCallback((parcelleId: string, newProjectId: string | null) => {
     setProjects(prev => prev.map(p => {
-      if (p.id === projectId && !p.parcelles.includes(parcelleId)) {
+      const hasParcelle = p.parcelles.includes(parcelleId)
+
+      if (p.id === newProjectId && !hasParcelle) {
         return { ...p, parcelles: [...p.parcelles, parcelleId], updatedAt: new Date().toISOString() }
+      }
+      if (p.id !== newProjectId && hasParcelle) {
+        return { ...p, parcelles: p.parcelles.filter(id => id !== parcelleId), updatedAt: new Date().toISOString() }
       }
       return p
     }))
@@ -731,7 +736,7 @@ function App() {
                 onClose={() => setShowProspection(false)}
                 projects={projects}
                 selectedProjectId={selectedProjectId}
-                onAddToProject={handleAddToProject}
+                onChangeProject={handleChangeProject}
               />
             </div>
           )}

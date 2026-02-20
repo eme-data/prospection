@@ -11,6 +11,7 @@ import {
   Loader,
   MessageSquare,
   Plus,
+  FolderOpen,
 } from 'lucide-react'
 import { ProspectionBadge } from './ProspectionBadge'
 import { ActivityTimeline } from './ActivityTimeline'
@@ -22,10 +23,10 @@ interface ProspectionPanelProps {
   onClose: () => void
   projects: Project[]
   selectedProjectId: string | null
-  onAddToProject: (projectId: string, parcelleId: string) => void
+  onChangeProject: (parcelleId: string, projectId: string | null) => void
 }
 
-export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectId, onAddToProject }: ProspectionPanelProps) {
+export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectId, onChangeProject }: ProspectionPanelProps) {
   const parcelleId = parcelle.properties.id
   const queryClient = useQueryClient()
   const [showActivityForm, setShowActivityForm] = useState(false)
@@ -59,7 +60,7 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
       if (!response.ok) throw new Error('Erreur lors de la création')
       const created = await response.json()
       if (projectIdToJoin) {
-        onAddToProject(projectIdToJoin, parcelleId)
+        onChangeProject(parcelleId, projectIdToJoin)
       }
       return created
     },
@@ -182,6 +183,12 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
               isLoading={updateStatutMutation.isPending}
             />
 
+            <ProjectAssociationSection
+              parcelleId={parcelleId}
+              projects={projects}
+              onChangeProject={onChangeProject}
+            />
+
             <ContactInfoSection
               prospection={prospection}
               onUpdate={updateContactMutation.mutate}
@@ -239,6 +246,58 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
           }}
         />
       )}
+    </div>
+  )
+}
+
+function ProjectAssociationSection({
+  parcelleId,
+  projects,
+  onChangeProject
+}: {
+  parcelleId: string
+  projects: Project[]
+  onChangeProject: (parcelleId: string, projectId: string | null) => void
+}) {
+  const currentProject = projects.find(p => p.parcelles.includes(parcelleId))
+  const [projectId, setProjectId] = useState(currentProject?.id || '')
+  const [isSaving, setIsSaving] = useState(false)
+
+  const handleSave = () => {
+    setIsSaving(true)
+    onChangeProject(parcelleId, projectId || null)
+    setTimeout(() => setIsSaving(false), 500)
+  }
+
+  const hasChanged = projectId !== (currentProject?.id || '')
+
+  return (
+    <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
+      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2 mb-3">
+        <FolderOpen className="h-4 w-4" />
+        Dossier de Prospection / Projet
+      </h3>
+      <div className="flex gap-2 items-center">
+        <select
+          value={projectId}
+          onChange={(e) => setProjectId(e.target.value)}
+          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Aucun projet (hors projet)</option>
+          {projects.filter(p => p.status === 'active' || p.id === currentProject?.id).map(p => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+        {hasChanged && (
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            {isSaving ? 'Sauvegarde...' : 'Enregistrer'}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
