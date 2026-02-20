@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { X, Plus, FolderOpen, Archive, CheckCircle, Edit, Trash2 } from 'lucide-react'
-import type { Project } from '../types'
+import { useQueries } from '@tanstack/react-query'
+import { getParcelleById } from '../api'
+import type { Project, Parcelle } from '../types'
 
 interface ProjectsPanelProps {
   projects: Project[]
@@ -9,6 +11,7 @@ interface ProjectsPanelProps {
   onCreateProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => void
   onUpdateProject: (projectId: string, updates: Partial<Project>) => void
   onDeleteProject: (projectId: string) => void
+  onSelectParcelle: (parcelle: Parcelle) => void
   onClose: () => void
 }
 
@@ -30,6 +33,7 @@ export function ProjectsPanel({
   onCreateProject,
   onUpdateProject,
   onDeleteProject,
+  onSelectParcelle,
   onClose,
 }: ProjectsPanelProps) {
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -109,6 +113,7 @@ export function ProjectsPanel({
                   onEdit={() => handleEditProject(project)}
                   onDelete={() => onDeleteProject(project.id)}
                   onChangeStatus={handleChangeStatus}
+                  onSelectParcelle={onSelectParcelle}
                 />
               ))}
             </div>
@@ -129,6 +134,7 @@ export function ProjectsPanel({
                   onEdit={() => handleEditProject(project)}
                   onDelete={() => onDeleteProject(project.id)}
                   onChangeStatus={handleChangeStatus}
+                  onSelectParcelle={onSelectParcelle}
                 />
               ))}
             </div>
@@ -149,6 +155,7 @@ export function ProjectsPanel({
                   onEdit={() => handleEditProject(project)}
                   onDelete={() => onDeleteProject(project.id)}
                   onChangeStatus={handleChangeStatus}
+                  onSelectParcelle={onSelectParcelle}
                 />
               ))}
             </div>
@@ -187,6 +194,7 @@ interface ProjectCardProps {
   onEdit: () => void
   onDelete: () => void
   onChangeStatus: (projectId: string, status: Project['status']) => void
+  onSelectParcelle: (parcelle: Parcelle) => void
 }
 
 function ProjectCard({
@@ -196,16 +204,16 @@ function ProjectCard({
   onEdit,
   onDelete,
   onChangeStatus,
+  onSelectParcelle,
 }: ProjectCardProps) {
   const [showMenu, setShowMenu] = useState(false)
 
   return (
     <div
-      className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-        isSelected
-          ? 'border-blue-500 bg-blue-50'
-          : 'border-gray-200 hover:border-gray-300 bg-white'
-      }`}
+      className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${isSelected
+        ? 'border-blue-500 bg-blue-50'
+        : 'border-gray-200 hover:border-gray-300 bg-white'
+        }`}
       onClick={onSelect}
     >
       <div className="flex items-start gap-3">
@@ -303,6 +311,14 @@ function ProjectCard({
           )}
         </div>
       </div>
+
+      {isSelected && (
+        <ProjectParcelles
+          projectId={project.id}
+          parcelleIds={project.parcelles}
+          onSelectParcelle={onSelectParcelle}
+        />
+      )}
     </div>
   )
 }
@@ -366,33 +382,106 @@ function ProjectModal({ project, colors, onSave, onClose }: ProjectModalProps) {
                   key={color}
                   type="button"
                   onClick={() => setSelectedColor(color)}
-                  className={`w-10 h-10 rounded-lg transition-all ${
-                    selectedColor === color
-                      ? 'ring-2 ring-offset-2 ring-gray-400 scale-110'
-                      : 'hover:scale-105'
-                  }`}
+                  className={`w-10 h-10 rounded-lg transition-all ${selectedColor === color
+                    ? 'ring-2 ring-offset-2 ring-gray-400 scale-110'
+                    : 'hover:scale-105'
+                    }`}
                   style={{ backgroundColor: color }}
                 />
               ))}
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex justify-end gap-2 mt-6">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              {project ? 'Enregistrer' : 'Créer'}
+              {project ? 'Enregistrer' : 'Créer le projet'}
             </button>
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+function ProjectParcelles({
+  parcelleIds,
+  onSelectParcelle
+}: {
+  projectId: string
+  parcelleIds: string[]
+  onSelectParcelle: (parcelle: Parcelle) => void
+}) {
+  const parcelleQueries = useQueries({
+    queries: parcelleIds.map(id => ({
+      queryKey: ['parcelle', id],
+      queryFn: () => getParcelleById(id),
+      staleTime: 10 * 60 * 1000,
+    }))
+  })
+
+  if (parcelleIds.length === 0) {
+    return (
+      <div className="mt-3 text-sm text-gray-500 italic px-2">
+        Aucune parcelle dans ce projet.
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-3 border-t border-gray-100 pt-3">
+      <h5 className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2 px-2">
+        Parcelles du projet
+      </h5>
+      <ul className="space-y-1">
+        {parcelleQueries.map((query, index) => {
+          const id = parcelleIds[index]
+          if (query.isLoading) {
+            return (
+              <li key={id} className="text-sm px-2 py-1.5 text-gray-400 animate-pulse">
+                Chargement {id}...
+              </li>
+            )
+          }
+          if (query.isError || !query.data) {
+            return (
+              <li key={id} className="text-sm px-2 py-1.5 text-red-400">
+                Erreur: {id}
+              </li>
+            )
+          }
+
+          const parcelle = query.data
+          const { section, numero, commune } = parcelle.properties
+
+          return (
+            <li key={id}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelectParcelle(parcelle)
+                }}
+                className="w-full text-left px-2 py-1.5 text-sm hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded transition-colors flex items-center justify-between group"
+              >
+                <span className="font-medium text-gray-700">
+                  {section} {numero}
+                </span>
+                <span className="text-xs text-gray-500 truncate ml-2">
+                  {commune}
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

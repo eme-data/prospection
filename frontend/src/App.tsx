@@ -374,6 +374,31 @@ function App() {
     setAlerts((prev) => [newAlert, ...prev])
   }, [])
 
+  const handleSelectProjectParcelle = useCallback((parcelle: Parcelle) => {
+    let lon = viewState.longitude
+    let lat = viewState.latitude
+
+    if (parcelle.geometry.type === 'Polygon') {
+      const coords = parcelle.geometry.coordinates as number[][][]
+      lon = coords[0][0][0]
+      lat = coords[0][0][1]
+    } else if (parcelle.geometry.type === 'MultiPolygon') {
+      const coords = parcelle.geometry.coordinates as number[][][][]
+      lon = coords[0][0][0][0]
+      lat = coords[0][0][0][1]
+    }
+
+    setViewState((prev) => ({
+      ...prev,
+      longitude: lon,
+      latitude: lat,
+      zoom: 18,
+      transitionDuration: 1000,
+    }))
+    setSelectedParcelle(parcelle)
+    setShowProjects(false)
+  }, [viewState])
+
   const handleUpdateAlert = useCallback((alertId: string, updates: Partial<Alert>) => {
     setAlerts((prev) => prev.map((a) => (a.id === alertId ? { ...a, ...updates } : a)))
   }, [])
@@ -631,6 +656,7 @@ function App() {
               onUpdateProject={handleUpdateProject}
               onDeleteProject={handleDeleteProject}
               onClose={() => setShowProjects(false)}
+              onSelectParcelle={handleSelectProjectParcelle}
             />
           )}
 

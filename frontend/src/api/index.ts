@@ -50,6 +50,10 @@ export async function getParcelles(
   return fetchJSON<GeoJSONFeatureCollection<Parcelle>>(url)
 }
 
+export async function getParcelleById(parcelleId: string): Promise<Parcelle> {
+  return fetchJSON<Parcelle>(`${API_BASE}/cadastre/parcelle/${parcelleId}`)
+}
+
 // ============== DVF ==============
 
 export async function getDVFTransactions(params: {

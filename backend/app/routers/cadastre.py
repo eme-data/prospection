@@ -64,18 +64,25 @@ async def get_parcelle_detail(request: Request, parcelle_id: str):
     if not validate_code_insee(code_insee):
         raise HTTPException(status_code=400, detail="Code INSEE invalide")
 
-    try:
-        url = f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
-        data = await cadastre_client.get(url)
+    # Cache key
+    cache_key = f"parcelles:{code_insee}"
+    cached_data = await cache_get(cache_key)
 
-        for feature in data.get("features", []):
-            if feature.get("properties", {}).get("id") == parcelle_id:
-                return feature
+    if cached_data:
+        features = cached_data.get("features", [])
+    else:
+        try:
+            url = f"/bundler/cadastre-etalab/communes/{code_insee}/geojson/parcelles"
+            data = await cadastre_client.get(url)
+            features = data.get("features", [])
+            await cache_set(cache_key, data, ttl=600)  # Cache 10 min
+        except APIError:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"Erreur API Cadastre: {str(e)}")
 
-        raise HTTPException(status_code=404, detail="Parcelle non trouvee")
-    except APIError:
-        raise
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Erreur API Cadastre: {str(e)}")
+    for feature in features:
+        if feature.get("properties", {}).get("id") == parcelle_id:
+            return feature
+
+    raise HTTPException(status_code=404, detail="Parcelle non trouvee")
