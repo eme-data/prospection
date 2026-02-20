@@ -34,6 +34,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Copie du code source
 COPY backend/app ./app
+COPY backend/create_admin.py ./
 
 # Changement d'utilisateur pour la securite
 USER appuser
@@ -52,11 +53,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Commande de demarrage avec Gunicorn
 CMD ["gunicorn", "app.main:app", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--workers", "4", \
-     "--bind", "0.0.0.0:8000", \
-     "--timeout", "120", \
-     "--keep-alive", "5", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-", \
-     "--capture-output"]
+    "--worker-class", "uvicorn.workers.UvicornWorker", \
+    "--workers", "4", \
+    "--bind", "0.0.0.0:8000", \
+    "--timeout", "120", \
+    "--keep-alive", "5", \
+    "--access-logfile", "-", \
+    "--error-logfile", "-", \
+    "--capture-output"]
