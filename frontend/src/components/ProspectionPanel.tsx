@@ -190,6 +190,7 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
             />
 
             <ContactInfoSection
+              parcelle={parcelle}
               prospection={prospection}
               onUpdate={updateContactMutation.mutate}
               isLoading={updateContactMutation.isPending}
@@ -498,10 +499,12 @@ function StatusWorkflow({
 
 // Section d'informations de contact
 function ContactInfoSection({
+  parcelle,
   prospection,
   onUpdate,
   isLoading,
 }: {
+  parcelle: Parcelle
   prospection: ProspectionInfo
   onUpdate: (data: any) => void
   isLoading: boolean
@@ -649,6 +652,27 @@ function ContactInfoSection({
           Aucun contact enregistré
         </p>
       )}
+
+      {/* Bouton Contacter Mairie CERFA */}
+      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+        <a
+          href={`mailto:?subject=${encodeURIComponent(`Demande de matrice cadastrale - ${parcelle.properties.commune}`)}&body=${encodeURIComponent(`Madame, Monsieur le Maire,
+
+Je vous prie de bien vouloir me faire parvenir un extrait de la matrice cadastrale concernant la parcelle suivante :
+- Commune : ${parcelle.properties.commune}
+- Section : ${parcelle.properties.section}
+- Numéro : ${parcelle.properties.numero}
+- Contenance : ${parcelle.properties.contenance} m²
+
+En vous remerciant par avance pour votre diligence, je vous prie d'agréer, Madame, Monsieur le Maire, l'expression de mes salutations distinguées.
+
+Cordialement,`)}`}
+          className="w-full flex justify-center items-center gap-2 px-4 py-2 bg-emerald-100 dark:bg-emerald-900/30 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 rounded-lg text-sm font-medium transition-colors"
+        >
+          <FileText className="w-4 h-4" />
+          Générer e-mail Mairie (CERFA)
+        </a>
+      </div>
     </div>
   )
 }

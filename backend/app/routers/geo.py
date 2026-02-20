@@ -1,5 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query, Request
+import httpx
 from app.http_client import geo_client, APIError
 from app.security import limiter, sanitize_string, validate_code_insee
 from app.cache import cache_get, cache_set
@@ -76,3 +77,92 @@ async def get_departements(request: Request):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Erreur API Geo: {str(e)}")
+
+
+@router.get("/pois")
+@limiter.limit("20/minute")
+async def get_pois(
+    request: Request,
+    lat: float = Query(..., description="Latitude"),
+    lon: float = Query(..., description="Longitude"),
+    radius: int = Query(500, le=2000, description="Rayon en mètres (max 2000)")
+):
+    """
+    Récupère les Points d'Intérêt (POIs) aux alentours via Overpass API (OpenStreetMap)
+    - Transport en commun
+    - Commodités (écoles, commerces, santé)
+    """
+    cache_key = f"pois:{lat}:{lon}:{radius}"
+    cached_data = await cache_get(cache_key)
+
+    if cached_data:
+        return cached_data
+
+    # Overpass QL Query
+    overpass_query = f"""
+    [out:json][timeout:10];
+    (
+      node["amenity"](around:{radius},{lat},{lon});
+      node["public_transport"](around:{radius},{lat},{lon});
+      node["highway"="bus_stop"](around:{radius},{lat},{lon});
+      way["amenity"](around:{radius},{lat},{lon});
+    );
+    out center;
+    """
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://overpass-api.de/api/interpreter",
+                data=overpass_query
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            # Format minimaliste pour le frontend
+            elements = data.get("elements", [])
+            formatted_pois = []
+            
+            for el in elements:
+                tags = el.get("tags", {})
+                
+                # Catégorisation simplifiée
+                category = "other"
+                amenity = tags.get("amenity")
+                if amenity in ["school", "college", "kindergarten", "university"]:
+                    category = "education"
+                elif amenity in ["clinic", "hospital", "doctors", "pharmacy", "dentist"]:
+                    category = "health"
+                elif amenity in ["restaurant", "cafe", "fast_food", "bar"]:
+                    category = "food"
+                elif amenity in ["marketplace", "supermarket", "convenience", "bakery"]:
+                    category = "shopping"
+                elif "public_transport" in tags or tags.get("highway") == "bus_stop":
+                    category = "transport"
+                elif amenity in ["bank", "post_office", "police"]:
+                    category = "services"
+                elif amenity:
+                    category = amenity
+                else:
+                    category = "transport" # Si fallback
+
+                name = tags.get("name") or tags.get("brand") or tags.get("operator") or category
+
+                poi = {
+                    "id": el.get("id"),
+                    "type": category,
+                    "name": name.capitalize(),
+                    "lat": el.get("lat") or el.get("center", {}).get("lat"),
+                    "lon": el.get("lon") or el.get("center", {}).get("lon"),
+                    "distance": None # A calculer en frontend si besoin
+                }
+                formatted_pois.append(poi)
+
+            result = {"pois": formatted_pois}
+            await cache_set(cache_key, result, ttl=86400) # Cache 24h (rarement modifié)
+            return result
+
+    except Exception as e:
+        logger.error(f"Erreur Overpass API: {str(e)}")
+        # Ne pas bloquer l'app si Overpass est down
+        return {"pois": [], "error": "Service indisponible"}

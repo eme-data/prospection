@@ -1,16 +1,71 @@
-import { X, MapPin, Euro, Calendar, Maximize2, Home, FileText } from 'lucide-react'
-import type { Parcelle, DVFTransaction } from '../types'
+import { useState, useEffect } from 'react'
+import { X, MapPin, Euro, Calendar, Maximize2, Home, FileText, Blocks, Map as MapIcon, Loader2 } from 'lucide-react'
+import type { Parcelle, DVFTransaction, GeoJSONFeatureCollection, POI } from '../types'
+import booleanIntersects from '@turf/boolean-intersects'
+import centerOfMass from '@turf/center-of-mass'
+import { getNearbyPOIs } from '../api'
 
 interface InfoPanelProps {
   parcelle?: Parcelle | null
   transaction?: DVFTransaction | null
+  allParcelles?: GeoJSONFeatureCollection<Parcelle> | null
   onClose: () => void
   onShowFeasibility: () => void
   onShowProspection: () => void
 }
 
-export function InfoPanel({ parcelle, transaction, onClose, onShowFeasibility, onShowProspection }: InfoPanelProps) {
+export function InfoPanel({ parcelle, transaction, allParcelles, onClose, onShowFeasibility, onShowProspection }: InfoPanelProps) {
   if (!parcelle && !transaction) return null
+
+  const [pois, setPois] = useState<POI[]>([])
+  const [loadingPOIs, setLoadingPOIs] = useState(false)
+
+  useEffect(() => {
+    if (!parcelle) {
+      setPois([])
+      return
+    }
+
+    const fetchPOIs = async () => {
+      setLoadingPOIs(true)
+      try {
+        const center = centerOfMass(parcelle)
+        const lon = center.geometry.coordinates[0]
+        const lat = center.geometry.coordinates[1]
+
+        const data = await getNearbyPOIs(lat, lon, 500)
+        setPois(data || [])
+      } catch (error) {
+        console.error("Erreur chargement POIs:", error)
+      } finally {
+        setLoadingPOIs(false)
+      }
+    }
+
+    fetchPOIs()
+  }, [parcelle])
+
+  // --- Logique de Remembrement (Parcelles adjacentes) ---
+  const getAdjacentParcelles = () => {
+    if (!parcelle || !allParcelles?.features) return []
+
+    // Filtre les parcelles qui touchent la parcelle sélectionnée
+    const adherents = allParcelles.features.filter(p => {
+      if (p.properties.id === parcelle.properties.id) return false
+      try {
+        return booleanIntersects(parcelle, p)
+      } catch (e) {
+        return false // Ignore geometry errors
+      }
+    })
+
+    // Trier par surface décroissante et prendre les 3 plus grandes
+    return adherents
+      .sort((a, b) => b.properties.contenance - a.properties.contenance)
+      .slice(0, 3)
+  }
+
+  const adjacentParcelles = getAdjacentParcelles()
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -101,6 +156,59 @@ export function InfoPanel({ parcelle, transaction, onClose, onShowFeasibility, o
                 Étude de Faisabilité
               </button>
             </div>
+
+            {/* Suggestions de Remembrement */}
+            {adjacentParcelles.length > 0 && (
+              <div className="pt-3 border-t border-gray-200">
+                <h4 className="flex items-center gap-1.5 text-sm font-semibold text-gray-800 mb-2">
+                  <Blocks className="w-4 h-4 text-blue-600" />
+                  Suggestions de remembrement
+                </h4>
+                <div className="space-y-2">
+                  {adjacentParcelles.map(adj => {
+                    const combinedArea = parcelle.properties.contenance + adj.properties.contenance
+                    return (
+                      <div key={adj.properties.id} className="text-xs bg-blue-50/50 p-2 rounded border border-blue-100 flex justify-between items-center">
+                        <div>
+                          <span className="font-semibold text-blue-900">Parcelle {adj.properties.numero}</span>
+                          <span className="text-gray-500 block">+{formatArea(adj.properties.contenance)}</span>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-gray-500 block text-[10px] uppercase">Potentiel total</span>
+                          <span className="font-bold text-blue-800">{formatArea(combinedArea)}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* POIs - Services à proximité */}
+            {loadingPOIs ? (
+              <div className="pt-3 border-t border-gray-200 flex justify-center py-4">
+                <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
+              </div>
+            ) : pois.length > 0 && (
+              <div className="pt-3 border-t border-gray-200">
+                <h4 className="flex items-center gap-1.5 text-sm font-semibold text-gray-800 mb-2">
+                  <MapIcon className="w-4 h-4 text-blue-600" />
+                  Services à proximité (-500m)
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(
+                    pois.reduce((acc, p) => {
+                      acc[p.type] = (acc[p.type] || 0) + 1
+                      return acc
+                    }, {} as Record<string, number>)
+                  ).map(([type, count]) => (
+                    <span key={type} className="text-xs font-medium bg-gray-100 text-gray-700 px-2 py-1 rounded-full border border-gray-200 lowercase">
+                      {count} {type}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
 

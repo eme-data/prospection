@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.17.0",
+    "@turf/turf": "^7.3.4",
+    "@types/turf": "^3.5.32",
     "lucide-react": "^0.312.0",
     "maplibre-gl": "^4.0.0",
     "react": "^18.2.0",

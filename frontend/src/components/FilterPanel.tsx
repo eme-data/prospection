@@ -21,7 +21,7 @@ const CURRENT_YEAR = new Date().getFullYear()
 export function FilterPanel({ filters, onFiltersChange, onClose }: FilterPanelProps) {
   const [isExpanded, setIsExpanded] = useState(true)
 
-  const handleChange = (key: keyof DVFFilters, value: string | number | undefined) => {
+  const handleChange = (key: keyof DVFFilters, value: string | number | boolean | undefined) => {
     onFiltersChange({
       ...filters,
       [key]: value === '' ? undefined : value,
@@ -158,6 +158,20 @@ export function FilterPanel({ filters, onFiltersChange, onClose }: FilterPanelPr
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Dents Creuses */}
+          <div className="pt-2 border-t border-gray-100">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!filters.dentCreuse}
+                onChange={(e) => handleChange('dentCreuse', e.target.checked || undefined)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-4 h-4"
+              />
+              <span className="text-sm font-medium text-gray-700">Rechercher les <b>Dents Creuses</b></span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1 ml-6">Terrains nus entourés de bâtiments (zone urbaine).</p>
           </div>
 
           {/* Actions */}

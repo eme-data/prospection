@@ -819,6 +819,7 @@ function App() {
               <InfoPanel
                 parcelle={selectedParcelle}
                 transaction={selectedTransaction}
+                allParcelles={parcelles}
                 onClose={handleCloseInfoPanel}
                 onShowFeasibility={handleShowFeasibility}
                 onShowProspection={() => setShowProspection(true)}

@@ -98,6 +98,7 @@ export interface DVFFilters {
   section?: string
   zoneTypes?: string[]
   nonBati?: boolean
+  dentCreuse?: boolean
 }
 
 export interface DVFStatistiques {
@@ -551,4 +552,13 @@ export interface Top10Result {
   parcelle_info: Parcelle
   report: FaisabiliteReport | null
   error?: string
+}
+
+export interface POI {
+  id: number
+  type: string
+  name: string
+  lat: number
+  lon: number
+  distance?: number
 }

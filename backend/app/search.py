@@ -100,32 +100,49 @@ class AdvancedSearch:
                 except Exception:
                     continue
 
-            # Filtrage Non Bâti (IGN)
-            if batiments_geoms and filters.get('non_bati'):
+            # Filtrage Non Bâti (IGN) ou Dents Creuses
+            if batiments_geoms and (filters.get('non_bati') or filters.get('dent_creuse')):
                 try:
                     parcelle_geom = shape(parcelle.get('geometry'))
                     if not parcelle_geom.is_valid:
                          continue
                          
-                    # Si index spatial dispo (STRtree)
+                    is_built = False
+                    has_nearby_buildings = False
+                    
                     if batiments_index:
-                        # query retourne les indices des géométries qui intersectent potentiellement
                         potential_indices = batiments_index.query(parcelle_geom)
-                        is_built = False
                         for idx in potential_indices:
                             if batiments_geoms[idx].intersects(parcelle_geom):
                                 is_built = True
                                 break
-                        if is_built:
-                            continue
+                                
+                        if filters.get('dent_creuse') and not is_built:
+                            # Buffer d'environ 10-15m (~0.00015 degrés) pour chercher les voisins
+                            buffered_geom = parcelle_geom.buffer(0.00015)
+                            nearby_indices = batiments_index.query(buffered_geom)
+                            for idx in nearby_indices:
+                                if batiments_geoms[idx].intersects(buffered_geom):
+                                    has_nearby_buildings = True
+                                    break
                     else:
                         # Fallback lent
                         if any(b.intersects(parcelle_geom) for b in batiments_geoms):
+                            is_built = True
+                            
+                        if filters.get('dent_creuse') and not is_built:
+                            buffered_geom = parcelle_geom.buffer(0.00015)
+                            if any(b.intersects(buffered_geom) for b in batiments_geoms):
+                                has_nearby_buildings = True
+                                
+                    # Logique finale de rejet
+                    if filters.get('non_bati') and is_built:
+                        continue
+                    if filters.get('dent_creuse'):
+                        if is_built or not has_nearby_buildings:
                             continue
                             
                 except Exception:
-                    # En cas d'erreur géométrique, on ignore ou on laisse passer ?
-                    # Laissons passer par défaut pour ne pas bloquer, ou continue pour être strict.
                     pass
 
             parcelle_id = parcelle.get('properties', {}).get('id', '')

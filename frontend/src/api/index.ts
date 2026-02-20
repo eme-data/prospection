@@ -141,6 +141,19 @@ export async function getCommune(codeInsee: string): Promise<Commune> {
   return fetchJSON<Commune>(`${API_BASE}/geo/commune/${codeInsee}`)
 }
 
+export async function getNearbyPOIs(lat: number, lon: number, radius: number = 500): Promise<any[]> {
+  const searchParams = new URLSearchParams({
+    lat: lat.toString(),
+    lon: lon.toString(),
+    radius: radius.toString()
+  })
+
+  const data = await fetchJSON<{ pois: any[] }>(
+    `${API_BASE}/geo/pois?${searchParams.toString()}`
+  )
+  return data.pois
+}
+
 export async function getDepartements(): Promise<{ code: string; nom: string }[]> {
   const data = await fetchJSON<{ departements: { code: string; nom: string }[] }>(
     `${API_BASE}/geo/departements`
@@ -267,6 +280,7 @@ export async function searchParcelles(
     surface_max: filters.surfaceParcelleMax,
     zone_types: filters.zoneTypes?.length ? filters.zoneTypes : undefined,
     non_bati: filters.nonBati,
+    dent_creuse: filters.dentCreuse,
     score_min: undefined,
     include_score: true,
     page: 1,

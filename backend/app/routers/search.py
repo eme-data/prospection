@@ -34,6 +34,7 @@ class SearchFilters(BaseModel):
     # Filtres Urbanisme
     zone_types: Optional[List[str]] = None
     non_bati: Optional[bool] = None  # Nouveau filtre
+    dent_creuse: Optional[bool] = None # Filtre avancé (terrain vide entouré de bâti)
     
     # Filtres Scoring
     score_min: Optional[float] = None
@@ -113,9 +114,9 @@ async def search_parcelles(
             except Exception as e:
                 logger.warning(f"Impossible de récupérer les zones PLU: {str(e)}", extra={"code_insee": filters.code_insee})
 
-        # 4. Récupérer les bâtiments (si filtre non_bati actif)
+        # 4. Récupérer les bâtiments (si filtre non_bati ou dent_creuse actif)
         batiments = []
-        if filters.non_bati:
+        if filters.non_bati or filters.dent_creuse:
              batiments = await get_batiments_by_insee(filters.code_insee)
 
         # 5. Lancer la recherche via le moteur
