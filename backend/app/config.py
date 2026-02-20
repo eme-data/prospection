@@ -4,7 +4,7 @@ Gestion centralisee des parametres via variables d'environnement
 """
 
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     workers: int = Field(default=4, description="Nombre de workers Gunicorn")
 
     # CORS
-    cors_origins: List[str] = Field(
+    cors_origins: Union[List[str], str] = Field(
         default=["http://localhost:5173"],
         description="Origines autorisees pour CORS"
     )
@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     @classmethod
     def parse_cors_origins(cls, v):
         if isinstance(v, str):
+            if v.startswith("[") and v.endswith("]"):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
             return [origin.strip() for origin in v.split(",")]
         return v
 
