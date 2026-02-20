@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Filter,
-  BarChart3,
   FolderOpen,
   Award,
   Download,
@@ -13,7 +12,6 @@ import {
   FileText,
   Moon,
   Sun,
-  TrendingUp,
 } from 'lucide-react'
 import { useTheme } from './contexts/ThemeContext'
 import { SearchBar } from './components/SearchBar'
@@ -26,13 +24,9 @@ import { RiskPanel } from './components/RiskPanel'
 import { FavoritesPanel } from './components/FavoritesPanel'
 import { ProjectsPanel } from './components/ProjectsPanel'
 import { Top10Panel } from './components/Top10Panel'
-import { Dashboard } from './components/Dashboard'
 import { HistoryPanel } from './components/HistoryPanel'
-import { AlertsPanel } from './components/AlertsPanel'
 import { ReportGenerator } from './components/ReportGenerator'
 import { RappelsPanel } from './components/RappelsPanel'
-import InseeLayersPanel from './components/InseeLayersPanel'
-import { EconomicLayersPanel } from './components/EconomicLayersPanel'
 import { FeasibilityReport } from './components/FeasibilityReport'
 import { ProspectionPanel } from './components/ProspectionPanel'
 import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions, searchParcelles, getFaisabiliteReport } from './api'
@@ -47,8 +41,6 @@ import type {
   GeoJSONFeatureCollection,
   Project,
   SearchHistory,
-  Alert,
-  InseeLayerConfig,
   FaisabiliteReport as FaisabiliteReportType,
 } from './types'
 
@@ -61,7 +53,6 @@ const INITIAL_VIEW_STATE: MapViewState = {
 const FAVORITES_STORAGE_KEY = 'prospection-favorites'
 const PROJECTS_STORAGE_KEY = 'prospection-projects'
 const HISTORY_STORAGE_KEY = 'prospection-history'
-const ALERTS_STORAGE_KEY = 'prospection-alerts'
 
 function App() {
   const { theme, toggleTheme } = useTheme()
@@ -93,24 +84,11 @@ function App() {
   // Nouveaux états pour les fonctionnalités avancées
   const [showProjects, setShowProjects] = useState(false)
   const [showTop10, setShowTop10] = useState(false)
-  const [showDashboard, setShowDashboard] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-  const [showAlerts, setShowAlerts] = useState(false)
   const [showReportGenerator, setShowReportGenerator] = useState(false)
   const [showRappels, setShowRappels] = useState(false)
-  const [showInseeLayers, setShowInseeLayers] = useState(false)
-  const [showEconomicLayers, setShowEconomicLayers] = useState(false)
   const [feasibilityReport, setFeasibilityReport] = useState<FaisabiliteReportType | null>(null)
   const [showProspection, setShowProspection] = useState(false)
-
-  // Configuration des calques INSEE
-  const [inseeLayerConfig, setInseeLayerConfig] = useState<InseeLayerConfig>({
-    type: 'choropleth',
-    indicator: 'revenu_median',
-    colorScale: ['#10b981', '#84cc16', '#fbbf24', '#fb923c', '#ef4444'],
-    opacity: 0.6,
-    visible: false,
-  })
 
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
@@ -133,35 +111,10 @@ function App() {
     }
   })
 
-  const [alerts, setAlerts] = useState<Alert[]>(() => {
-    try {
-      const saved = localStorage.getItem(ALERTS_STORAGE_KEY)
-      return saved ? JSON.parse(saved) : []
-    } catch (error) {
-      console.error('Failed to load alerts:', error)
-      return []
-    }
-  })
-
-  // Sauvegarde des favoris dans localStorage
-  useEffect(() => {
-    localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(favorites))
-  }, [favorites])
-
-  // Sauvegarde des projets
-  useEffect(() => {
-    localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects))
-  }, [projects])
-
   // Sauvegarde de l'historique
   useEffect(() => {
     localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory))
   }, [searchHistory])
-
-  // Sauvegarde des alertes
-  useEffect(() => {
-    localStorage.setItem(ALERTS_STORAGE_KEY, JSON.stringify(alerts))
-  }, [alerts])
 
   // Récupération du code INSEE quand la vue change
   useEffect(() => {
@@ -367,16 +320,6 @@ function App() {
     setSearchHistory([])
   }, [])
 
-  // Gestion des alertes
-  const handleCreateAlert = useCallback((alert: Omit<Alert, 'id' | 'createdAt'>) => {
-    const newAlert: Alert = {
-      ...alert,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-    }
-    setAlerts((prev) => [newAlert, ...prev])
-  }, [])
-
   const handleSelectProjectParcelle = useCallback((parcelle: Parcelle) => {
     let lon = viewState.longitude
     let lat = viewState.latitude
@@ -401,14 +344,6 @@ function App() {
     setSelectedParcelle(parcelle)
     setShowProjects(false)
   }, [viewState])
-
-  const handleUpdateAlert = useCallback((alertId: string, updates: Partial<Alert>) => {
-    setAlerts((prev) => prev.map((a) => (a.id === alertId ? { ...a, ...updates } : a)))
-  }, [])
-
-  const handleDeleteAlert = useCallback((alertId: string) => {
-    setAlerts((prev) => prev.filter((a) => a.id !== alertId))
-  }, [])
 
   const handleShowFeasibility = useCallback(async () => {
     if (!selectedParcelle) return
@@ -455,8 +390,6 @@ function App() {
               if (!showTop10) {
                 setShowProjects(false)
                 setShowHistory(false)
-                setShowAlerts(false)
-                setShowDashboard(false)
               }
             }}
             className={`p - 2 rounded - lg transition - colors ${showTop10
@@ -467,18 +400,6 @@ function App() {
             disabled={!currentCodeInsee}
           >
             <Award className="h-5 w-5" />
-          </button>
-
-          <button
-            onClick={() => setShowDashboard(!showDashboard)}
-            className={`p - 2 rounded - lg transition - colors ${showDashboard
-              ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
-              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              } `}
-            title="Dashboard"
-            disabled={!currentCodeInsee}
-          >
-            <BarChart3 className="h-5 w-5" />
           </button>
 
           <button
@@ -498,22 +419,6 @@ function App() {
           </button>
 
           <button
-            onClick={() => setShowAlerts(!showAlerts)}
-            className={`p - 2 rounded - lg transition - colors relative ${showAlerts
-              ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300'
-              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              } `}
-            title="Alertes"
-          >
-            <Bell className="h-5 w-5" />
-            {alerts.filter(a => a.enabled).length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                {alerts.filter(a => a.enabled).length}
-              </span>
-            )}
-          </button>
-
-          <button
             onClick={() => setShowRappels(!showRappels)}
             className={`p - 2 rounded - lg transition - colors relative ${showRappels
               ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300'
@@ -525,28 +430,6 @@ function App() {
             <span className="absolute -top-1 -right-1 bg-indigo-500 text-white text-xs px-1 min-w-[16px] h-4 rounded-full flex items-center justify-center font-semibold">
               !
             </span>
-          </button>
-
-          <button
-            onClick={() => setShowInseeLayers(!showInseeLayers)}
-            className={`p - 2 rounded - lg transition - colors ${showInseeLayers
-              ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-300'
-              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              } `}
-            title="Calques INSEE"
-          >
-            <TrendingUp className="h-5 w-5" />
-          </button>
-
-          <button
-            onClick={() => setShowEconomicLayers(!showEconomicLayers)}
-            className={`p - 2 rounded - lg transition - colors ${showEconomicLayers
-              ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300'
-              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              } `}
-            title="Calques Économiques DVF"
-          >
-            <BarChart3 className="h-5 w-5" />
           </button>
 
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
@@ -702,36 +585,6 @@ function App() {
             />
           )}
 
-          {showInseeLayers && (
-            <div className="absolute top-20 right-4 z-20">
-              <InseeLayersPanel
-                config={inseeLayerConfig}
-                onConfigChange={setInseeLayerConfig}
-                onClose={() => setShowInseeLayers(false)}
-              />
-            </div>
-          )}
-
-          {showEconomicLayers && (
-            <EconomicLayersPanel
-              isOpen={showEconomicLayers}
-              onClose={() => setShowEconomicLayers(false)}
-              onLayerToggle={(layerId, enabled) => {
-                console.log('Economic layer toggled:', layerId, enabled)
-                // TODO: Connect to map layer rendering
-              }}
-            />
-          )}
-
-          {showAlerts && (
-            <AlertsPanel
-              alerts={alerts}
-              onCreateAlert={handleCreateAlert}
-              onUpdateAlert={handleUpdateAlert}
-              onDeleteAlert={handleDeleteAlert}
-              onClose={() => setShowAlerts(false)}
-            />
-          )}
         </div>
 
         {/* Panneaux latéraux droite */}
@@ -799,18 +652,6 @@ function App() {
             </div>
           )}
         </div>
-
-        {/* Dashboard fullscreen overlay */}
-        {showDashboard && currentCodeInsee && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-20 p-4">
-            <Dashboard
-              codeInsee={currentCodeInsee}
-              filters={filters}
-              projectName={selectedProject?.name}
-              onClose={() => setShowDashboard(false)}
-            />
-          </div>
-        )}
 
         {/* Info panel avec bouton favoris */}
         {(selectedParcelle || selectedTransaction) && (
