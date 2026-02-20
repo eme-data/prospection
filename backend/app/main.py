@@ -50,9 +50,9 @@ from app.routers import (
     risks,
     urbanism,
     export,
-    export,
     search,
-    faisabilite
+    faisabilite,
+    activities
 )
 
 # Configuration du logging
@@ -114,6 +114,7 @@ app.include_router(urbanism.router)
 app.include_router(export.router)
 app.include_router(search.router)
 app.include_router(faisabilite.router)
+app.include_router(activities.router)
 
 # Routes existantes non refactorees (a deplacer plus tard)
 app.include_router(economic_router)
