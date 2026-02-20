@@ -123,33 +123,25 @@ class FaisabiliteService:
             except Exception as e:
                 logger.error(f"Faisabilité: Erreur Georisques: {e}")
 
-        # 4. Bâti - IGN
+        # 4. Bâti - Cadastre (anciennement IGN)
         is_built = False
         if geom_shape:
             try:
-                bounds = geom_shape.bounds # (minx, miny, maxx, maxy)
-                bbox = f"{bounds[0]},{bounds[1]},{bounds[2]},{bounds[3]}"
+                from app.services.ign import get_batiments_by_insee
+                code_insee = parcelle_id[:5]
+                batiments = await get_batiments_by_insee(code_insee)
                 
-                ign_resp = await ign_client.get("", params={
-                    "SERVICE": "WFS",
-                    "VERSION": "2.0.0",
-                    "REQUEST": "GetFeature",
-                    "TYPENAME": "BDTOPO_V3:batiment",
-                    "OUTPUTFORMAT": "application/json",
-                    "BBOX": bbox,
-                    "SRSNAME": "EPSG:4326"
-                })
-                
-                batiments = ign_resp.get("features", [])
                 for bat in batiments:
                     try:
-                        if SHAPELY_AVAILABLE and shape(bat.get("geometry")).intersects(geom_shape):
-                            is_built = True
-                            break
+                        if SHAPELY_AVAILABLE:
+                            bat_geom = shape(bat.get("geometry"))
+                            if bat_geom.is_valid and bat_geom.intersects(geom_shape):
+                                is_built = True
+                                break
                     except Exception:
                         continue
             except Exception as e:
-                logger.error(f"Faisabilité: Erreur IGN Bati: {e}")
+                logger.error(f"Faisabilité: Erreur Bati: {e}")
 
         # 5. Synthèse / Analyse
         
