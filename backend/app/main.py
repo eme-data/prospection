@@ -53,12 +53,16 @@ from app.routers import (
     export,
     search,
     faisabilite,
-    activities
+    activities,
+    settings as app_settings_router,
+    conges
 )
 from app.auth import get_current_active_user
 from fastapi import Depends
 from app.database import engine
 from app.models.user import Base
+from app.models.conges import Conge
+from app.models.settings import SystemSettings
 
 # Configuration du logging
 setup_logging()
@@ -80,6 +84,33 @@ async def lifespan(app: FastAPI):
     # Création des tables de la base de données
     Base.metadata.create_all(bind=engine)
     
+    # Simple auto-migration SQLite pour les nouvelles colonnes modules
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Vérifier si la colonne existe (SQLite)
+            result = conn.execute(text("PRAGMA table_info(users)"))
+            columns = [row[1] for row in result.fetchall()]
+            
+            if "module_faisabilite" not in columns:
+                logger.info("Migrating users table: adding module columns...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN module_faisabilite BOOLEAN DEFAULT 1"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN module_crm BOOLEAN DEFAULT 0"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN module_travaux BOOLEAN DEFAULT 0"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN module_sav BOOLEAN DEFAULT 0"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN module_conges BOOLEAN DEFAULT 0"))
+                conn.commit()
+                logger.info("Migration of module columns successful.")
+                
+            if "solde_conges" not in columns:
+                logger.info("Migrating users table: adding solde_conges and manager_id columns...")
+                conn.execute(text("ALTER TABLE users ADD COLUMN solde_conges FLOAT DEFAULT 25.0"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN manager_id VARCHAR REFERENCES users(id)"))
+                conn.commit()
+                logger.info("Migration of Conges columns successful.")
+    except Exception as e:
+        logger.error(f"Migration error: {e}")
+
     yield
     logger.info("application_stopping")
 
@@ -128,6 +159,8 @@ app.include_router(export.router, dependencies=protected_dep)
 app.include_router(search.router, dependencies=protected_dep)
 app.include_router(faisabilite.router, dependencies=protected_dep)
 app.include_router(activities.router, dependencies=protected_dep)
+app.include_router(app_settings_router.router, prefix="/api", dependencies=protected_dep)
+app.include_router(conges.router, prefix="/api", dependencies=protected_dep)
 
 # Routes existantes non refactorees protégées (a deplacer plus tard)
 app.include_router(economic_router, dependencies=protected_dep)

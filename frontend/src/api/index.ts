@@ -14,7 +14,7 @@ import type {
 
 const API_BASE = '/api'
 
-async function fetchJSON<T>(url: string, options: RequestInit = {}): Promise<T> {
+export async function fetchJSON<T>(url: string, options: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('prospection_token')
 
   const headers = new Headers(options.headers || {})

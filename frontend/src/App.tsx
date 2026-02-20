@@ -6,15 +6,37 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/LoginPage';
 import { PortalPage } from './components/PortalPage';
 import { FaisabiliteApp } from './components/FaisabiliteApp';
+import { AdminUsersPage } from './components/AdminUsersPage';
+import { AdminSettings } from './components/AdminSettings';
+import { CongesApp } from './apps/Conges/CongesApp';
 
 const queryClient = new QueryClient();
 
 // Composant pour protéger les routes
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { isAuthenticated } = useAuth();
+const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'faisabilite' | 'crm' | 'travaux' | 'sav' | 'conges' }> = ({ children, requiredModule }) => {
+    const { isAuthenticated, user } = useAuth();
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
+    }
+
+    if (requiredModule && user && !user.modules?.[requiredModule]) {
+        return <Navigate to="/" replace />;
+    }
+
+    return <>{children}</>;
+};
+
+// Composant pour protéger les routes administrateur
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { isAuthenticated, user } = useAuth();
+
+    if (!isAuthenticated) {
+        return <Navigate to="/login" replace />;
+    }
+
+    if (user?.role !== 'admin') {
+        return <Navigate to="/" replace />;
     }
 
     return <>{children}</>;
@@ -44,6 +66,32 @@ function App() {
                                 element={
                                     <ProtectedRoute>
                                         <FaisabiliteApp />
+                                    </ProtectedRoute>
+                                }
+                            />
+
+                            <Route
+                                path="/admin/users"
+                                element={
+                                    <AdminRoute>
+                                        <AdminUsersPage />
+                                    </AdminRoute>
+                                }
+                            />
+                            <Route
+                                path="/admin/settings"
+                                element={
+                                    <AdminRoute>
+                                        <AdminSettings />
+                                    </AdminRoute>
+                                }
+                            />
+
+                            <Route
+                                path="/conges/*"
+                                element={
+                                    <ProtectedRoute requiredModule="conges">
+                                        <CongesApp />
                                     </ProtectedRoute>
                                 }
                             />

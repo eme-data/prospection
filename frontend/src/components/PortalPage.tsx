@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Map, Users, HardHat, Wrench, LogOut, Layout, Calendar } from 'lucide-react';
+import { Map, Users, HardHat, Wrench, LogOut, Layout, Calendar, Settings } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Moon, Sun } from 'lucide-react';
 
@@ -23,7 +23,7 @@ export const PortalPage: React.FC = () => {
             icon: <Map className="w-12 h-12 mb-4 text-blue-500" />,
             color: 'bg-blue-50 hover:bg-blue-100 border-blue-200 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 dark:border-blue-800',
             path: '/faisabilite',
-            active: true
+            active: user?.modules?.faisabilite ?? false
         },
         {
             id: 'crm',
@@ -32,7 +32,7 @@ export const PortalPage: React.FC = () => {
             icon: <Users className="w-12 h-12 mb-4 text-green-500" />,
             color: 'bg-green-50 hover:bg-green-100 border-green-200 dark:bg-green-900/20 dark:hover:bg-green-900/40 dark:border-green-800',
             path: '/crm',
-            active: false
+            active: user?.modules?.crm ?? false
         },
         {
             id: 'travaux',
@@ -41,7 +41,7 @@ export const PortalPage: React.FC = () => {
             icon: <HardHat className="w-12 h-12 mb-4 text-yellow-500" />,
             color: 'bg-yellow-50 hover:bg-yellow-100 border-yellow-200 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/40 dark:border-yellow-800',
             path: '/travaux',
-            active: false
+            active: user?.modules?.travaux ?? false
         },
         {
             id: 'sav',
@@ -50,7 +50,7 @@ export const PortalPage: React.FC = () => {
             icon: <Wrench className="w-12 h-12 mb-4 text-purple-500" />,
             color: 'bg-purple-50 hover:bg-purple-100 border-purple-200 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 dark:border-purple-800',
             path: '/sav',
-            active: false
+            active: user?.modules?.sav ?? false
         },
         {
             id: 'conges',
@@ -59,7 +59,7 @@ export const PortalPage: React.FC = () => {
             icon: <Calendar className="w-12 h-12 mb-4 text-teal-500" />,
             color: 'bg-teal-50 hover:bg-teal-100 border-teal-200 dark:bg-teal-900/20 dark:hover:bg-teal-900/40 dark:border-teal-800',
             path: '/conges',
-            active: false
+            active: user?.modules?.conges ?? false
         }
     ];
 
@@ -73,7 +73,16 @@ export const PortalPage: React.FC = () => {
                             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Portail MDO Services</h1>
                         </div>
                         <div className="flex items-center gap-4">
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {user?.role === 'admin' && (
+                                <button
+                                    onClick={() => navigate('/admin/users')}
+                                    className="flex items-center gap-2 text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-medium text-sm border border-indigo-200 dark:border-indigo-800 rounded-md px-3 py-1.5"
+                                >
+                                    <Settings size={16} />
+                                    Administration
+                                </button>
+                            )}
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-4 border-l border-gray-300 dark:border-gray-600 pl-4">
                                 Bonjour, {user?.full_name || user?.email || 'Utilisateur'}
                             </span>
                             <button

@@ -1,11 +1,20 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 
-interface User {
+export interface User {
     id: string;
     email: string;
     full_name?: string;
     role?: string;
+    modules?: {
+        faisabilite: boolean;
+        crm: boolean;
+        travaux: boolean;
+        sav: boolean;
+        conges: boolean;
+    };
+    solde_conges?: number;
+    manager_id?: string;
 }
 
 interface AuthContextType {
