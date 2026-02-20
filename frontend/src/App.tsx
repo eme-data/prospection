@@ -3,10 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import {
   Filter,
   BarChart3,
+  FolderOpen,
+  Award,
   Download,
   AlertTriangle,
   Star,
-  FolderOpen,
   Clock,
   Bell,
   FileText,
@@ -24,6 +25,7 @@ import { ExportPanel } from './components/ExportPanel'
 import { RiskPanel } from './components/RiskPanel'
 import { FavoritesPanel } from './components/FavoritesPanel'
 import { ProjectsPanel } from './components/ProjectsPanel'
+import { Top10Panel } from './components/Top10Panel'
 import { Dashboard } from './components/Dashboard'
 import { HistoryPanel } from './components/HistoryPanel'
 import { AlertsPanel } from './components/AlertsPanel'
@@ -90,6 +92,7 @@ function App() {
 
   // Nouveaux états pour les fonctionnalités avancées
   const [showProjects, setShowProjects] = useState(false)
+  const [showTop10, setShowTop10] = useState(false)
   const [showDashboard, setShowDashboard] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showAlerts, setShowAlerts] = useState(false)
@@ -437,21 +440,41 @@ function App() {
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setShowProjects(!showProjects)}
-            className={`p-2 rounded-lg transition-colors ${showProjects
+            className={`p - 2 rounded - lg transition - colors ${showProjects
               ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Projets"
           >
             <FolderOpen className="h-5 w-5" />
           </button>
 
           <button
+            onClick={() => {
+              setShowTop10(!showTop10)
+              if (!showTop10) {
+                setShowProjects(false)
+                setShowHistory(false)
+                setShowAlerts(false)
+                setShowDashboard(false)
+              }
+            }}
+            className={`p - 2 rounded - lg transition - colors ${showTop10
+              ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300'
+              : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+              } `}
+            title="Top 10 Opportunités"
+            disabled={!currentCodeInsee}
+          >
+            <Award className="h-5 w-5" />
+          </button>
+
+          <button
             onClick={() => setShowDashboard(!showDashboard)}
-            className={`p-2 rounded-lg transition-colors ${showDashboard
+            className={`p - 2 rounded - lg transition - colors ${showDashboard
               ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Dashboard"
             disabled={!currentCodeInsee}
           >
@@ -460,10 +483,10 @@ function App() {
 
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className={`p-2 rounded-lg transition-colors relative ${showHistory
+            className={`p - 2 rounded - lg transition - colors relative ${showHistory
               ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Historique"
           >
             <Clock className="h-5 w-5" />
@@ -476,10 +499,10 @@ function App() {
 
           <button
             onClick={() => setShowAlerts(!showAlerts)}
-            className={`p-2 rounded-lg transition-colors relative ${showAlerts
+            className={`p - 2 rounded - lg transition - colors relative ${showAlerts
               ? 'bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Alertes"
           >
             <Bell className="h-5 w-5" />
@@ -492,10 +515,10 @@ function App() {
 
           <button
             onClick={() => setShowRappels(!showRappels)}
-            className={`p-2 rounded-lg transition-colors relative ${showRappels
+            className={`p - 2 rounded - lg transition - colors relative ${showRappels
               ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Rappels CRM"
           >
             <Bell className="h-5 w-5" />
@@ -506,10 +529,10 @@ function App() {
 
           <button
             onClick={() => setShowInseeLayers(!showInseeLayers)}
-            className={`p-2 rounded-lg transition-colors ${showInseeLayers
+            className={`p - 2 rounded - lg transition - colors ${showInseeLayers
               ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600 dark:text-emerald-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Calques INSEE"
           >
             <TrendingUp className="h-5 w-5" />
@@ -517,10 +540,10 @@ function App() {
 
           <button
             onClick={() => setShowEconomicLayers(!showEconomicLayers)}
-            className={`p-2 rounded-lg transition-colors ${showEconomicLayers
+            className={`p - 2 rounded - lg transition - colors ${showEconomicLayers
               ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Calques Économiques DVF"
           >
             <BarChart3 className="h-5 w-5" />
@@ -530,10 +553,10 @@ function App() {
 
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`p-2 rounded-lg transition-colors relative ${showFilters || activeFiltersCount > 0
+            className={`p - 2 rounded - lg transition - colors relative ${showFilters || activeFiltersCount > 0
               ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Filtres"
           >
             <Filter className="h-5 w-5" />
@@ -546,10 +569,10 @@ function App() {
 
           <button
             onClick={() => setShowRisks(!showRisks)}
-            className={`p-2 rounded-lg transition-colors ${showRisks
+            className={`p - 2 rounded - lg transition - colors ${showRisks
               ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Risques & PLU"
             disabled={!currentCodeInsee}
           >
@@ -558,10 +581,10 @@ function App() {
 
           <button
             onClick={() => setShowReportGenerator(!showReportGenerator)}
-            className={`p-2 rounded-lg transition-colors ${showReportGenerator
+            className={`p - 2 rounded - lg transition - colors ${showReportGenerator
               ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Rapport PDF"
             disabled={!currentCodeInsee}
           >
@@ -570,10 +593,10 @@ function App() {
 
           <button
             onClick={() => setShowExport(!showExport)}
-            className={`p-2 rounded-lg transition-colors ${showExport
+            className={`p - 2 rounded - lg transition - colors ${showExport
               ? 'bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Exporter"
             disabled={!currentCodeInsee}
           >
@@ -582,10 +605,10 @@ function App() {
 
           <button
             onClick={() => setShowFavorites(!showFavorites)}
-            className={`p-2 rounded-lg transition-colors relative ${showFavorites
+            className={`p - 2 rounded - lg transition - colors relative ${showFavorites
               ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-600 dark:text-yellow-300'
               : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
-              }`}
+              } `}
             title="Favoris"
           >
             <Star className="h-5 w-5" />
@@ -656,6 +679,15 @@ function App() {
               onUpdateProject={handleUpdateProject}
               onDeleteProject={handleDeleteProject}
               onClose={() => setShowProjects(false)}
+              onSelectParcelle={handleSelectProjectParcelle}
+            />
+          )}
+
+          {showTop10 && currentCodeInsee && (
+            <Top10Panel
+              codeInsee={currentCodeInsee}
+              cityName={selectedAddress?.city || currentCodeInsee}
+              onClose={() => setShowTop10(false)}
               onSelectParcelle={handleSelectProjectParcelle}
             />
           )}

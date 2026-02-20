@@ -1,0 +1,23 @@
+{
+  "1234": {
+    "parcelleId": "1234",
+    "statut": "a_prospecter",
+    "dateContact": null,
+    "dateRelance": null,
+    "notesContact": "test",
+    "interlocuteur": null,
+    "telephone": null,
+    "email": null,
+    "historique": [
+      {
+        "id": "1234_2026-02-20T11:39:02.461834",
+        "date": "2026-02-20T11:39:02.461834",
+        "action": "Création de la fiche",
+        "statut": "a_prospecter",
+        "notes": "test"
+      }
+    ],
+    "createdAt": "2026-02-20T11:39:02.461834",
+    "updatedAt": "2026-02-20T11:39:02.461834"
+  }
+}

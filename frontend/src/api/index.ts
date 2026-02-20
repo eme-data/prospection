@@ -9,6 +9,7 @@ import type {
   RisquesResponse,
   ZonageResponse,
   FaisabiliteReport,
+  Top10Result,
 } from '../types'
 
 const API_BASE = '/api'
@@ -19,6 +20,35 @@ async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(`HTTP error! status: ${response.status}`)
   }
   return response.json()
+}
+
+export async function getFaisabiliteReport(parcelleId: string): Promise<FaisabiliteReport> {
+  try {
+    const response = await fetch(`${API_BASE}/faisabilite/${parcelleId}`)
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error('Parcelle non trouvée ou erreur API Cadastre')
+      }
+      throw new Error(`Erreur HTTP: ${response.status}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error('Erreur getFaisabiliteReport:', error)
+    throw error
+  }
+}
+
+export async function getTop10Faisabilites(codeInsee: string): Promise<Top10Result[]> {
+  try {
+    const response = await fetch(`${API_BASE}/faisabilite/top10/${codeInsee}`)
+    if (!response.ok) {
+      throw new Error(`Erreur HTTP: ${response.status}`)
+    }
+    return response.json()
+  } catch (error) {
+    console.error('Erreur getTop10Faisabilites:', error)
+    throw error
+  }
 }
 
 // ============== ADRESSES ==============
@@ -255,6 +285,4 @@ export async function searchParcelles(
   })
 }
 
-export async function getFaisabiliteReport(parcelleId: string): Promise<FaisabiliteReport> {
-  return fetchJSON<FaisabiliteReport>(`${API_BASE}/faisabilite/${parcelleId}`)
-}
+

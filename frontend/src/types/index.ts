@@ -538,3 +538,17 @@ export interface FaisabiliteReport {
     points_vigilance: string[]
   }
 }
+
+export interface Top10Result {
+  parcelleId: string
+  score: {
+    score: number
+    niveau: string
+    color: string
+    recommandations: string[]
+    details: Record<string, number>
+  } | null
+  parcelle_info: Parcelle
+  report: FaisabiliteReport | null
+  error?: string
+}
