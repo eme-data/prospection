@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
-import { MessageSquare, Layout, LogOut, Paintbrush, ArrowLeft, Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { MessageSquare, Layout, Paintbrush, ArrowLeft, Settings } from 'lucide-react';
 import { LogoCreator } from './LogoCreator';
 
 const CommunicationDashboard: React.FC = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
+
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
