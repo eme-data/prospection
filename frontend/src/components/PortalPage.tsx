@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Map, Users, HardHat, Wrench, LogOut, Layout } from 'lucide-react';
+import { Map, Users, HardHat, Wrench, LogOut, Layout, Calendar } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Moon, Sun } from 'lucide-react';
 
@@ -51,6 +51,15 @@ export const PortalPage: React.FC = () => {
             color: 'bg-purple-50 hover:bg-purple-100 border-purple-200 dark:bg-purple-900/20 dark:hover:bg-purple-900/40 dark:border-purple-800',
             path: '/sav',
             active: false
+        },
+        {
+            id: 'conges',
+            name: 'Congés',
+            description: 'Gestion des absences et congés de l\'équipe.',
+            icon: <Calendar className="w-12 h-12 mb-4 text-teal-500" />,
+            color: 'bg-teal-50 hover:bg-teal-100 border-teal-200 dark:bg-teal-900/20 dark:hover:bg-teal-900/40 dark:border-teal-800',
+            path: '/conges',
+            active: false
         }
     ];
 
@@ -95,7 +104,7 @@ export const PortalPage: React.FC = () => {
                     </p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                     {apps.map((app) => (
                         <div
                             key={app.id}
