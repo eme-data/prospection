@@ -32,6 +32,7 @@ import { RappelsPanel } from './components/RappelsPanel'
 import InseeLayersPanel from './components/InseeLayersPanel'
 import { EconomicLayersPanel } from './components/EconomicLayersPanel'
 import { FeasibilityReport } from './components/FeasibilityReport'
+import { ProspectionPanel } from './components/ProspectionPanel'
 import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions, searchParcelles, getFaisabiliteReport } from './api'
 import type {
   MapViewState,
@@ -97,6 +98,7 @@ function App() {
   const [showInseeLayers, setShowInseeLayers] = useState(false)
   const [showEconomicLayers, setShowEconomicLayers] = useState(false)
   const [feasibilityReport, setFeasibilityReport] = useState<FaisabiliteReportType | null>(null)
+  const [showProspection, setShowProspection] = useState(false)
 
   // Configuration des calques INSEE
   const [inseeLayerConfig, setInseeLayerConfig] = useState<InseeLayerConfig>({
@@ -712,6 +714,15 @@ function App() {
               onClose={() => setShowReportGenerator(false)}
             />
           )}
+
+          {showProspection && selectedParcelle && (
+            <div className="w-[400px]">
+              <ProspectionPanel
+                parcelle={selectedParcelle}
+                onClose={() => setShowProspection(false)}
+              />
+            </div>
+          )}
         </div>
 
         {/* Dashboard fullscreen overlay */}
@@ -735,6 +746,7 @@ function App() {
                 transaction={selectedTransaction}
                 onClose={handleCloseInfoPanel}
                 onShowFeasibility={handleShowFeasibility}
+                onShowProspection={() => setShowProspection(true)}
               />
               {selectedParcelle && (
                 <button

@@ -6,9 +6,10 @@ interface InfoPanelProps {
   transaction?: DVFTransaction | null
   onClose: () => void
   onShowFeasibility: () => void
+  onShowProspection: () => void
 }
 
-export function InfoPanel({ parcelle, transaction, onClose, onShowFeasibility }: InfoPanelProps) {
+export function InfoPanel({ parcelle, transaction, onClose, onShowFeasibility, onShowProspection }: InfoPanelProps) {
   if (!parcelle && !transaction) return null
 
   const formatPrice = (price: number) => {
@@ -84,7 +85,14 @@ export function InfoPanel({ parcelle, transaction, onClose, onShowFeasibility }:
               <div className="font-medium">{parcelle.properties.commune}</div>
             </div>
 
-            <div className="pt-3 border-t border-gray-200">
+            <div className="pt-3 border-t border-gray-200 space-y-2">
+              <button
+                onClick={onShowProspection}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
+              >
+                <Home className="h-4 w-4" />
+                Ajouter à la prospection
+              </button>
               <button
                 onClick={onShowFeasibility}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 px-4 rounded-md transition-colors flex items-center justify-center gap-2"
