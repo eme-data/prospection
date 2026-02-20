@@ -341,6 +341,15 @@ function App() {
     }
   }, [selectedProjectId])
 
+  const handleAddToProject = useCallback((projectId: string, parcelleId: string) => {
+    setProjects(prev => prev.map(p => {
+      if (p.id === projectId && !p.parcelles.includes(parcelleId)) {
+        return { ...p, parcelles: [...p.parcelles, parcelleId], updatedAt: new Date().toISOString() }
+      }
+      return p
+    }))
+  }, [])
+
   // Gestion de l'historique
   const handleDeleteHistory = useCallback((id: string) => {
     setSearchHistory((prev) => prev.filter((h) => h.id !== id))
@@ -720,6 +729,9 @@ function App() {
               <ProspectionPanel
                 parcelle={selectedParcelle}
                 onClose={() => setShowProspection(false)}
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                onAddToProject={handleAddToProject}
               />
             </div>
           )}

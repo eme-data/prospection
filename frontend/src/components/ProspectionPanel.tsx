@@ -15,14 +15,17 @@ import {
 import { ProspectionBadge } from './ProspectionBadge'
 import { ActivityTimeline } from './ActivityTimeline'
 import { ActivityForm } from './ActivityForm'
-import type { Parcelle, ProspectionInfo, StatutProspection, Activity } from '../types'
+import type { Parcelle, ProspectionInfo, StatutProspection, Activity, Project } from '../types'
 
 interface ProspectionPanelProps {
   parcelle: Parcelle
   onClose: () => void
+  projects: Project[]
+  selectedProjectId: string | null
+  onAddToProject: (projectId: string, parcelleId: string) => void
 }
 
-export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
+export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectId, onAddToProject }: ProspectionPanelProps) {
   const parcelleId = parcelle.properties.id
   const queryClient = useQueryClient()
   const [showActivityForm, setShowActivityForm] = useState(false)
@@ -43,17 +46,22 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
 
   // Mutation pour créer une prospection
   const createMutation = useMutation({
-    mutationFn: async (data: Partial<ProspectionInfo>) => {
+    mutationFn: async (data: Partial<ProspectionInfo> & { projectIdToJoin?: string }) => {
+      const { projectIdToJoin, ...rest } = data
       const response = await fetch(
         `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parcelleId, ...data }),
+          body: JSON.stringify({ parcelleId, ...rest }),
         }
       )
       if (!response.ok) throw new Error('Erreur lors de la création')
-      return response.json()
+      const created = await response.json()
+      if (projectIdToJoin) {
+        onAddToProject(projectIdToJoin, parcelleId)
+      }
+      return created
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospection', parcelleId] })
@@ -159,7 +167,11 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {!prospection ? (
-          <InitialProspectionForm onCreate={createMutation.mutate} />
+          <InitialProspectionForm
+            onCreate={createMutation.mutate}
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+          />
         ) : (
           <>
             <StatusWorkflow
@@ -234,15 +246,20 @@ export function ProspectionPanel({ parcelle, onClose }: ProspectionPanelProps) {
 // Formulaire initial pour créer une prospection
 function InitialProspectionForm({
   onCreate,
+  projects,
+  selectedProjectId,
 }: {
-  onCreate: (data: Partial<ProspectionInfo>) => void
+  onCreate: (data: Partial<ProspectionInfo> & { projectIdToJoin?: string }) => void
+  projects?: Project[]
+  selectedProjectId?: string | null
 }) {
   const [statut, setStatut] = useState<StatutProspection>('a_prospecter')
   const [notes, setNotes] = useState('')
+  const [projectId, setProjectId] = useState<string>(selectedProjectId || '')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onCreate({ statut, notesContact: notes })
+    onCreate({ statut, notesContact: notes, projectIdToJoin: projectId || undefined })
   }
 
   return (
@@ -271,6 +288,23 @@ function InitialProspectionForm({
             ))}
           </div>
         </div>
+        {projects && projects.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Associer à un projet
+            </label>
+            <select
+              value={projectId}
+              onChange={(e) => setProjectId(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white shrink-0 focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Aucun projet (hors projet)</option>
+              {projects.filter(p => p.status === 'active').map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Notes initiales (optionnel)
