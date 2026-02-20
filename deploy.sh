@@ -410,7 +410,7 @@ services:
     environment:
       - DATA_DIR=/data
     volumes:
-      - /data:/data
+      - ./data:/data
     depends_on:
       redis:
         condition: service_healthy
@@ -469,6 +469,11 @@ fi
 #===============================================================================
 log_info "Creation du service systemd..."
 
+COMPOSE_FILE="docker-compose.yml"
+if [[ "$WITH_SSL" == true ]]; then
+    COMPOSE_FILE="docker-compose.prod.yml"
+fi
+
 cat > /etc/systemd/system/prospection.service << EOF
 [Unit]
 Description=Prospection Fonciere Application
@@ -481,9 +486,9 @@ RemainAfterExit=yes
 User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$INSTALL_DIR
-ExecStart=/usr/bin/docker compose -f ${WITH_SSL:+docker-compose.prod.yml}${WITH_SSL:-docker-compose.yml} up -d --build
-ExecStop=/usr/bin/docker compose -f ${WITH_SSL:+docker-compose.prod.yml}${WITH_SSL:-docker-compose.yml} down
-ExecReload=/usr/bin/docker compose -f ${WITH_SSL:+docker-compose.prod.yml}${WITH_SSL:-docker-compose.yml} restart
+ExecStart=/usr/bin/docker compose -f $COMPOSE_FILE up -d --build
+ExecStop=/usr/bin/docker compose -f $COMPOSE_FILE down
+ExecReload=/usr/bin/docker compose -f $COMPOSE_FILE restart
 TimeoutStartSec=300
 
 [Install]
@@ -521,6 +526,10 @@ fi
 log_info "Construction et demarrage de l'application..."
 
 cd "$INSTALL_DIR"
+
+# Préparation du répertoire de données avec les permissions pour 'appuser' (UID 1000 dans l'image python)
+mkdir -p "$INSTALL_DIR/data"
+chown -R 1000:1000 "$INSTALL_DIR/data"
 
 if [[ "$WITH_SSL" == true ]]; then
     sudo -u "$APP_USER" docker compose -f docker-compose.prod.yml build
