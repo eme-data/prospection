@@ -1,10 +1,16 @@
 from typing import Dict, Any, List, Optional
-from shapely.geometry import shape, Point
+try:
+    from shapely.geometry import shape, Point
+    SHAPELY_AVAILABLE = True
+except ImportError:
+    SHAPELY_AVAILABLE = False
 from app.http_client import cadastre_client, gpu_client, georisques_client, ign_client
 from app.cache import cache_get
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+if not SHAPELY_AVAILABLE:
+    logger.warning("Shapely non disponible - calculs d'intersection géométrique désactivés")
 
 class FaisabiliteService:
     """Service pour générer des rapports de faisabilité foncière"""
@@ -56,7 +62,7 @@ class FaisabiliteService:
         lon, lat = 0, 0
         geom_shape = None
         try:
-            if geometry:
+            if geometry and SHAPELY_AVAILABLE:
                 geom_shape = shape(geometry)
                 centroid = geom_shape.centroid
                 lon, lat = centroid.x, centroid.y
@@ -137,7 +143,7 @@ class FaisabiliteService:
                 batiments = ign_resp.get("features", [])
                 for bat in batiments:
                     try:
-                        if shape(bat.get("geometry")).intersects(geom_shape):
+                        if SHAPELY_AVAILABLE and shape(bat.get("geometry")).intersects(geom_shape):
                             is_built = True
                             break
                     except Exception:
@@ -158,7 +164,7 @@ class FaisabiliteService:
             enrichissement = {"properties": props}
             
             # Calcul du pourcentage d'intersection si on a les géométries
-            if geom_shape and zone_geom_data and parcelle_area > 0:
+            if SHAPELY_AVAILABLE and geom_shape and zone_geom_data and parcelle_area > 0:
                 try:
                     zone_shape = shape(zone_geom_data)
                     # Si la zone n'est pas valide (erreur topologique fréquente avec l'API IGN), on tente un buffer(0)
