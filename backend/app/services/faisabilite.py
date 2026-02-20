@@ -73,20 +73,34 @@ class FaisabiliteService:
             logger.warning(f"Faisabilité: GPU Partition ({parcelle_id}) Echec: {e}")
 
         import json
-        # Essai 2: Géométrie
-        if not zonage and geom_shape:
+        
+        # Obtenir la géométrie GeoJSON de la parcelle pour les requêtes API
+        geom_geojson = None
+        if geometry:
+            geom_geojson = json.dumps(geometry)
+
+        # Essai 2: Géométrie Parcelle complète (GeoJSON) - Plus précis que le Centroïde
+        if not zonage and geom_geojson:
             try:
-                geom_geojson = json.dumps({"type": "Point", "coordinates": [lon, lat]})
                 gpu_resp = await gpu_client.get("/zone-urba", params={"geom": geom_geojson})
                 zonage = gpu_resp.get("features", [])
             except Exception as e:
-                logger.warning(f"Faisabilité: GPU Point Echec: {e}")
+                logger.warning(f"Faisabilité: GPU Polygon Echec: {e}")
+                
+                # Fallback au centroïde si la géométrie complète échoue (ex: trop complexe)
+                if geom_shape:
+                     try:
+                         centroid_geojson = json.dumps({"type": "Point", "coordinates": [lon, lat]})
+                         gpu_resp = await gpu_client.get("/zone-urba", params={"geom": centroid_geojson})
+                         zonage = gpu_resp.get("features", [])
+                     except Exception as e:
+                         logger.warning(f"Faisabilité: GPU Point Fallback Echec: {e}")
         
         # Essai 3: Document
         if not zonage and geom_shape:
             try:
-                 geom_geojson = json.dumps({"type": "Point", "coordinates": [lon, lat]})
-                 doc_resp = await gpu_client.get("/document", params={"geom": geom_geojson})
+                 centroid_geojson = json.dumps({"type": "Point", "coordinates": [lon, lat]})
+                 doc_resp = await gpu_client.get("/document", params={"geom": centroid_geojson})
                  docs = doc_resp.get("features", [])
                  if docs:
                     doc_type = docs[0].get('properties', {}).get('typeDocument', 'Inconnu')
@@ -133,29 +147,83 @@ class FaisabiliteService:
 
         # 5. Synthèse / Analyse
         
-        # Analyse Zonage
+        # Analyse Zonage avec calcul des surfaces d'intersection
+        zonage_enrichi = []
+        parcelle_area = geom_shape.area if geom_shape else 0
+
+        for zone in zonage:
+            props = zone.get("properties", {})
+            zone_geom_data = zone.get("geometry")
+            
+            enrichissement = {"properties": props}
+            
+            # Calcul du pourcentage d'intersection si on a les géométries
+            if geom_shape and zone_geom_data and parcelle_area > 0:
+                try:
+                    zone_shape = shape(zone_geom_data)
+                    # Si la zone n'est pas valide (erreur topologique fréquente avec l'API IGN), on tente un buffer(0)
+                    if not zone_shape.is_valid:
+                        zone_shape = zone_shape.buffer(0)
+                        
+                    intersection = geom_shape.intersection(zone_shape)
+                    intersection_area = intersection.area
+                    
+                    pourcentage = min(100.0, max(0.0, (intersection_area / parcelle_area) * 100))
+                    enrichissement["properties"]["pourcentage_intersection"] = round(pourcentage, 1)
+                except Exception as e:
+                    logger.warning(f"Faisabilité: Erreur calcul d'intersection PLU {parcelle_id}: {e}")
+                    enrichissement["properties"]["pourcentage_intersection"] = None
+            else:
+                 enrichissement["properties"]["pourcentage_intersection"] = None
+                 
+            # Garder la zone si elle intersecte significativement (> 0.5%) ou si on n'a pas pu calculer
+            if enrichissement["properties"].get("pourcentage_intersection") is None or enrichissement["properties"]["pourcentage_intersection"] > 0.5:
+                 zonage_enrichi.append(enrichissement)
+
+        # Trier par pourcentage décroissant pour avoir la zone dominante en premier
+        zonage_enrichi.sort(key=lambda z: z["properties"].get("pourcentage_intersection") or 0, reverse=True)
+
         constructibilite_plu = "Indéterminée"
         conclusion = "Favorable"
         details = []
 
-        zones_codes = [z.get("properties", {}).get("typezone") for z in zonage]
+        zones_codes = [z["properties"].get("typezone") for z in zonage_enrichi]
         
-        if "U" in zones_codes:
-            constructibilite_plu = "Constructible (Zone U)"
-        elif "AU" in zones_codes:
-            constructibilite_plu = "A Urbaniser (Zone AU)"
-        elif "N" in zones_codes:
-            constructibilite_plu = "Non Constructible (Zone N)"
-            conclusion = "Défavorable"
-            details.append("Zone non constructible (N)")
-        elif "A" in zones_codes:
-            constructibilite_plu = "Agricole (Zone A)"
-            conclusion = "Défavorable"
-            details.append("Zone Agricole (A)")
-        elif "INFO_DOC" in zones_codes:
-            constructibilite_plu = "À vérifier (Zone non précise)"
-            conclusion = "À vérifier en mairie"
-            details.append("Zonage précis non disponible via API")
+        if len(zonage_enrichi) > 1 and any(z["properties"].get("pourcentage_intersection") for z in zonage_enrichi):
+            # Cas multi-zones
+            parts = []
+            has_unbuildable = False
+            for z in zonage_enrichi:
+                pct = z["properties"].get("pourcentage_intersection", 0)
+                code = z["properties"].get("typezone", "?")
+                if pct > 0:
+                    parts.append(f"{round(pct)}% {code}")
+                if code in ["N", "A"]:
+                    has_unbuildable = True
+                    
+            constructibilite_plu = f"Mixte ({', '.join(parts)})"
+            if has_unbuildable:
+                conclusion = "Défavorable (Partiellement)"
+                details.append("Attention: Une partie du terrain est en zone Agricole ou Naturelle")
+        elif len(zonage_enrichi) == 1:
+            # Cas mono-zone (standard)
+            dominant_code = zones_codes[0] if zones_codes else None
+            if dominant_code == "U":
+                constructibilite_plu = "Constructible (Zone U)"
+            elif dominant_code == "AU":
+                constructibilite_plu = "A Urbaniser (Zone AU)"
+            elif dominant_code == "N":
+                constructibilite_plu = "Non Constructible (Zone N)"
+                conclusion = "Défavorable"
+                details.append("Zone non constructible (N)")
+            elif dominant_code == "A":
+                constructibilite_plu = "Agricole (Zone A)"
+                conclusion = "Défavorable"
+                details.append("Zone Agricole (A)")
+            elif dominant_code == "INFO_DOC":
+                 constructibilite_plu = "À vérifier (Zone non précise)"
+                 conclusion = "À vérifier en mairie"
+                 details.append("Zonage précis non disponible via API")
         elif not zones_codes:
             constructibilite_plu = "RNU / Non numérisé"
             conclusion = "À vérifier en mairie"
@@ -175,7 +243,7 @@ class FaisabiliteService:
             "parcelle_id": parcelle_id,
             "adresse": f"{props.get('numero', '')} {props.get('nom_voie', '')}, {props.get('code_postal', '')} {props.get('nom_commune', '')}",
             "surface": props.get("contenance"),
-            "zonage": [z.get("properties") for z in zonage],
+            "zonage": [z["properties"] for z in zonage_enrichi],
             "risques": [{"libelle": r.get("libelle_risque_long"), "niveau": r.get("niveau_risque")} for r in risques],
             "is_built": is_built,
             "synthese": {
