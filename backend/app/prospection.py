@@ -50,13 +50,17 @@ class ProspectionManager:
         'abandonne': 'Abandonné',
     }
 
-    def __init__(self, data_dir: str = './data/prospection'):
+    def __init__(self, data_dir: str = None):
         """
         Initialise le gestionnaire de prospection
 
         Args:
             data_dir: Répertoire de stockage des données
         """
+        if data_dir is None:
+            base_dir = os.getenv("DATA_DIR", "./data")
+            data_dir = os.path.join(base_dir, "prospection")
+            
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.prospections_file = self.data_dir / 'prospections.json'

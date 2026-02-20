@@ -12,13 +12,17 @@ import uuid
 class FichesManager:
     """Gère les fiches terrain enrichies avec photos, documents, notes, tags"""
 
-    def __init__(self, data_dir: str = './data/fiches'):
+    def __init__(self, data_dir: str = None):
         """
         Initialise le gestionnaire de fiches
 
         Args:
             data_dir: Répertoire de stockage des données
         """
+        if data_dir is None:
+            base_dir = os.getenv("DATA_DIR", "./data")
+            data_dir = os.path.join(base_dir, "fiches")
+            
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.fiches_file = self.data_dir / 'fiches.json'

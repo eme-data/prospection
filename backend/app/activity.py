@@ -40,13 +40,17 @@ class Activity(BaseModel):
 class ActivityManager:
     """Gestionnaire des activités CRM"""
     
-    def __init__(self, data_dir: str = "./data/activities"):
+    def __init__(self, data_dir: str = None):
         """
         Initialise le gestionnaire d'activités
         
         Args:
             data_dir: Répertoire de stockage des données
         """
+        if data_dir is None:
+            base_dir = os.getenv("DATA_DIR", "./data")
+            data_dir = os.path.join(base_dir, "activities")
+            
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.data_file = self.data_dir / "activities.json"
