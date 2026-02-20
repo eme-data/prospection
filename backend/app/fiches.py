@@ -12,7 +12,7 @@ import uuid
 class FichesManager:
     """Gère les fiches terrain enrichies avec photos, documents, notes, tags"""
 
-    def __init__(self, data_dir: str = '/data/fiches'):
+    def __init__(self, data_dir: str = './data/fiches'):
         """
         Initialise le gestionnaire de fiches
 

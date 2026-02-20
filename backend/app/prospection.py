@@ -50,7 +50,7 @@ class ProspectionManager:
         'abandonne': 'Abandonné',
     }
 
-    def __init__(self, data_dir: str = '/data/prospection'):
+    def __init__(self, data_dir: str = './data/prospection'):
         """
         Initialise le gestionnaire de prospection
 

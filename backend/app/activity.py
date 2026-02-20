@@ -40,7 +40,7 @@ class Activity(BaseModel):
 class ActivityManager:
     """Gestionnaire des activités CRM"""
     
-    def __init__(self, data_dir: str = "/data/activities"):
+    def __init__(self, data_dir: str = "./data/activities"):
         """
         Initialise le gestionnaire d'activités
         
