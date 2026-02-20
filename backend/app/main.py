@@ -43,6 +43,7 @@ from app.insee import insee_manager, InseeData, TerritoryStats, InseeIndicator
 from app.economic_layers import router as economic_router
 from app.isochrones import router as isochrone_router
 from app.routers import (
+    auth,
     address,
     cadastre,
     dvf,
@@ -54,6 +55,10 @@ from app.routers import (
     faisabilite,
     activities
 )
+from app.auth import get_current_active_user
+from fastapi import Depends
+from app.database import engine
+from app.models.user import Base
 
 # Configuration du logging
 setup_logging()
@@ -71,6 +76,10 @@ async def lifespan(app: FastAPI):
         environment=settings.environment,
         version=settings.app_version,
     )
+    
+    # Création des tables de la base de données
+    Base.metadata.create_all(bind=engine)
+    
     yield
     logger.info("application_stopping")
 
@@ -101,24 +110,28 @@ app.add_middleware(
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 
-# Routes de sante
+# Routes publiques
 app.include_router(health_router)
+app.include_router(auth.router, prefix="/api")
 
-# Routes principales (refactorees)
-app.include_router(address.router)
-app.include_router(cadastre.router)
-app.include_router(dvf.router)
-app.include_router(geo.router)
-app.include_router(risks.router)
-app.include_router(urbanism.router)
-app.include_router(export.router)
-app.include_router(search.router)
-app.include_router(faisabilite.router)
-app.include_router(activities.router)
+# Dépendance globale pour le reste des routes métier (hors /, /docs, etc.)
+protected_dep = [Depends(get_current_active_user)]
 
-# Routes existantes non refactorees (a deplacer plus tard)
-app.include_router(economic_router)
-app.include_router(isochrone_router)
+# Routes principales protégées (refactorees)
+app.include_router(address.router, dependencies=protected_dep)
+app.include_router(cadastre.router, dependencies=protected_dep)
+app.include_router(dvf.router, dependencies=protected_dep)
+app.include_router(geo.router, dependencies=protected_dep)
+app.include_router(risks.router, dependencies=protected_dep)
+app.include_router(urbanism.router, dependencies=protected_dep)
+app.include_router(export.router, dependencies=protected_dep)
+app.include_router(search.router, dependencies=protected_dep)
+app.include_router(faisabilite.router, dependencies=protected_dep)
+app.include_router(activities.router, dependencies=protected_dep)
+
+# Routes existantes non refactorees protégées (a deplacer plus tard)
+app.include_router(economic_router, dependencies=protected_dep)
+app.include_router(isochrone_router, dependencies=protected_dep)
 
 
 # ============== GESTION DES ERREURS ==============

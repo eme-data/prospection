@@ -14,11 +14,46 @@ import type {
 
 const API_BASE = '/api'
 
-async function fetchJSON<T>(url: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(url, options)
+async function fetchJSON<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const token = localStorage.getItem('prospection_token')
+
+  const headers = new Headers(options.headers || {})
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers
+  })
+
   if (!response.ok) {
+    if (response.status === 401) {
+      // Pourrait déclencher un événement global de déconnexion ici
+      console.warn('Non autorisé, token expiré ou invalide')
+    }
     throw new Error(`HTTP error! status: ${response.status}`)
   }
+  return response.json()
+}
+
+export async function login(email: string, password: string): Promise<{ access_token: string; token_type: string; user: any }> {
+  const formData = new URLSearchParams()
+  formData.append('username', email)
+  formData.append('password', password)
+
+  const response = await fetch(`${API_BASE}/auth/token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: formData.toString(),
+  })
+
+  if (!response.ok) {
+    throw new Error('Identifiants invalides')
+  }
+
   return response.json()
 }
 

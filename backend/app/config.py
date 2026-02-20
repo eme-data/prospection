@@ -49,10 +49,17 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",")]
         return v
 
-    # Security
+    # Security & Auth
     rate_limit_requests: int = Field(default=100, description="Nombre max de requetes")
     rate_limit_window: int = Field(default=60, description="Fenetre en secondes")
     api_key: Optional[str] = Field(default=None, description="Cle API optionnelle")
+    
+    # Database (Stockée dans /data pour persistance via Docker volume)
+    database_url: str = Field(default="sqlite:////data/prospection.db", description="URL de la base de donnees")
+    
+    # JWT Authentication
+    secret_key: str = Field(default="change-ce-secret-immédiatement-en-production", description="Cle secrete JWT")
+    access_token_expire_minutes: int = Field(default=1440, description="Expiration du token en minutes (24h)")
 
     # Redis Cache
     redis_url: Optional[str] = Field(default=None, description="URL Redis pour le cache")
