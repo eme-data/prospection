@@ -53,7 +53,7 @@ services:
     networks:
       - prospection-internal
     volumes:
-      - /data:/data
+      - ./data:/data
     expose:
       - "8000"
 
