@@ -18,9 +18,9 @@ import google.generativeai as genai
 router = APIRouter(prefix="/commerce/analyse-devis", tags=["commerce"])
 
 def get_gemini_api_key(db: Session):
-    settings = db.query(SystemSettings).first()
-    if settings and settings.gemini_api_key:
-        return settings.gemini_api_key
+    setting = db.query(SystemSettings).filter_by(key="gemini_api_key").first()
+    if setting and setting.value:
+        return setting.value
     # Fallback to environment variable
     return os.environ.get("GEMINI_API_KEY")
 
