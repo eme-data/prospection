@@ -80,6 +80,29 @@ export const analyzeQuotes = async (files: File[]): Promise<any> => {
 
 // ========== CATALOGUE CRM API ==========
 
+export const importCatalogue = async (file: File): Promise<any> => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('prospection_token');
+    const headers = new Headers();
+    if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    const response = await fetch('/api/commerce/import', {
+        method: 'POST',
+        headers,
+        body: formData,
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || `HTTP error! status: ${response.status}`);
+    }
+    return response.json();
+};
+
 // Materials
 export const getMaterials = () => fetchJSON<Material[]>('/api/commerce/materials');
 export const getMaterial = (id: string) => fetchJSON<Material>(`/api/commerce/materials/${id}`);

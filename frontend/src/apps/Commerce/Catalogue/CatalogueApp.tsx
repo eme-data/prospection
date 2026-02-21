@@ -5,10 +5,10 @@ import { Database } from 'lucide-react';
 import { MaterialsList } from './MaterialsList';
 import { ServicesList } from './ServicesList';
 import { ArticlesList } from './ArticlesList';
+import { ImportPage } from './ImportPage';
 
 // Placeholder Pages for CRM features (will be replaced by full implementations)
 const CatalogueDashboard = () => <div className="p-8">Dashboard Catalogue (En construction)</div>;
-const ImportPage = () => <div className="p-8 text-center text-gray-500">Outil d'importation Excel à venir...</div>;
 
 export const CatalogueApp: React.FC = () => {
     const location = useLocation();
@@ -59,6 +59,15 @@ export const CatalogueApp: React.FC = () => {
                                 }`}
                         >
                             Articles
+                        </Link>
+                        <Link
+                            to="/commerce/catalogue/import"
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${location.pathname.includes('/import')
+                                ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
+                                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                                }`}
+                        >
+                            Import Excel
                         </Link>
                     </div>
                 </div>

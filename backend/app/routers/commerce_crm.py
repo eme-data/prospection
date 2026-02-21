@@ -2,7 +2,7 @@
 Routes API pour le module Commerce (Catalogue BTP)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import uuid
@@ -25,11 +25,39 @@ from app.models.commerce import (
     Composition as CompositionModel, CompositionItem
 )
 from app.commerce_service import CommercePriceCalculator
+from app.utils.excel_parser import run_import
 
 router = APIRouter(prefix="/commerce", tags=["commerce"])
 
 def generate_uuid():
     return str(uuid.uuid4())
+
+# ==========================================
+# IMPORT CATALOGUE EXCEL
+# ==========================================
+@router.post("/import")
+async def import_catalogue(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        raise HTTPException(status_code=400, detail="Veuillez fournir un fichier Excel valide (.xlsx ou .xls)")
+        
+    try:
+        content = await file.read()
+        import_result = run_import(content)
+        
+        if not import_result.get("success"):
+            raise HTTPException(status_code=400, detail={"message": "Erreurs lors de l'analyse", "errors": import_result.get("errors")})
+            
+        # TODO: Here we would map the dictionary output to SQLAlchemy inserts/updates.
+        # For now, we return the parsed structure and stats as a proof of concept.
+        
+        return import_result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur interne lors de l'import : {str(e)}")
 
 # ==========================================
 # MATERIAUX
