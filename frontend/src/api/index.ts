@@ -59,28 +59,20 @@ export async function login(email: string, password: string): Promise<{ access_t
 
 export async function getFaisabiliteReport(parcelleId: string): Promise<FaisabiliteReport> {
   try {
-    const response = await fetch(`${API_BASE}/faisabilite/${parcelleId}`)
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Parcelle non trouvée ou erreur API Cadastre')
-      }
-      throw new Error(`Erreur HTTP: ${response.status}`)
-    }
-    return response.json()
-  } catch (error) {
+    return await fetchJSON<FaisabiliteReport>(`${API_BASE}/faisabilite/${parcelleId}`)
+  } catch (error: any) {
     console.error('Erreur getFaisabiliteReport:', error)
+    if (error.message && error.message.includes('404')) {
+      throw new Error('Parcelle non trouvée ou erreur API Cadastre')
+    }
     throw error
   }
 }
 
 export async function getTop10Faisabilites(codeInsee: string): Promise<Top10Result[]> {
   try {
-    const response = await fetch(`${API_BASE}/faisabilite/top10/${codeInsee}`)
-    if (!response.ok) {
-      throw new Error(`Erreur HTTP: ${response.status}`)
-    }
-    return response.json()
-  } catch (error) {
+    return await fetchJSON<Top10Result[]>(`${API_BASE}/faisabilite/top10/${codeInsee}`)
+  } catch (error: any) {
     console.error('Erreur getTop10Faisabilites:', error)
     throw error
   }

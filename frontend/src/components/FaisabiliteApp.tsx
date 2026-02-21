@@ -356,7 +356,8 @@ export function FaisabiliteApp() {
       setFeasibilityReport(report)
     } catch (e) {
       console.error("Erreur faisabilité", e)
-      alert("Impossible de générer le rapport pour l'instant.")
+      const errorMessage = e instanceof Error ? e.message : String(e)
+      alert(`Impossible de générer le rapport. Motif : ${errorMessage}`)
     }
   }, [selectedParcelle])
 
