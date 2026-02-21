@@ -8,7 +8,12 @@ export const AdminSettings: React.FC = () => {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [smtpData, setSmtpData] = useState<SmtpConfig>({ host: '', port: 587, user: '', password: '' });
-    const [apiKeysData, setApiKeysData] = useState<ApiKeysConfig>({ gemini_api_key: '', groq_api_key: '' });
+    const [apiKeysData, setApiKeysData] = useState<ApiKeysConfig>({
+        gemini_api_key: '', groq_api_key: '',
+        linkedin_client_id: '', linkedin_client_secret: '',
+        facebook_client_id: '', facebook_client_secret: '',
+        instagram_client_id: '', instagram_client_secret: ''
+    });
 
     const { isLoading: isSmtpLoading } = useQuery({
         queryKey: ['settings_smtp'],
@@ -33,6 +38,12 @@ export const AdminSettings: React.FC = () => {
                 setApiKeysData({
                     gemini_api_key: data.gemini_api_key ? '********' : '',
                     groq_api_key: data.groq_api_key ? '********' : '',
+                    linkedin_client_id: data.linkedin_client_id ? '********' : '',
+                    linkedin_client_secret: data.linkedin_client_secret ? '********' : '',
+                    facebook_client_id: data.facebook_client_id ? '********' : '',
+                    facebook_client_secret: data.facebook_client_secret ? '********' : '',
+                    instagram_client_id: data.instagram_client_id ? '********' : '',
+                    instagram_client_secret: data.instagram_client_secret ? '********' : '',
                 });
             }
         }
@@ -74,6 +85,12 @@ export const AdminSettings: React.FC = () => {
         const payload = { ...apiKeysData };
         if (payload.gemini_api_key === '********') delete payload.gemini_api_key;
         if (payload.groq_api_key === '********') delete payload.groq_api_key;
+        if (payload.linkedin_client_id === '********') delete payload.linkedin_client_id;
+        if (payload.linkedin_client_secret === '********') delete payload.linkedin_client_secret;
+        if (payload.facebook_client_id === '********') delete payload.facebook_client_id;
+        if (payload.facebook_client_secret === '********') delete payload.facebook_client_secret;
+        if (payload.instagram_client_id === '********') delete payload.instagram_client_id;
+        if (payload.instagram_client_secret === '********') delete payload.instagram_client_secret;
         updateApiKeysMutation.mutate(payload);
     };
 
@@ -168,6 +185,75 @@ export const AdminSettings: React.FC = () => {
                                         placeholder="Laissez vide pour ne pas modifier"
                                         value={apiKeysData.groq_api_key}
                                         onChange={e => setApiKeysData({ ...apiKeysData, groq_api_key: e.target.value })}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t dark:border-gray-700">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">LinkedIn Client ID</label>
+                                    <input
+                                        type="password"
+                                        placeholder="Laissez vide pour ne pas modifier"
+                                        value={apiKeysData.linkedin_client_id}
+                                        onChange={e => setApiKeysData({ ...apiKeysData, linkedin_client_id: e.target.value })}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">LinkedIn Client Secret</label>
+                                    <input
+                                        type="password"
+                                        placeholder="Laissez vide pour ne pas modifier"
+                                        value={apiKeysData.linkedin_client_secret}
+                                        onChange={e => setApiKeysData({ ...apiKeysData, linkedin_client_secret: e.target.value })}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Facebook App ID</label>
+                                    <input
+                                        type="password"
+                                        placeholder="Laissez vide pour ne pas modifier"
+                                        value={apiKeysData.facebook_client_id}
+                                        onChange={e => setApiKeysData({ ...apiKeysData, facebook_client_id: e.target.value })}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Facebook App Secret</label>
+                                    <input
+                                        type="password"
+                                        placeholder="Laissez vide pour ne pas modifier"
+                                        value={apiKeysData.facebook_client_secret}
+                                        onChange={e => setApiKeysData({ ...apiKeysData, facebook_client_secret: e.target.value })}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Instagram App ID</label>
+                                    <input
+                                        type="password"
+                                        placeholder="Laissez vide pour ne pas modifier"
+                                        value={apiKeysData.instagram_client_id}
+                                        onChange={e => setApiKeysData({ ...apiKeysData, instagram_client_id: e.target.value })}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Instagram App Secret</label>
+                                    <input
+                                        type="password"
+                                        placeholder="Laissez vide pour ne pas modifier"
+                                        value={apiKeysData.instagram_client_secret}
+                                        onChange={e => setApiKeysData({ ...apiKeysData, instagram_client_secret: e.target.value })}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     />
                                 </div>

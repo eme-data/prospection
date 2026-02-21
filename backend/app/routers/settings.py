@@ -61,9 +61,17 @@ async def update_smtp_settings(
     db.commit()
     return {"message": "Configuration SMTP mise à jour avec succès"}
 
+from typing import Optional
+
 class ApiKeysConfig(BaseModel):
     gemini_api_key: str
     groq_api_key: str
+    linkedin_client_id: Optional[str] = None
+    linkedin_client_secret: Optional[str] = None
+    facebook_client_id: Optional[str] = None
+    facebook_client_secret: Optional[str] = None
+    instagram_client_id: Optional[str] = None
+    instagram_client_secret: Optional[str] = None
 
 @router.get("/apikeys")
 async def get_apikeys_settings(
@@ -76,11 +84,26 @@ async def get_apikeys_settings(
         
     gemini = db.query(SystemSettings).filter_by(key="gemini_api_key").first()
     groq = db.query(SystemSettings).filter_by(key="groq_api_key").first()
+    
+    # Reseaux Sociaux
+    linkedin_id = db.query(SystemSettings).filter_by(key="linkedin_client_id").first()
+    linkedin_secret = db.query(SystemSettings).filter_by(key="linkedin_client_secret").first()
+    facebook_id = db.query(SystemSettings).filter_by(key="facebook_client_id").first()
+    facebook_secret = db.query(SystemSettings).filter_by(key="facebook_client_secret").first()
+    instagram_id = db.query(SystemSettings).filter_by(key="instagram_client_id").first()
+    instagram_secret = db.query(SystemSettings).filter_by(key="instagram_client_secret").first()
+    
     import os
     
     return {
         "gemini_api_key": gemini.value if gemini else os.getenv("GEMINI_API_KEY", ""),
-        "groq_api_key": groq.value if groq else os.getenv("GROQ_API_KEY", "")
+        "groq_api_key": groq.value if groq else os.getenv("GROQ_API_KEY", ""),
+        "linkedin_client_id": linkedin_id.value if linkedin_id else os.getenv("LINKEDIN_CLIENT_ID", ""),
+        "linkedin_client_secret": linkedin_secret.value if linkedin_secret else os.getenv("LINKEDIN_CLIENT_SECRET", ""),
+        "facebook_client_id": facebook_id.value if facebook_id else os.getenv("FACEBOOK_CLIENT_ID", ""),
+        "facebook_client_secret": facebook_secret.value if facebook_secret else os.getenv("FACEBOOK_CLIENT_SECRET", ""),
+        "instagram_client_id": instagram_id.value if instagram_id else os.getenv("INSTAGRAM_CLIENT_ID", ""),
+        "instagram_client_secret": instagram_secret.value if instagram_secret else os.getenv("INSTAGRAM_CLIENT_SECRET", "")
     }
 
 @router.put("/apikeys")
@@ -105,6 +128,21 @@ async def update_apikeys_settings(
         _upsert("gemini_api_key", config.gemini_api_key)
     if config.groq_api_key and config.groq_api_key != "********":
         _upsert("groq_api_key", config.groq_api_key)
+        
+    if config.linkedin_client_id and config.linkedin_client_id != "********":
+        _upsert("linkedin_client_id", config.linkedin_client_id)
+    if config.linkedin_client_secret and config.linkedin_client_secret != "********":
+        _upsert("linkedin_client_secret", config.linkedin_client_secret)
+        
+    if config.facebook_client_id and config.facebook_client_id != "********":
+        _upsert("facebook_client_id", config.facebook_client_id)
+    if config.facebook_client_secret and config.facebook_client_secret != "********":
+        _upsert("facebook_client_secret", config.facebook_client_secret)
+        
+    if config.instagram_client_id and config.instagram_client_id != "********":
+        _upsert("instagram_client_id", config.instagram_client_id)
+    if config.instagram_client_secret and config.instagram_client_secret != "********":
+        _upsert("instagram_client_secret", config.instagram_client_secret)
     
     db.commit()
     return {"message": "Configuration des clés API mise à jour avec succès"}
