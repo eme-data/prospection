@@ -56,7 +56,9 @@ from app.routers import (
     activities,
     settings as app_settings_router,
     conges,
-    communication
+    communication,
+    commerce_crm,
+    commerce_analyse
 )
 from app.auth import get_current_active_user
 from fastapi import Depends
@@ -65,6 +67,7 @@ from app.models.user import Base
 from app.models.conges import Conge
 from app.models.communication import Post, SocialAccount
 from app.models.settings import SystemSettings
+from app.models.commerce import Client, Material, Service, Article, ArticleMaterial, Composition, CompositionItem
 
 # Configuration du logging
 setup_logging()
@@ -174,6 +177,8 @@ app.include_router(activities.router, dependencies=protected_dep)
 app.include_router(app_settings_router.router, prefix="/api", dependencies=protected_dep)
 app.include_router(conges.router, prefix="/api", dependencies=protected_dep)
 app.include_router(communication.router, prefix="/api", dependencies=protected_dep)
+app.include_router(commerce_crm.router, prefix="/api", dependencies=protected_dep)
+app.include_router(commerce_analyse.router, prefix="/api", dependencies=protected_dep)
 
 # Routes existantes non refactorees protégées (a deplacer plus tard)
 app.include_router(economic_router, dependencies=protected_dep)
