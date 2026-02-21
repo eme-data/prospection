@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Building2, Lock, User, AlertCircle } from 'lucide-react';
+import { Lock, User, AlertCircle } from 'lucide-react';
 import { login as apiLogin } from '../api';
 
 export const LoginPage: React.FC = () => {
@@ -34,11 +34,11 @@ export const LoginPage: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="flex justify-center text-blue-600 dark:text-blue-500">
-                    <Building2 size={64} />
+                <div className="flex justify-center">
+                    <img src="/logo-loftwood.png" alt="LOFTWOOD Logo" className="h-16 w-auto" />
                 </div>
                 <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-                    Prospection Foncière
+                    LOFTWOOD
                 </h2>
                 <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
                     Connectez-vous pour accéder à vos outils
