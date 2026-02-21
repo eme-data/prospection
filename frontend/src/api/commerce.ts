@@ -51,6 +51,56 @@ export interface Article {
     is_active: boolean;
 }
 
+export interface CompositionItem {
+    id?: string;
+    composition_id: string;
+    item_type: 'material' | 'article';
+    item_id: string;
+    quantity: number;
+}
+
+export interface Composition {
+    id: string;
+    code: string;
+    name: string;
+    description?: string;
+    unit: string;
+    margin: number;
+    overhead: number;
+    total_price: number;
+    is_active: boolean;
+    items: CompositionItem[];
+}
+
+export interface QuoteItem {
+    id?: string;
+    quote_id?: string;
+    item_type: 'service' | 'material' | 'article' | 'composition' | 'custom';
+    item_reference_id?: string;
+    name: string;
+    description?: string;
+    quantity: number;
+    unit_price_ht: number;
+    total_price_ht?: number;
+}
+
+export interface Quote {
+    id: string;
+    quote_number: string;
+    client_id: string;
+    title: string;
+    description?: string;
+    status: 'draft' | 'sent' | 'accepted' | 'rejected';
+    total_ht: number;
+    total_ttc: number;
+    tva_rate: number;
+    validity_days: number;
+    date_created: string;
+    created_at: string;
+    updated_at: string;
+    items: QuoteItem[];
+}
+
 // ========== ANALYSE DEVIS ==========
 
 export const analyzeQuotes = async (files: File[]): Promise<any> => {
@@ -132,3 +182,13 @@ export const updateArticle = (id: string, data: Partial<Article>) =>
     fetchJSON<Article>(`/api/commerce/articles/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
 export const deleteArticle = (id: string) =>
     fetchJSON(`/api/commerce/articles/${id}`, { method: 'DELETE' });
+
+// Compositions
+export const getCompositions = () => fetchJSON<Composition[]>('/api/commerce/compositions');
+export const getComposition = (id: string) => fetchJSON<Composition>(`/api/commerce/compositions/${id}`);
+
+// Quotes
+export const getQuotes = () => fetchJSON<Quote[]>('/api/commerce/quotes');
+export const getQuote = (id: string) => fetchJSON<Quote>(`/api/commerce/quotes/${id}`);
+export const createQuote = (data: Partial<Quote>) =>
+    fetchJSON<Quote>('/api/commerce/quotes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });

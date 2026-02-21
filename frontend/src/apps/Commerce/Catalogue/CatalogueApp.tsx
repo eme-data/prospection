@@ -6,6 +6,8 @@ import { MaterialsList } from './MaterialsList';
 import { ServicesList } from './ServicesList';
 import { ArticlesList } from './ArticlesList';
 import { ImportPage } from './ImportPage';
+import { QuoteList } from '../CRM/QuoteList';
+import { QuoteBuilder } from '../CRM/QuoteBuilder';
 
 // Placeholder Pages for CRM features (will be replaced by full implementations)
 const CatalogueDashboard = () => <div className="p-8">Dashboard Catalogue (En construction)</div>;
@@ -69,6 +71,16 @@ export const CatalogueApp: React.FC = () => {
                         >
                             Import Excel
                         </Link>
+                        <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                        <Link
+                            to="/commerce/quotes"
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${location.pathname.includes('/quotes')
+                                ? 'bg-indigo-600 text-white shadow-sm'
+                                : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900 hover:text-indigo-700 dark:hover:text-indigo-300'
+                                }`}
+                        >
+                            Générateur Devis
+                        </Link>
                     </div>
                 </div>
             </div>
@@ -81,6 +93,10 @@ export const CatalogueApp: React.FC = () => {
                     <Route path="services" element={<ServicesList />} />
                     <Route path="articles" element={<ArticlesList />} />
                     <Route path="import" element={<ImportPage />} />
+
+                    {/* CRM Quotes */}
+                    <Route path="quotes" element={<QuoteList />} />
+                    <Route path="quotes/new" element={<QuoteBuilder />} />
                 </Routes>
             </div>
         </div>
