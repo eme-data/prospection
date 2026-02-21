@@ -51,9 +51,62 @@ async def import_catalogue(
         if not import_result.get("success"):
             raise HTTPException(status_code=400, detail={"message": "Erreurs lors de l'analyse", "errors": import_result.get("errors")})
             
-        # TODO: Here we would map the dictionary output to SQLAlchemy inserts/updates.
-        # For now, we return the parsed structure and stats as a proof of concept.
+        data = import_result.get("data", {})
         
+        # Save Materials
+        for m_data in data.get("materials", []):
+            existing = db.query(MaterialModel).filter(MaterialModel.code == m_data["code"]).first()
+            if existing:
+                existing.name_fr = m_data["name_fr"]
+                existing.unit = m_data["unit"]
+                existing.internal_price = m_data["internal_price"]
+                existing.price_eur = m_data["internal_price"] # Assuming internal equals eur for now
+            else:
+                new_mat = MaterialModel(
+                    id=generate_uuid(),
+                    code=m_data["code"],
+                    name_fr=m_data["name_fr"],
+                    unit=m_data["unit"],
+                    internal_price=m_data["internal_price"],
+                    price_eur=m_data["internal_price"]
+                )
+                db.add(new_mat)
+
+        # Save Articles
+        for a_data in data.get("articles", []):
+            existing = db.query(ArticleModel).filter(ArticleModel.code == a_data["code"]).first()
+            if existing:
+                existing.name = a_data["name_fr"]
+                existing.unit = a_data["unit"]
+                existing.labor_cost = a_data["installation_time"] * 22.0 # Estimate
+            else:
+                new_art = ArticleModel(
+                    id=generate_uuid(),
+                    code=a_data["code"],
+                    name=a_data["name_fr"],
+                    unit=a_data["unit"],
+                    labor_cost=a_data["installation_time"] * 22.0,
+                    margin=0, overhead=0, material_cost=0, total_price=0
+                )
+                db.add(new_art)
+                
+        # Save Compositions
+        for c_data in data.get("compositions", []):
+            existing = db.query(CompositionModel).filter(CompositionModel.code == c_data["code"]).first()
+            if existing:
+                existing.name = c_data["name_fr"]
+                existing.unit = c_data["unit"]
+            else:
+                new_comp = CompositionModel(
+                    id=generate_uuid(),
+                    code=c_data["code"],
+                    name=c_data["name_fr"],
+                    unit=c_data["unit"],
+                    labor_cost=0, margin=0, overhead=0, material_cost=0, total_price=0
+                )
+                db.add(new_comp)
+
+        db.commit()
         return import_result
         
     except Exception as e:
