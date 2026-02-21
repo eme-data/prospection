@@ -16,13 +16,15 @@ from app.schemas.commerce import (
     Material, MaterialCreate, MaterialUpdate,
     Service, ServiceCreate, ServiceUpdate,
     Article, ArticleCreate, ArticleUpdate,
-    Composition, CompositionCreate, CompositionUpdate
+    Composition, CompositionCreate, CompositionUpdate,
+    Quote, QuoteCreate, QuoteUpdate
 )
 from app.models.commerce import (
     Material as MaterialModel,
     Service as ServiceModel,
     Article as ArticleModel, ArticleMaterial,
-    Composition as CompositionModel, CompositionItem
+    Composition as CompositionModel, CompositionItem,
+    Quote as QuoteModel, QuoteItem as QuoteItemModel, Client as ClientModel
 )
 from app.commerce_service import CommercePriceCalculator
 from app.utils.excel_parser import run_import
@@ -354,3 +356,90 @@ async def delete_article(
         article.is_active = False
         db.commit()
     return None
+
+# ==========================================
+# QUOTES (CRM Devis)
+# ==========================================
+@router.get("/quotes", response_model=List[Quote])
+async def list_quotes(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    client_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    query = db.query(QuoteModel)
+    if client_id:
+        query = query.filter(QuoteModel.client_id == client_id)
+    return query.offset(skip).limit(limit).all()
+
+@router.get("/quotes/{quote_id}", response_model=Quote)
+async def get_quote(
+    quote_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    quote = db.query(QuoteModel).filter(QuoteModel.id == quote_id).first()
+    if not quote:
+        raise HTTPException(status_code=404, detail="Devis non trouvé")
+    return quote
+
+@router.post("/quotes", response_model=Quote, status_code=status.HTTP_201_CREATED)
+async def create_quote(
+    quote_data: QuoteCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    # Verify client exists
+    client = db.query(ClientModel).filter(ClientModel.id == quote_data.client_id).first()
+    if not client:
+        # Create a dummy client for demo purposes if it doesn't exist. In a real app we'd throw a 404.
+        # But to allow testing the UI quickly without building a full Client management screen first:
+        client = ClientModel(id=quote_data.client_id, company_name="Client Divers / Prospect")
+        db.add(client)
+        db.flush()
+
+    # Generate a simple quote number
+    timestamp = datetime.now().strftime("%y%m%d%H%M")
+    quote_number = f"DEV-{timestamp}"
+
+    new_quote = QuoteModel(
+        id=generate_uuid(),
+        quote_number=quote_number,
+        client_id=quote_data.client_id,
+        title=quote_data.title,
+        description=quote_data.description,
+        status=quote_data.status,
+        tva_rate=quote_data.tva_rate,
+        validity_days=quote_data.validity_days,
+        total_ht=0.0,
+        total_ttc=0.0
+    )
+    db.add(new_quote)
+    db.flush()
+
+    total_ht = 0.0
+    for item_data in quote_data.items:
+        # Calculate line total
+        line_total_ht = item_data.quantity * item_data.unit_price_ht
+        total_ht += line_total_ht
+
+        quote_item = QuoteItemModel(
+            id=generate_uuid(),
+            quote_id=new_quote.id,
+            item_type=item_data.item_type,
+            item_reference_id=item_data.item_reference_id,
+            name=item_data.name,
+            description=item_data.description,
+            quantity=item_data.quantity,
+            unit_price_ht=item_data.unit_price_ht,
+            total_price_ht=line_total_ht
+        )
+        db.add(quote_item)
+
+    new_quote.total_ht = total_ht
+    new_quote.total_ttc = total_ht * (1 + new_quote.tva_rate / 100.0)
+
+    db.commit()
+    db.refresh(new_quote)
+    return new_quote

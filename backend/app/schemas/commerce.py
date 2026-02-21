@@ -195,3 +195,62 @@ class Service(ServiceBase):
     
     class Config:
         from_attributes = True
+
+# ========== QUOTES ==========
+
+class QuoteItemBase(BaseModel):
+    item_type: str = Field(..., pattern='^(service|material|article|composition|custom)$')
+    item_reference_id: Optional[str] = None
+    name: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    quantity: float = Field(default=1.0, gt=0)
+    unit_price_ht: float = Field(default=0.0, ge=0)
+
+
+class QuoteItemCreate(QuoteItemBase):
+    pass
+
+
+class QuoteItem(QuoteItemBase):
+    id: str
+    quote_id: str
+    total_price_ht: float
+    
+    class Config:
+        from_attributes = True
+
+
+class QuoteBase(BaseModel):
+    client_id: str
+    title: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    status: str = Field(default="draft", pattern='^(draft|sent|accepted|rejected)$')
+    tva_rate: float = Field(default=20.0, ge=0)
+    validity_days: int = Field(default=30, gt=0)
+
+
+class QuoteCreate(QuoteBase):
+    items: List[QuoteItemCreate] = []
+
+
+class QuoteUpdate(BaseModel):
+    client_id: Optional[str] = None
+    title: Optional[str] = Field(None, min_length=1)
+    description: Optional[str] = None
+    status: Optional[str] = Field(None, pattern='^(draft|sent|accepted|rejected)$')
+    tva_rate: Optional[float] = Field(None, ge=0)
+    validity_days: Optional[int] = Field(None, gt=0)
+
+
+class Quote(QuoteBase):
+    id: str
+    quote_number: str
+    total_ht: float
+    total_ttc: float
+    date_created: str
+    created_at: str
+    updated_at: str
+    items: List[QuoteItem] = []
+    
+    class Config:
+        from_attributes = True

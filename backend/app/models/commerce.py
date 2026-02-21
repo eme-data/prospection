@@ -187,3 +187,67 @@ class CompositionItem(Base):
 
 Index('ix_compositions_active', Composition.is_active)
 Index('ix_composition_items_composition', CompositionItem.composition_id)
+
+# ---------------------------------------------------------
+# CRM - Devis (Quotes)
+# ---------------------------------------------------------
+class QuoteStatus(str, enum.Enum):
+    DRAFT = "draft"
+    SENT = "sent"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+
+class QuoteItemType(str, enum.Enum):
+    SERVICE = "service"
+    MATERIAL = "material"
+    ARTICLE = "article"
+    COMPOSITION = "composition"
+    CUSTOM = "custom"
+
+class Quote(Base):
+    __tablename__ = "quotes"
+    
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    quote_number = Column(String, unique=True, index=True, nullable=False)
+    
+    client_id = Column(String, ForeignKey("clients.id", ondelete="RESTRICT"), nullable=False)
+    
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    
+    status = Column(SQLEnum(QuoteStatus), default=QuoteStatus.DRAFT, nullable=False)
+    
+    total_ht = Column(Float, nullable=False, default=0.0)
+    total_ttc = Column(Float, nullable=False, default=0.0)
+    tva_rate = Column(Float, nullable=False, default=20.0)
+    
+    date_created = Column(String, default=lambda: datetime.utcnow().date().isoformat())
+    validity_days = Column(Float, default=30)
+    
+    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
+    updated_at = Column(String, default=lambda: datetime.utcnow().isoformat(), onupdate=lambda: datetime.utcnow().isoformat())
+    
+    client = relationship("Client")
+    items = relationship("QuoteItem", back_populates="quote", cascade="all, delete-orphan")
+
+class QuoteItem(Base):
+    __tablename__ = "quote_items"
+    
+    id = Column(String, primary_key=True, default=generate_uuid, index=True)
+    quote_id = Column(String, ForeignKey("quotes.id", ondelete="CASCADE"), nullable=False)
+    
+    item_type = Column(SQLEnum(QuoteItemType), nullable=False)
+    item_reference_id = Column(String, nullable=True) # ID in the catalogue (if not custom)
+    
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    
+    quantity = Column(Float, nullable=False, default=1.0)
+    unit_price_ht = Column(Float, nullable=False, default=0.0)
+    total_price_ht = Column(Float, nullable=False, default=0.0)
+    
+    quote = relationship("Quote", back_populates="items")
+
+Index('ix_quotes_client', Quote.client_id)
+Index('ix_quotes_status', Quote.status)
+Index('ix_quote_items_quote', QuoteItem.quote_id)
