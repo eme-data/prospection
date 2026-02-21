@@ -2,8 +2,59 @@
 Schémas Pydantic pour le module Commerce (Catalogue BTP)
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, List
+
+
+# ========== CLIENTS ==========
+
+class ClientBase(BaseModel):
+    client_type: str = Field(default="prospect", pattern='^(prospect|client|partner)$')
+    company_name: str = Field(..., min_length=1)
+    siret: Optional[str] = None
+    vat_number: Optional[str] = None
+    contact_first_name: Optional[str] = None
+    contact_last_name: Optional[str] = None
+    contact_email: Optional[EmailStr] = None
+    contact_phone: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
+    country: str = Field(default="France")
+    notes: Optional[str] = None
+
+
+class ClientCreate(ClientBase):
+    pass
+
+
+class ClientUpdate(BaseModel):
+    client_type: Optional[str] = Field(None, pattern='^(prospect|client|partner)$')
+    company_name: Optional[str] = Field(None, min_length=1)
+    siret: Optional[str] = None
+    vat_number: Optional[str] = None
+    contact_first_name: Optional[str] = None
+    contact_last_name: Optional[str] = None
+    contact_email: Optional[EmailStr] = None
+    contact_phone: Optional[str] = None
+    address_line1: Optional[str] = None
+    address_line2: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
+    country: Optional[str] = None
+    notes: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class Client(ClientBase):
+    id: str
+    is_active: bool
+    created_at: str
+    updated_at: str
+    
+    class Config:
+        from_attributes = True
 
 
 # ========== MATERIALS ==========
@@ -240,6 +291,7 @@ class QuoteUpdate(BaseModel):
     status: Optional[str] = Field(None, pattern='^(draft|sent|accepted|rejected)$')
     tva_rate: Optional[float] = Field(None, ge=0)
     validity_days: Optional[int] = Field(None, gt=0)
+    items: Optional[List[QuoteItemCreate]] = None
 
 
 class Quote(QuoteBase):

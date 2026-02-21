@@ -1,0 +1,729 @@
+{
+  "GESTION": {
+    "columns": [
+      "PARAMETRE DE CHIFFRAGE",
+      "VALEUR",
+      "Unité",
+      "Unnamed: 3",
+      "PRESTATION",
+      "MATRICE"
+    ],
+    "sample_data": [
+      {
+        "PARAMETRE DE CHIFFRAGE": "Déboursé horaire",
+        "VALEUR": "22.0",
+        "Unité": "€/hr",
+        "Unnamed: 3": NaN,
+        "PRESTATION": "SERVICE",
+        "MATRICE": "MATRICE_SERVICE"
+      },
+      {
+        "PARAMETRE DE CHIFFRAGE": "Frais généraux",
+        "VALEUR": "0.1",
+        "Unité": "pourcent",
+        "Unnamed: 3": NaN,
+        "PRESTATION": "COMPOSITION",
+        "MATRICE": "MATRICE_COMPOSITION"
+      }
+    ]
+  },
+  "SERVICE": {
+    "columns": [
+      "Liste déroulante:",
+      "COMPOSITION",
+      "ID",
+      "Unité",
+      "Prix net",
+      "Prix brut",
+      "0",
+      "0.1"
+    ],
+    "sample_data": [
+      {
+        "Liste déroulante:": "Etude Loftwood Construction",
+        "COMPOSITION": "Etude Loftwood Construction",
+        "ID": NaN,
+        "Unité": "ens",
+        "Prix net": "660.0",
+        "Prix brut": "600.0",
+        "0": "0",
+        "0.1": "60.0"
+      },
+      {
+        "Liste déroulante:": "Transport Camion standard",
+        "COMPOSITION": "Transport Camion standard",
+        "ID": NaN,
+        "Unité": "ft",
+        "Prix net": "3850.0",
+        "Prix brut": "3500.0",
+        "0": "0",
+        "0.1": "350.0"
+      }
+    ]
+  },
+  "COMPOSITION": {
+    "columns": [
+      "Liste déroulante:",
+      "COMPOSITION",
+      "ID",
+      "Unité",
+      "PRIX / U",
+      "MAT",
+      "MO",
+      "0.3",
+      "0.1"
+    ],
+    "sample_data": [
+      {
+        "Liste déroulante:": "Pare-vapeur SD 90 / Structure 145 mm / Laine minérale 150 mm / OSB 12 / Bache de protection provisoire",
+        "COMPOSITION": "Pare-vapeur SD 90 / Structure 145 mm / Laine minérale 150 mm / OSB 12 / Bache de protection provisoire",
+        "ID": "PE-15",
+        "Unité": "m2",
+        "PRIX / U": "83.13393823724637",
+        "MAT": "50.21562114492753",
+        "MO": "7.920000000000001",
+        "0.3": "17.44068634347826",
+        "0.1": "7.557630748840579"
+      },
+      {
+        "Liste déroulante:": "Structure 100 mm / OSB 12 / Bache de protection provisoire / Pignon",
+        "COMPOSITION": "Structure 100 mm / OSB 12 / Bache de protection provisoire / Pignon",
+        "ID": "PEST-10",
+        "Unité": "m2",
+        "PRIX / U": "63.85274753",
+        "MAT": "27.002271",
+        "MO": "17.650000000000002",
+        "0.3": "13.395681299999998",
+        "0.1": "5.80479523"
+      }
+    ]
+  },
+  "MATRICE COMPO": {
+    "columns": [
+      "COMPOSITION",
+      "Unnamed: 1",
+      "Unité",
+      "PRIX",
+      "MAT",
+      "MO",
+      "0.3",
+      "0.1",
+      "ID",
+      "Unnamed: 9",
+      "Valeur",
+      "MAT.1",
+      "Unnamed: 12",
+      "MO.1",
+      "Unnamed: 14",
+      "Marge",
+      "Unnamed: 16",
+      "FG",
+      "Unnamed: 18"
+    ],
+    "sample_data": [
+      {
+        "COMPOSITION": "Pare-vapeur SD 90 / Structure 145 mm / Laine minérale 150 mm / OSB 12 / Bache de protection provisoire",
+        "Unnamed: 1": "Pare-vapeur SD 90 / Structure 145 mm / Laine minérale 150 mm / OSB 12 / Bache de protection provisoire",
+        "Unité": "m2",
+        "PRIX": "83.13393823724637",
+        "MAT": "50.21562114492753",
+        "MO": "7.920000000000001",
+        "0.3": "17.44068634347826",
+        "0.1": "7.557630748840579",
+        "ID": "PE-15",
+        "Unnamed: 9": "1473.0",
+        "Valeur": "123732.0",
+        "MAT.1": "73968.0",
+        "Unnamed: 12": "0.597808166036272",
+        "MO.1": "11667.0",
+        "Unnamed: 14": "0.09429250315197361",
+        "Marge": "25691.0",
+        "Unnamed: 16": "0.2076342417482947",
+        "FG": "11133.0",
+        "Unnamed: 18": "0.08997672388711085"
+      },
+      {
+        "COMPOSITION": NaN,
+        "Unnamed: 1": "Pare-vapeur SD 90",
+        "Unité": "m2",
+        "PRIX": "3.8180999999999994",
+        "MAT": "2.0599999999999996",
+        "MO": "0.61",
+        "0.3": "0.8009999999999998",
+        "0.1": "0.34709999999999996",
+        "ID": NaN,
+        "Unnamed: 9": NaN,
+        "Valeur": NaN,
+        "MAT.1": NaN,
+        "Unnamed: 12": NaN,
+        "MO.1": NaN,
+        "Unnamed: 14": NaN,
+        "Marge": NaN,
+        "Unnamed: 16": NaN,
+        "FG": NaN,
+        "Unnamed: 18": NaN
+      }
+    ]
+  },
+  "Matrice Combo - date": {
+    "columns": [
+      "BOTANICAL ",
+      "Unnamed: 1",
+      "Unnamed: 2",
+      "Unnamed: 3",
+      "Unnamed: 4",
+      "Unnamed: 5",
+      "Unnamed: 6",
+      "Unnamed: 7",
+      "Unnamed: 8"
+    ],
+    "sample_data": [
+      {
+        "BOTANICAL ": "OSB 22 RL / Pare-vapeur Sd>28 / Structure PP 260-625 / Laine minérale 150 mm / Laine minérale 100 mm / OSB 8 / Pare-pluie support continu / Lattage 20x45mm",
+        "Unnamed: 1": "m2",
+        "Unnamed: 2": "118.25835839195875",
+        "Unnamed: 3": "68.13815272164948",
+        "Unnamed: 4": "14.559999999999999",
+        "Unnamed: 5": "24.809445816494847",
+        "Unnamed: 6": "10.750759853814435",
+        "Unnamed: 7": "PP RDC",
+        "Unnamed: 8": "271.0"
+      },
+      {
+        "BOTANICAL ": "OSB 22 RL",
+        "Unnamed: 1": "m2",
+        "Unnamed: 2": "15.772900000000003",
+        "Unnamed: 3": "9.9",
+        "Unnamed: 4": "1.13",
+        "Unnamed: 5": "3.309",
+        "Unnamed: 6": "1.4339000000000004",
+        "Unnamed: 7": NaN,
+        "Unnamed: 8": NaN
+      }
+    ]
+  },
+  "ARTICLE": {
+    "columns": [
+      "Liste déroulante",
+      "ARTICLES",
+      "ID",
+      "U",
+      "PRIX",
+      "MAT",
+      "MO",
+      "0.3",
+      "0.1"
+    ],
+    "sample_data": [
+      {
+        "Liste déroulante": "Structure 50 mm",
+        "ARTICLES": "Structure 50 mm",
+        "ID": NaN,
+        "U": "m2",
+        "PRIX": "17.22803368",
+        "MAT": "8.777576",
+        "MO": "3.27",
+        "0.3": "3.6142727999999997",
+        "0.1": "1.56618488"
+      },
+      {
+        "Liste déroulante": "Structure 100 mm",
+        "ARTICLES": "Structure 100 mm",
+        "ID": NaN,
+        "U": "m2",
+        "PRIX": "32.392747529999994",
+        "MAT": "18.822271",
+        "MO": "3.83",
+        "0.3": "6.795681299999999",
+        "0.1": "2.94479523"
+      }
+    ]
+  },
+  "MATRICE ARTICLE": {
+    "columns": [
+      "Nr  CRT.",
+      "UM",
+      "MATERIAUX",
+      "Unnamed: 3",
+      "Unnamed: 4",
+      "Unnamed: 5",
+      "Unnamed: 6",
+      "Unnamed: 7",
+      "Unnamed: 8",
+      "MAIN D'ŒUVRE",
+      "Unnamed: 10",
+      "Unnamed: 11",
+      "Unnamed: 12",
+      "Unnamed: 13",
+      "Unnamed: 14",
+      "Unnamed: 15",
+      "Unnamed: 16"
+    ],
+    "sample_data": [
+      {
+        "Nr  CRT.": NaN,
+        "UM": NaN,
+        "MATERIAUX": "Componente",
+        "Unnamed: 3": "Cant/Um",
+        "Unnamed: 4": "Pierd",
+        "Unnamed: 5": "UM",
+        "Unnamed: 6": "Pret Euro",
+        "Unnamed: 7": "Valoare Euro",
+        "Unnamed: 8": "1.0",
+        "MAIN D'ŒUVRE": "etapa de fabricație",
+        "Unnamed: 10": "Cant",
+        "Unnamed: 11": "Pret Euro",
+        "Unnamed: 12": "Valoare Euro",
+        "Unnamed: 13": "0.55",
+        "Unnamed: 14": "Suprafete",
+        "Unnamed: 15": "Cant",
+        "Unnamed: 16": "Val"
+      },
+      {
+        "Nr  CRT.": "Structure 50 mm",
+        "UM": "m2",
+        "MATERIAUX": "Lemn 50x45 mm",
+        "Unnamed: 3": "0.0136",
+        "Unnamed: 4": "0.1",
+        "Unnamed: 5": "m3",
+        "Unnamed: 6": "524.7422680412371",
+        "Unnamed: 7": "7.85",
+        "Unnamed: 8": "8.777576",
+        "MAIN D'ŒUVRE": "mur structure",
+        "Unnamed: 10": "1",
+        "Unnamed: 11": "2.75",
+        "Unnamed: 12": "2.75",
+        "Unnamed: 13": "3.27",
+        "Unnamed: 14": "0",
+        "Unnamed: 15": "0",
+        "Unnamed: 16": "0"
+      }
+    ]
+  },
+  "MATERIAUX": {
+    "columns": [
+      "Unnamed: 0",
+      "Unnamed: 1",
+      "2025-12-02 00:00:00",
+      "ID",
+      "Unnamed: 4",
+      "Unnamed: 5",
+      "Unnamed: 6",
+      "2022-10-17 00:00:00",
+      "Unnamed: 8",
+      "Unnamed: 9",
+      "Unnamed: 10",
+      "Unnamed: 11",
+      "Unnamed: 12",
+      "Unnamed: 13",
+      "2022-06-07 00:00:00",
+      "ID.1",
+      "Unnamed: 16",
+      "Unnamed: 17",
+      "Unnamed: 18",
+      "Unnamed: 19",
+      "2022-05-09 00:00:00",
+      "ID.2",
+      "Unnamed: 22",
+      "Unnamed: 23",
+      "Unnamed: 24",
+      "Unnamed: 25",
+      "2022-03-21 00:00:00",
+      "ID.3",
+      "Unnamed: 28",
+      "Unnamed: 29",
+      "Unnamed: 30",
+      "Unnamed: 31",
+      "2021-10-15 00:00:00",
+      "Unnamed: 33",
+      "Unnamed: 34",
+      "Unnamed: 35",
+      "Unnamed: 36",
+      "2021-06-16 00:00:00",
+      "Unnamed: 38",
+      "001",
+      "Unnamed: 40",
+      "Unnamed: 41",
+      "2021-06-07 00:00:00",
+      "Unnamed: 43",
+      "Unnamed: 44",
+      "Unnamed: 45"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": "Liste déroulante",
+        "Unnamed: 1": "DESCIPTION",
+        "2025-12-02 00:00:00": "MATERIAUX",
+        "ID": NaN,
+        "Unnamed: 4": "U",
+        "Unnamed: 5": "0.2",
+        "Unnamed: 6": "4.85",
+        "2022-10-17 00:00:00": " →   Lei",
+        "Unnamed: 8": "Transf in mp",
+        "Unnamed: 9": "U",
+        "Unnamed: 10": "0.2061855670103093",
+        "Unnamed: 11": "   Lei",
+        "Unnamed: 12": NaN,
+        "Unnamed: 13": "Variations",
+        "2022-06-07 00:00:00": "MATERIAUX",
+        "ID.1": NaN,
+        "Unnamed: 16": "U",
+        "Unnamed: 17": "0.0",
+        "Unnamed: 18": "4.85",
+        "Unnamed: 19": " →   Lei",
+        "2022-05-09 00:00:00": "MATERIAUX",
+        "ID.2": NaN,
+        "Unnamed: 22": "U",
+        "Unnamed: 23": "4.91",
+        "Unnamed: 24": " →   Lei",
+        "Unnamed: 25": "Variations",
+        "2022-03-21 00:00:00": "MATERIAUX",
+        "ID.3": NaN,
+        "Unnamed: 28": "U",
+        "Unnamed: 29": "4.9444081",
+        "Unnamed: 30": " →   Lei",
+        "Unnamed: 31": "Variations",
+        "2021-10-15 00:00:00": "MATERIAUX",
+        "Unnamed: 33": "U",
+        "Unnamed: 34": "4.9273348",
+        "Unnamed: 35": " →   Lei",
+        "Unnamed: 36": "Variations",
+        "2021-06-16 00:00:00": "MATERIAUX",
+        "Unnamed: 38": "U",
+        "001": "4.95",
+        "Unnamed: 40": " →   Lei",
+        "Unnamed: 41": "Variations",
+        "2021-06-07 00:00:00": "MATERIAUX",
+        "Unnamed: 43": "U",
+        "Unnamed: 44": "4.95",
+        "Unnamed: 45": " →   Lei"
+      },
+      {
+        "Unnamed: 0": "adeziv",
+        "Unnamed: 1": "Colle",
+        "2025-12-02 00:00:00": "adeziv",
+        "ID": NaN,
+        "Unnamed: 4": "kg",
+        "Unnamed: 5": "0.25",
+        "Unnamed: 6": "0.2061855670103093",
+        "2022-10-17 00:00:00": "1",
+        "Unnamed: 8": "0.04",
+        "Unnamed: 9": "kg",
+        "Unnamed: 10": "14.226804123711341",
+        "Unnamed: 11": "69",
+        "Unnamed: 12": NaN,
+        "Unnamed: 13": "0.13636363636363635",
+        "2022-06-07 00:00:00": "adeziv",
+        "ID.1": NaN,
+        "Unnamed: 16": "kg",
+        "Unnamed: 17": "0.22",
+        "Unnamed: 18": "0.1814432989690722",
+        "Unnamed: 19": "0.88",
+        "2022-05-09 00:00:00": "adeziv",
+        "ID.2": NaN,
+        "Unnamed: 22": "kg",
+        "Unnamed: 23": "0.17922606924643583",
+        "Unnamed: 24": "0.88",
+        "Unnamed: 25": "-0.6811594202898551",
+        "2022-03-21 00:00:00": "adeziv",
+        "ID.3": NaN,
+        "Unnamed: 28": "kg",
+        "Unnamed: 29": "0.5582063503212852",
+        "Unnamed: 30": "2.7600000000000002",
+        "Unnamed: 31": "0",
+        "2021-10-15 00:00:00": "adeziv",
+        "Unnamed: 33": "kg",
+        "Unnamed: 34": "0.5601405449453121",
+        "Unnamed: 35": "2.7600000000000002",
+        "Unnamed: 36": "0.0036363636363637205",
+        "2021-06-16 00:00:00": "adeziv",
+        "Unnamed: 38": "kg",
+        "001": "0.5555555555555556",
+        "Unnamed: 40": "2.75",
+        "Unnamed: 41": "0",
+        "2021-06-07 00:00:00": "adeziv",
+        "Unnamed: 43": "kg",
+        "Unnamed: 44": "0.5555555555555556",
+        "Unnamed: 45": "2.75"
+      }
+    ]
+  },
+  "MAIN D OEUVRE": {
+    "columns": [
+      "Unnamed: 0",
+      "TARIF 2 OUVRIER",
+      "Unnamed: 2",
+      "TARIF 1 OUVRIER",
+      "Unnamed: 4",
+      "Unnamed: 5",
+      "Unnamed: 6"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": NaN,
+        "TARIF 2 OUVRIER": "44",
+        "Unnamed: 2": NaN,
+        "TARIF 1 OUVRIER": "22",
+        "Unnamed: 4": NaN,
+        "Unnamed: 5": NaN,
+        "Unnamed: 6": NaN
+      },
+      {
+        "Unnamed: 0": "Étapes",
+        "TARIF 2 OUVRIER": "Déboursé (€)",
+        "Unnamed: 2": "MO (hr)",
+        "TARIF 1 OUVRIER": "Déboursé (€)",
+        "Unnamed: 4": "MO (hr)",
+        "Unnamed: 5": NaN,
+        "Unnamed: 6": "Liste déroulante"
+      }
+    ]
+  },
+  "MODELE LAROX": {
+    "columns": [
+      "Unnamed: 0",
+      "Devis quantitatif et estimatif n°14 de référence: MARMANDE MONTAIGNE  -  édition du : jj-12-marți  -  opération : MARMANDE MONTAIGNE"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": "Définir dans l'ordre:\n\n1/ Colonne Type\n↓↓↓↓\n\n2/ Colonne Désignation\n→→\n\n3/ Colonne quantité Qt\n→→→→",
+        "Devis quantitatif et estimatif n°14 de référence: MARMANDE MONTAIGNE  -  édition du : jj-12-marți  -  opération : MARMANDE MONTAIGNE": NaN
+      }
+    ]
+  },
+  "MODELE TD DOXAR": {
+    "columns": [
+      "Unnamed: 0",
+      "Devis quantitatif et estimatif n°14 de référence: MARMANDE MONTAIGNE  -  édition du : jj-12-marți  -  opération : MARMANDE MONTAIGNE"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": "Définir dans l'ordre:\n\n1/ Colonne Type\n↓↓↓↓\n\n2/ Colonne Désignation\n→→\n\n3/ Colonne quantité Qt\n→→→→",
+        "Devis quantitatif et estimatif n°14 de référence: MARMANDE MONTAIGNE  -  édition du : jj-12-marți  -  opération : MARMANDE MONTAIGNE": NaN
+      },
+      {
+        "Unnamed: 0": NaN,
+        "Devis quantitatif et estimatif n°14 de référence: MARMANDE MONTAIGNE  -  édition du : jj-12-marți  -  opération : MARMANDE MONTAIGNE": "SC TEHNIC DESIGN MC SRL"
+      }
+    ]
+  },
+  "LAROX pe grupe": {
+    "columns": [
+      "Unnamed: 0",
+      "Devis quantitatif et estimatif n°  de référence: RAZAC - 24 VILLAS  -  édition du : jj-12-marți  -  opération : RAZAC - 24 VILLAS"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": "Définir dans l'ordre:\n\n1/ Colonne Type\n↓↓↓↓\n\n2/ Colonne Désignation\n→→\n\n3/ Colonne quantité Qt\n→→→→",
+        "Devis quantitatif et estimatif n°  de référence: RAZAC - 24 VILLAS  -  édition du : jj-12-marți  -  opération : RAZAC - 24 VILLAS": NaN
+      }
+    ]
+  },
+  "MODELE LAROX bardaj": {
+    "columns": [
+      "Unnamed: 0",
+      "Devis quantitatif et estimatif n°  de référence:  KALISTE - 7 VILLAS ACCOLEES  -  édition du : jj-12-marți  -  opération :  KALISTE - 7 VILLAS ACCOLEES"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": "Définir dans l'ordre:\n\n1/ Colonne Type\n↓↓↓↓\n\n2/ Colonne Désignation\n→→\n\n3/ Colonne quantité Qt\n→→→→",
+        "Devis quantitatif et estimatif n°  de référence:  KALISTE - 7 VILLAS ACCOLEES  -  édition du : jj-12-marți  -  opération :  KALISTE - 7 VILLAS ACCOLEES": NaN
+      }
+    ]
+  },
+  "MODELE SCGB": {
+    "columns": [
+      "Unnamed: 0",
+      "Devis quantitatif et estimatif n°  de référence:    -  édition du : jj-12-marți  -  opération :  "
+    ],
+    "sample_data": []
+  },
+  "Manopera": {
+    "columns": [
+      "Unnamed: 0",
+      "Devis quantitatif et estimatif n°3105 - A de référence: 1958-FONTAINES TRANCHE 2-CASTELNAU  -  édition du : jj-10-luni  -  opération : VENTURA"
+    ],
+    "sample_data": []
+  },
+  "Materiale complet": {
+    "columns": [
+      "Unnamed: 0",
+      "Unnamed: 1",
+      "Unnamed: 2",
+      "Total",
+      "Pare Vapeur",
+      "Struct 145",
+      "Vata 150",
+      "Struct 100",
+      "OSB 12",
+      "Bache prot",
+      "Bardage",
+      "Lisa",
+      "Centuri"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": "PE-15",
+        "Unnamed: 1": "Pare-vapeur SD 90 / Structure 145 mm / Laine minérale 150 mm / OSB 12 / Bache de protection provisoire",
+        "Unnamed: 2": "m2",
+        "Total": "415",
+        "Pare Vapeur": "415.0",
+        "Struct 145": "415.0",
+        "Vata 150": "415.0",
+        "Struct 100": NaN,
+        "OSB 12": "415.0",
+        "Bache prot": "415.0",
+        "Bardage": NaN,
+        "Lisa": NaN,
+        "Centuri": NaN
+      },
+      {
+        "Unnamed: 0": "PEST-10",
+        "Unnamed: 1": "Structure 100 mm / OSB 12 / Bache de protection provisoire / Pignon",
+        "Unnamed: 2": "m2",
+        "Total": "40",
+        "Pare Vapeur": NaN,
+        "Struct 145": NaN,
+        "Vata 150": NaN,
+        "Struct 100": "40.0",
+        "OSB 12": "40.0",
+        "Bache prot": "40.0",
+        "Bardage": NaN,
+        "Lisa": NaN,
+        "Centuri": NaN
+      }
+    ]
+  },
+  "Materiale final": {
+    "columns": [
+      "Unnamed: 0",
+      "Unnamed: 1",
+      "Unnamed: 2",
+      "Unnamed: 3",
+      "Unnamed: 4",
+      "Unnamed: 5",
+      "Unnamed: 6",
+      "Unnamed: 7",
+      "Unnamed: 8",
+      "Unnamed: 9",
+      "Unnamed: 10",
+      "Unnamed: 11",
+      "Unnamed: 12",
+      "Unnamed: 13",
+      "Unnamed: 14"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": NaN,
+        "Unnamed: 1": NaN,
+        "Unnamed: 2": NaN,
+        "Unnamed: 3": NaN,
+        "Unnamed: 4": NaN,
+        "Unnamed: 5": "Pentru tot santierul",
+        "Unnamed: 6": NaN,
+        "Unnamed: 7": NaN,
+        "Unnamed: 8": NaN,
+        "Unnamed: 9": NaN,
+        "Unnamed: 10": NaN,
+        "Unnamed: 11": NaN,
+        "Unnamed: 12": NaN,
+        "Unnamed: 13": NaN,
+        "Unnamed: 14": NaN
+      },
+      {
+        "Unnamed: 0": "Material",
+        "Unnamed: 1": "Suprafete",
+        "Unnamed: 2": "Cant",
+        "Unnamed: 3": "Val",
+        "Unnamed: 4": NaN,
+        "Unnamed: 5": "Material",
+        "Unnamed: 6": "Suprafete",
+        "Unnamed: 7": "Cant",
+        "Unnamed: 8": "Val",
+        "Unnamed: 9": "Stoc",
+        "Unnamed: 10": "Necesar",
+        "Unnamed: 11": "Val Necesar",
+        "Unnamed: 12": "Val stoc",
+        "Unnamed: 13": "PU Euro",
+        "Unnamed: 14": "PU Lei"
+      }
+    ]
+  },
+  "Materiale initial": {
+    "columns": [
+      "Unnamed: 0",
+      "Unnamed: 1",
+      "Unnamed: 2",
+      "Unnamed: 3",
+      "Unnamed: 4",
+      "Unnamed: 5",
+      "Unnamed: 6",
+      "Unnamed: 7",
+      "Unnamed: 8",
+      "Unnamed: 9",
+      "Unnamed: 10",
+      "Unnamed: 11",
+      "RAZAC",
+      "Unnamed: 13",
+      "Unnamed: 14",
+      "Unnamed: 15"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": NaN,
+        "Unnamed: 1": NaN,
+        "Unnamed: 2": NaN,
+        "Unnamed: 3": NaN,
+        "Unnamed: 4": NaN,
+        "Unnamed: 5": "Pentru tot santierul",
+        "Unnamed: 6": NaN,
+        "Unnamed: 7": NaN,
+        "Unnamed: 8": NaN,
+        "Unnamed: 9": NaN,
+        "Unnamed: 10": NaN,
+        "Unnamed: 11": NaN,
+        "RAZAC": "Pentru jumatate de santier",
+        "Unnamed: 13": NaN,
+        "Unnamed: 14": NaN,
+        "Unnamed: 15": NaN
+      },
+      {
+        "Unnamed: 0": "Material",
+        "Unnamed: 1": "Suprafete",
+        "Unnamed: 2": "Cant",
+        "Unnamed: 3": "Val",
+        "Unnamed: 4": NaN,
+        "Unnamed: 5": "Material",
+        "Unnamed: 6": "Suprafete",
+        "Unnamed: 7": "Cant",
+        "Unnamed: 8": "Val",
+        "Unnamed: 9": NaN,
+        "Unnamed: 10": NaN,
+        "Unnamed: 11": NaN,
+        "RAZAC": "Material",
+        "Unnamed: 13": "Suprafete",
+        "Unnamed: 14": "Cant",
+        "Unnamed: 15": "Val"
+      }
+    ]
+  },
+  "Calcule": {
+    "columns": [
+      "Unnamed: 0",
+      "Unnamed: 1",
+      "Unnamed: 2"
+    ],
+    "sample_data": [
+      {
+        "Unnamed: 0": NaN,
+        "Unnamed: 1": "Deviz",
+        "Unnamed: 2": "210131.94"
+      },
+      {
+        "Unnamed: 0": NaN,
+        "Unnamed: 1": "Avans 1",
+        "Unnamed: 2": "28000.0"
+      }
+    ]
+  }
+}

@@ -97,6 +97,7 @@ export const CatalogueApp: React.FC = () => {
                     {/* CRM Quotes */}
                     <Route path="quotes" element={<QuoteList />} />
                     <Route path="quotes/new" element={<QuoteBuilder />} />
+                    <Route path="quotes/:id/edit" element={<QuoteBuilder />} />
                 </Routes>
             </div>
         </div>

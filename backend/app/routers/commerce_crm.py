@@ -17,7 +17,8 @@ from app.schemas.commerce import (
     Service, ServiceCreate, ServiceUpdate,
     Article, ArticleCreate, ArticleUpdate,
     Composition, CompositionCreate, CompositionUpdate,
-    Quote, QuoteCreate, QuoteUpdate
+    Quote, QuoteCreate, QuoteUpdate,
+    Client as ClientSchema, ClientCreate, ClientUpdate
 )
 from app.models.commerce import (
     Material as MaterialModel,
@@ -33,6 +34,45 @@ router = APIRouter(prefix="/commerce", tags=["commerce"])
 
 def generate_uuid():
     return str(uuid.uuid4())
+
+# ==========================================
+# CLIENTS (CRM)
+# ==========================================
+@router.get("/clients", response_model=List[ClientSchema])
+async def list_clients(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    active_only: bool = True,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    query = db.query(ClientModel)
+    if active_only:
+        query = query.filter(ClientModel.is_active == True)
+    if search:
+        search_filter = f"%{search}%"
+        query = query.filter(
+            (ClientModel.company_name.ilike(search_filter)) |
+            (ClientModel.contact_last_name.ilike(search_filter)) |
+            (ClientModel.contact_email.ilike(search_filter))
+        )
+    return query.offset(skip).limit(limit).all()
+
+@router.post("/clients", response_model=ClientSchema, status_code=status.HTTP_201_CREATED)
+async def create_client(
+    client_data: ClientCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    client = ClientModel(
+        id=generate_uuid(),
+        **client_data.model_dump()
+    )
+    db.add(client)
+    db.commit()
+    db.refresh(client)
+    return client
 
 # ==========================================
 # IMPORT CATALOGUE EXCEL
@@ -443,3 +483,48 @@ async def create_quote(
     db.commit()
     db.refresh(new_quote)
     return new_quote
+
+@router.put("/quotes/{quote_id}", response_model=Quote)
+async def update_quote(
+    quote_id: str,
+    quote_data: QuoteUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    quote = db.query(QuoteModel).filter(QuoteModel.id == quote_id).first()
+    if not quote:
+        raise HTTPException(status_code=404, detail="Devis non trouvé")
+
+    # Access items from request body via Pydantic model dump or directly
+    update_data = quote_data.model_dump(exclude_unset=True, exclude={'items'})
+    for field, value in update_data.items():
+        setattr(quote, field, value)
+
+    # We drop old items and append new ones if `items` is provided.
+    if quote_data.items is not None:
+        db.query(QuoteItemModel).filter(QuoteItemModel.quote_id == quote_id).delete()
+        
+        total_ht = 0.0
+        for item_data in quote_data.items:
+            line_total_ht = item_data.quantity * item_data.unit_price_ht
+            total_ht += line_total_ht
+
+            quote_item = QuoteItemModel(
+                id=generate_uuid(),
+                quote_id=quote.id,
+                item_type=item_data.item_type,
+                item_reference_id=item_data.item_reference_id,
+                name=item_data.name,
+                description=item_data.description,
+                quantity=item_data.quantity,
+                unit_price_ht=item_data.unit_price_ht,
+                total_price_ht=line_total_ht
+            )
+            db.add(quote_item)
+            
+        quote.total_ht = total_ht
+        quote.total_ttc = total_ht * (1 + quote.tva_rate / 100.0)
+
+    db.commit()
+    db.refresh(quote)
+    return quote

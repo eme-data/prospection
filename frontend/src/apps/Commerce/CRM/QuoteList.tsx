@@ -1,10 +1,10 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getQuotes } from '../../../api/commerce';
 import { Plus, FileText, Search } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 export const QuoteList: React.FC = () => {
+    const navigate = useNavigate();
     const { data: quotes, isLoading } = useQuery({
         queryKey: ['quotes'],
         queryFn: getQuotes,
@@ -99,7 +99,11 @@ export const QuoteList: React.FC = () => {
                                 </tr>
                             ) : (
                                 quotes?.map((quote) => (
-                                    <tr key={quote.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
+                                    <tr
+                                        key={quote.id}
+                                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                                        onClick={() => navigate(`/commerce/catalogue/quotes/${quote.id}/edit`)}
+                                    >
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600 dark:text-indigo-400">
                                             {quote.quote_number}
                                         </td>

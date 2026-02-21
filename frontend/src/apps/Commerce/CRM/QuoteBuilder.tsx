@@ -1,30 +1,61 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getArticles, getCompositions, createQuote, QuoteItem } from '../../../api/commerce';
-import { ArrowLeft, Save, Plus, Trash2, Search, Calculator } from 'lucide-react';
+import { getArticles, getCompositions, createQuote, updateQuote, getQuote, QuoteItem, getClients, createClient } from '../../../api/commerce';
+import { ArrowLeft, Save, Plus, Trash2, Search, Calculator, UserPlus, Printer } from 'lucide-react';
 
 export const QuoteBuilder: React.FC = () => {
+    const { id } = useParams<{ id: string }>();
+    const isEditMode = !!id;
     const navigate = useNavigate();
     const queryClient = useQueryClient();
 
-    // We fetch everything from catalogue for autocompletion
+    // Data fetching
     const { data: articles } = useQuery({ queryKey: ['articles'], queryFn: getArticles });
     const { data: compositions } = useQuery({ queryKey: ['compositions'], queryFn: getCompositions });
+    const { data: clients } = useQuery({ queryKey: ['clients'], queryFn: getClients });
+    const { data: existingQuote, isLoading: loadingQuote } = useQuery({
+        queryKey: ['quote', id],
+        queryFn: () => getQuote(id!),
+        enabled: isEditMode
+    });
 
+    // Form State
     const [title, setTitle] = useState('');
-    const [clientId] = useState('00000000-0000-0000-0000-000000000000'); // Default demo client UUID
+    const [clientId, setClientId] = useState('');
     const [items, setItems] = useState<QuoteItem[]>([]);
 
     // Temporary variables for the item being added
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedItemType, setSelectedItemType] = useState<"article" | "composition" | "custom">("article");
 
-    const createMutation = useMutation({
-        mutationFn: createQuote,
+    const [showNewClientModal, setShowNewClientModal] = useState(false);
+    const [newClientName, setNewClientName] = useState('');
+
+    // Pre-fill if edit mode
+    useEffect(() => {
+        if (isEditMode && existingQuote) {
+            setTitle(existingQuote.title);
+            setClientId(existingQuote.client_id || '');
+            setItems(existingQuote.items || []);
+        }
+    }, [isEditMode, existingQuote]);
+
+    const saveMutation = useMutation({
+        mutationFn: (data: any) => isEditMode ? updateQuote(id!, data) : createQuote(data),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['quotes'] });
             navigate('/commerce/catalogue/quotes');
+        }
+    });
+
+    const createClientMutation = useMutation({
+        mutationFn: createClient,
+        onSuccess: (newClient) => {
+            queryClient.invalidateQueries({ queryKey: ['clients'] });
+            setClientId(newClient.id);
+            setShowNewClientModal(false);
+            setNewClientName('');
         }
     });
 
@@ -62,18 +93,29 @@ export const QuoteBuilder: React.FC = () => {
     };
 
     const handleSave = () => {
-        if (!title.trim() || items.length === 0) {
-            alert("Veuillez donner un titre au devis et ajouter au moins une ligne.");
+        if (!title.trim() || items.length === 0 || !clientId) {
+            alert("Veuillez donner un titre, choisir un client, et ajouter au moins une ligne.");
             return;
         }
 
-        createMutation.mutate({
+        saveMutation.mutate({
             title,
             client_id: clientId,
-            items: items.map(item => ({
+            items: items.map((item) => ({
                 ...item,
+                // ID est ignoré par le backend lors du PUT (pour les items, on drop and replace)
                 total_price_ht: item.quantity * item.unit_price_ht
             }))
+        });
+    };
+
+    const handleCreateClient = () => {
+        if (!newClientName.trim()) return;
+        createClientMutation.mutate({
+            company_name: newClientName,
+            client_type: 'prospect',
+            country: 'France',
+            is_active: true
         });
     };
 
@@ -94,9 +136,14 @@ export const QuoteBuilder: React.FC = () => {
         return [];
     };
 
+    if (isEditMode && loadingQuote) {
+        return <div className="p-8 text-center text-gray-500">Chargement du devis...</div>;
+    }
+
     return (
-        <div className="max-w-7xl mx-auto pb-12">
-            <div className="flex items-center gap-4 mb-6">
+        <div className="max-w-7xl mx-auto pb-12 print-container">
+            {/* EN-TETE ACTIONS (caché à l'impression) */}
+            <div className="flex items-center gap-4 mb-6 print:hidden">
                 <button
                     onClick={() => navigate('/commerce/catalogue/quotes')}
                     className="p-2 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
@@ -107,15 +154,21 @@ export const QuoteBuilder: React.FC = () => {
                 <div className="flex-1">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                         <Calculator className="text-indigo-500" />
-                        Nouveau Devis Prospect
+                        {isEditMode ? `Édition Devis : ${existingQuote?.quote_number || ''}` : 'Nouveau Devis'}
                     </h2>
                 </div>
                 <button
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 transition"
+                >
+                    <Printer className="w-4 h-4" /> PDF
+                </button>
+                <button
                     onClick={handleSave}
-                    disabled={createMutation.isPending}
+                    disabled={saveMutation.isPending}
                     className="inline-flex items-center gap-2 px-5 py-2.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
                 >
-                    {createMutation.isPending ? "Génération..." : <><Save className="w-4 h-4" /> Enregistrer le Devis</>}
+                    {saveMutation.isPending ? "Sauvegarde..." : <><Save className="w-4 h-4" /> {isEditMode ? 'Mettre à jour' : 'Enregistrer'}</>}
                 </button>
             </div>
 
@@ -136,17 +189,55 @@ export const QuoteBuilder: React.FC = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Client (Pour le moment: Client Divers Prospect)</label>
-                                <select disabled className="mt-1 block w-full rounded-md border-gray-300 shadow-sm bg-gray-50 text-gray-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 py-2 px-3 border cursor-not-allowed">
-                                    <option>Client Divers / Prospect</option>
-                                </select>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Client</label>
+                                <div className="mt-1 flex gap-2">
+                                    <select
+                                        value={clientId}
+                                        onChange={(e) => setClientId(e.target.value)}
+                                        className="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm dark:bg-gray-700 dark:border-gray-600 py-2 px-3 border focus:border-indigo-500 focus:ring-indigo-500"
+                                    >
+                                        <option value="" disabled>Sélectionnez un client</option>
+                                        {clients?.map((c) => (
+                                            <option key={c.id} value={c.id}>{c.company_name}</option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        onClick={() => setShowNewClientModal(true)}
+                                        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 flex-shrink-0"
+                                        title="Nouveau Client"
+                                    >
+                                        <UserPlus className="h-4 w-4" />
+                                    </button>
+                                </div>
                             </div>
                         </div>
+                        {showNewClientModal && (
+                            <div className="mt-4 p-4 border border-indigo-200 bg-indigo-50 dark:bg-indigo-900/20 rounded-md">
+                                <label className="block text-sm font-medium text-indigo-800 dark:text-indigo-200">Nom de la société (Nouveau Client)</label>
+                                <div className="mt-2 flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newClientName}
+                                        onChange={(e) => setNewClientName(e.target.value)}
+                                        className="block w-full rounded-md border-indigo-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm px-3 py-2"
+                                        placeholder="Ex: SCI Immobilière"
+                                    />
+                                    <button
+                                        onClick={handleCreateClient}
+                                        disabled={!newClientName.trim() || createClientMutation.isPending}
+                                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                                    >
+                                        {createClientMutation.isPending ? 'Création...' : 'Créer'}
+                                    </button>
+                                    <button onClick={() => setShowNewClientModal(false)} className="text-gray-500 px-3">Annuler</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* LIGNES DU DEVIS */}
-                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-                        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex justify-between items-center">
+                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden border print:border-none print:shadow-none">
+                        <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex justify-between items-center print:bg-transparent print:border-b-2 print:border-black">
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white">Détail Quantitatif et Estimatif</h3>
                             <button onClick={addCustomItem} className="text-sm text-indigo-600 dark:text-indigo-400 font-medium hover:text-indigo-800 flex items-center gap-1">
                                 <Plus size={16} /> Ligne libre
@@ -209,7 +300,7 @@ export const QuoteBuilder: React.FC = () => {
                                             <td className="px-4 py-3 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap">
                                                 {(item.quantity * item.unit_price_ht).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                             </td>
-                                            <td className="px-4 py-3 text-right">
+                                            <td className="px-4 py-3 text-right print:hidden">
                                                 <button onClick={() => removeItem(index)} className="text-red-400 hover:text-red-600">
                                                     <Trash2 size={18} />
                                                 </button>
@@ -224,8 +315,8 @@ export const QuoteBuilder: React.FC = () => {
 
                 {/* COLONNE DROITE : RECHERCHE CATALOGUE & TOTAL */}
                 <div className="space-y-6">
-                    {/* AJOUT CATALOGUE VITE FAIT */}
-                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+                    {/* AJOUT CATALOGUE VITE FAIT (caché à l'impression) */}
+                    <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6 print:hidden">
                         <h3 className="text-md font-medium text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                             <Search size={18} className="text-indigo-500" /> Insérer depuis Catalogue
                         </h3>
@@ -281,24 +372,25 @@ export const QuoteBuilder: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* RECAP FINANCIER */}
-                    <div className="bg-indigo-900 rounded-lg shadow-lg p-6 text-white">
-                        <h3 className="text-lg font-medium mb-4 text-indigo-100 border-b border-indigo-700 pb-2">Résumé Financier</h3>
-                        <dl className="mt-4 space-y-3">
-                            <div className="flex items-center justify-between text-indigo-200">
-                                <dt className="text-sm">Total HT</dt>
-                                <dd className="text-right text-base font-medium">{totalHT.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</dd>
-                            </div>
-                            <div className="flex items-center justify-between text-indigo-200">
-                                <dt className="text-sm">TVA (20%)</dt>
-                                <dd className="text-right text-base font-medium">+ {totalTVA.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</dd>
-                            </div>
-                            <div className="flex items-center justify-between border-t border-indigo-700 pt-3 mt-3">
-                                <dt className="text-base font-bold text-white">Total TTC</dt>
-                                <dd className="text-right text-xl font-bold text-white">{totalTTC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</dd>
-                            </div>
-                        </dl>
-                    </div>
+                </div>
+
+                {/* RECAP FINANCIER */}
+                <div className="bg-indigo-900 rounded-lg shadow-lg p-6 text-white print:bg-white print:text-black print:border print:border-gray-300 print:shadow-none">
+                    <h3 className="text-lg font-medium mb-4 text-indigo-100 border-b border-indigo-700 pb-2 print:text-black print:border-gray-300">Résumé Financier</h3>
+                    <dl className="mt-4 space-y-3">
+                        <div className="flex items-center justify-between text-indigo-200 print:text-gray-800">
+                            <dt className="text-sm">Total HT</dt>
+                            <dd className="text-right text-base font-medium">{totalHT.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</dd>
+                        </div>
+                        <div className="flex items-center justify-between text-indigo-200 print:text-gray-800">
+                            <dt className="text-sm">TVA (20%)</dt>
+                            <dd className="text-right text-base font-medium">+ {totalTVA.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</dd>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-indigo-700 pt-3 mt-3 print:border-gray-400">
+                            <dt className="text-base font-bold text-white print:text-black">Total TTC</dt>
+                            <dd className="text-right text-xl font-bold text-white print:text-black">{totalTTC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</dd>
+                        </div>
+                    </dl>
                 </div>
             </div>
         </div>

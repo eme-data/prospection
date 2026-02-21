@@ -84,6 +84,25 @@ export interface QuoteItem {
     total_price_ht?: number;
 }
 
+export interface Client {
+    id: string;
+    client_type: 'prospect' | 'client' | 'partner';
+    company_name: string;
+    siret?: string;
+    vat_number?: string;
+    contact_first_name?: string;
+    contact_last_name?: string;
+    contact_email?: string;
+    contact_phone?: string;
+    address_line1?: string;
+    address_line2?: string;
+    postal_code?: string;
+    city?: string;
+    country: string;
+    notes?: string;
+    is_active: boolean;
+}
+
 export interface Quote {
     id: string;
     quote_number: string;
@@ -192,3 +211,10 @@ export const getQuotes = () => fetchJSON<Quote[]>('/api/commerce/quotes');
 export const getQuote = (id: string) => fetchJSON<Quote>(`/api/commerce/quotes/${id}`);
 export const createQuote = (data: Partial<Quote>) =>
     fetchJSON<Quote>('/api/commerce/quotes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+export const updateQuote = (id: string, data: Partial<Quote>) =>
+    fetchJSON<Quote>(`/api/commerce/quotes/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+
+// Clients
+export const getClients = () => fetchJSON<Client[]>('/api/commerce/clients');
+export const createClient = (data: Partial<Client>) =>
+    fetchJSON<Client>('/api/commerce/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
