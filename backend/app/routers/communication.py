@@ -1,137 +1,311 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
-import os
 import logging
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from app.database import getattr, get_db
+from app.auth import get_current_active_user
+from app.models.user import User
+from app.models.communication import Post, SocialAccount
+from pydantic import BaseModel
+from datetime import datetime
+import os
 import google.generativeai as genai
 from groq import Groq
-from typing import Optional
-from app.routers.auth import get_current_active_user, User
-import re
 
-router = APIRouter()
+# Initialize router
+router = APIRouter(prefix="/communication", tags=["Communication"])
 logger = logging.getLogger(__name__)
 
-class LogoRequest(BaseModel):
-    prompt: str
-    provider: str = "auto"
 
-class LogoResponse(BaseModel):
-    content: list[dict]
-    model: str
-    provider: str
-    fallbackUsed: Optional[bool] = False
+# ---------------------------------------------------------
+# Pydantic Schemas
+# ---------------------------------------------------------
+class GenerateRequest(BaseModel):
+    topic: str
+    platform: str
+    ai_model: str
+    tone: str = "professional"
+    length: str = "medium"
+    include_hashtags: bool = True
+    include_emojis: bool = False
 
-# Function to clean SVG
-def clean_svg_code(code: str) -> str:
-    # Remove markdown code blocks if present
-    code = re.sub(r'```(?:svg|xml)?\n?', '', code)
-    code = re.sub(r'```\n?', '', code)
+class PostResponse(BaseModel):
+    id: int
+    platform: str
+    ai_model: str
+    topic: str
+    content: str
+    tone: str
+    length: str
+    include_hashtags: bool
+    include_emojis: bool
+    published_to_linkedin: bool
+    published_to_facebook: bool
+    published_to_instagram: bool
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
 
-    # Extract SVG if there's text before/after
-    svg_match = re.search(r'<svg[\s\S]*<\/svg>', code, re.IGNORECASE)
-    if svg_match:
-        code = svg_match.group(0)
+class HistoryResponse(BaseModel):
+    success: bool
+    posts: List[PostResponse]
+    pagination: Dict[str, Any]
 
-    # Trim whitespace
-    code = code.strip()
 
-    # Validate it starts with <svg
-    if not code.lower().startswith('<svg'):
-        raise Exception("Le code généré n'est pas un SVG valide")
+# ---------------------------------------------------------
+# AI Generation Setup (Gemini & Groq)
+# ---------------------------------------------------------
 
-    return code
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-@router.post("/logo", response_model=LogoResponse)
-async def generate_logo(request: LogoRequest, current_user: User = Depends(get_current_active_user)):
-    """
-    Génère un logo au format SVG en utilisant Gemini ou Groq.
-    Protégé par authentification et par la permission module_communication.
-    """
-    # Vérification des droits
-    if not current_user.module_communication:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Seuls les utilisateurs avec la permission Module Communication peuvent accéder à ce service."
-        )
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
-    prompt = request.prompt
-    provider = request.provider
+if GROQ_API_KEY:
+    groq_client = Groq(api_key=GROQ_API_KEY)
+else:
+    groq_client = None
 
-    if not prompt or len(prompt) > 5000:
-        raise HTTPException(status_code=400, detail="Le prompt est requis et doit faire moins de 5000 caractères")
 
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    groq_key = os.getenv("GROQ_API_KEY")
+def build_prompt(params: GenerateRequest) -> str:
+    length_guide = {
+        "short": "100-150 mots",
+        "medium": "150-250 mots",
+        "long": "250-400 mots"
+    }
 
-    async def call_gemini() -> LogoResponse:
-        if not gemini_key or gemini_key == 'votre-cle-gemini-ici':
-            raise Exception("Clé API Gemini non configurée dans le .env")
-        
-        logger.info("Calling Gemini API...")
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        response = model.generate_content(prompt)
-        text = response.text
-        
-        valid_svg = clean_svg_code(text)
-        logger.info("Logo generated with Gemini")
-        
-        return LogoResponse(
-            content=[{"type": "text", "text": valid_svg}],
-            model="gemini-1.5-flash",
-            provider="gemini"
-        )
-        
-    async def call_groq() -> LogoResponse:
-        if not groq_key or groq_key == 'your-groq-api-key-here':
-            raise Exception("Clé API Groq non configurée dans le .env")
-            
-        logger.info("Calling Groq API...")
-        client = Groq(api_key=groq_key)
-        completion = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            model="llama-3.3-70b-versatile",
-            temperature=0.7,
-            max_tokens=8000
-        )
-        
-        text = completion.choices[0].message.content
-        if not text:
-            raise Exception("Réponse vide de Groq")
-            
-        valid_svg = clean_svg_code(text)
-        logger.info("Logo generated with Groq")
-        
-        return LogoResponse(
-            content=[{"type": "text", "text": valid_svg}],
-            model="llama-3.3-70b-versatile",
-            provider="groq"
-        )
+    tone_guide = {
+        "professional": "un ton professionnel et formel",
+        "casual": "un ton décontracté et amical",
+        "enthusiastic": "un ton enthousiaste et énergique",
+        "informative": "un ton informatif et éducatif"
+    }
 
+    platform_guide = {
+        "linkedin": "LinkedIn (réseau professionnel)",
+        "facebook": "Facebook (réseau social grand public)",
+        "instagram": "Instagram (réseau visuel et lifestyle)"
+    }
+
+    prompt = f"Génère un post engageant pour {platform_guide.get(params.platform, 'réseaux sociaux')} sur le sujet suivant : \"{params.topic}\".\n\n"
+    prompt += f"Instructions :\n"
+    prompt += f"- Utilise {tone_guide.get(params.tone, 'un ton neutre')}\n"
+    prompt += f"- Longueur cible : {length_guide.get(params.length, '150 mots')}\n"
+    has_hashtags = "Inclus des hashtags pertinents à la fin" if params.include_hashtags else "N'inclus pas de hashtags"
+    has_emojis = "Utilise quelques emojis" if params.include_emojis else "N'utilise pas d'emojis"
+    prompt += f"- {has_hashtags}\n"
+    prompt += f"- {has_emojis}\n"
+
+    if params.platform == 'linkedin':
+        prompt += f"- Adopte un style adapté au monde professionnel\n"
+        prompt += f"- Mets en avant la valeur ajoutée et les insights\n"
+    elif params.platform == 'instagram':
+        prompt += f"- Adopte un style visuel et accrocheur\n"
+        prompt += f"- Utilise des sauts de ligne pour aérer le texte\n"
+        prompt += f"- Invite à l'interaction (Call to Action)\n"
+        prompt += f"- Le texte doit accompagner une image (référence l'image implicitement si besoin)\n"
+    else:
+        prompt += f"- Adopte un style convivial et accessible\n"
+        prompt += f"- Favorise l'engagement et les interactions\n"
+
+    prompt += f"\nGénère uniquement le contenu du post, sans introduction ni métadonnées ni balises markdown superflues."
+    return prompt
+
+
+# ---------------------------------------------------------
+# API Endpoints
+# ---------------------------------------------------------
+
+@router.post("/generate")
+async def generate_post(
+    request: GenerateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
     try:
-        if provider == "gemini":
-            return await call_gemini()
-        elif provider == "groq":
-            return await call_groq()
-        else:
-            # Auto fallback mode
-            try:
-                return await call_gemini()
-            except Exception as e:
-                logger.warning(f"Gemini failed: {str(e)}. Falling back to Groq.")
-                try:
-                    result = await call_groq()
-                    result.fallbackUsed = True
-                    return result
-                except Exception as e2:
-                    logger.error(f"Groq fallback also failed: {str(e2)}")
-                    raise Exception("Les deux IA ont échoué à générer le logo. Réessayez.")
-                    
+        if request.platform not in ["linkedin", "facebook", "instagram"]:
+            raise HTTPException(status_code=400, detail="Plateforme invalide")
+        if request.ai_model not in ["gemini", "groq"]:
+            raise HTTPException(status_code=400, detail="Modèle IA invalide")
+
+        prompt = build_prompt(request)
+        content = ""
+
+        if request.ai_model == "gemini":
+            if not GEMINI_API_KEY:
+                raise HTTPException(status_code=500, detail="Clé API Gemini non configurée")
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content(prompt)
+            content = response.text
+
+        elif request.ai_model == "groq":
+            if not groq_client:
+                raise HTTPException(status_code=500, detail="Clé API Groq non configurée")
+            chat_completion = groq_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama-3.3-70b-versatile",
+                temperature=0.7,
+                max_tokens=1024,
+            )
+            content = chat_completion.choices[0].message.content
+
+        # Save to database
+        db_post = Post(
+            user_id=current_user.id,
+            platform=request.platform,
+            ai_model=request.ai_model,
+            topic=request.topic,
+            content=content,
+            tone=request.tone,
+            length=request.length,
+            include_hashtags=request.include_hashtags,
+            include_emojis=request.include_emojis
+        )
+        db.add(db_post)
+        db.commit()
+        db.refresh(db_post)
+
+        return {
+            "success": True,
+            "post": {
+                "id": db_post.id,
+                "content": db_post.content,
+                "platform": db_post.platform,
+                "aiModel": db_post.ai_model,
+                "topic": db_post.topic
+            }
+        }
+
     except Exception as e:
-        logger.error(f"Error generating logo: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Erreur lors de la génération: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la génération: {str(e)}")
+
+
+@router.get("/history", response_model=HistoryResponse)
+async def get_history(
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    try:
+        posts = db.query(Post).filter(Post.user_id == current_user.id).order_by(Post.created_at.desc()).offset(offset).limit(limit).all()
+        total = db.query(Post).filter(Post.user_id == current_user.id).count()
+
+        return {
+            "success": True,
+            "posts": posts,
+            "pagination": {
+                "total": total,
+                "limit": limit,
+                "offset": offset
+            }
+        }
+    except Exception as e:
+        logger.error(f"Erreur récupération historique: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération de l'historique")
+
+
+@router.delete("/history/{post_id}")
+async def delete_post(
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    try:
+        post = db.query(Post).filter(Post.id == post_id, Post.user_id == current_user.id).first()
+        if not post:
+            raise HTTPException(status_code=404, detail="Post non trouvé")
+
+        db.delete(post)
+        db.commit()
+        return {"success": True, "message": "Post supprimé avec succès"}
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Erreur suppression: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur serveur")
+
+
+@router.get("/accounts")
+async def get_accounts(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    try:
+        accounts = db.query(SocialAccount).filter(SocialAccount.user_id == current_user.id).all()
+        # Ensure we don't leak access tokens to the frontend
+        safe_accounts = [
+            {
+                "id": acc.id,
+                "platform": acc.platform,
+                "expiresAt": acc.expires_at.isoformat() if acc.expires_at else None,
+                "isValid": acc.expires_at > datetime.now() if acc.expires_at else True
+            }
+            for acc in accounts
+        ]
+        return {
+            "success": True,
+            "accounts": safe_accounts
+        }
+    except Exception as e:
+        logger.error(f"Erreur récupération comptes sociaux: {str(e)}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération des comptes")
+
+
+@router.post("/publish/{platform}")
+async def publish_post(
+    platform: str,
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    try:
+        post = db.query(Post).filter(Post.id == post_id, Post.user_id == current_user.id).first()
+        if not post:
+            raise HTTPException(status_code=404, detail="Post non trouvé")
+
+        account = db.query(SocialAccount).filter(
+            SocialAccount.user_id == current_user.id,
+            SocialAccount.platform == platform
+        ).first()
+
+        if not account:
+            raise HTTPException(status_code=400, detail=f"Compte {platform} non connecté")
+
+        if account.expires_at and account.expires_at <= datetime.now():
+            raise HTTPException(status_code=400, detail=f"Token {platform} expiré. Veuillez vous reconnecter.")
+
+        # ==========================================
+        # TODO: Implement actual API calls to social platforms here
+        # (LinkedIn UGC Posts API, Facebook Graph API, Instagram Graph API)
+        # using the account.access_token and post.content
+        # ==========================================
+        
+        # Simulated success for now since OAuth integration isn't fully set up yet
+        url = f"https://www.{platform}.com/post/simulated-{post.id}"
+
+        if platform == "linkedin":
+            post.published_to_linkedin = True
+            post.linkedin_post_url = url
+        elif platform == "facebook":
+            post.published_to_facebook = True
+            post.facebook_post_url = url
+        elif platform == "instagram":
+            post.published_to_instagram = True
+            post.instagram_post_url = url
+
+        db.commit()
+
+        return {
+            "success": True,
+            "message": f"Post publié sur {platform} avec succès",
+            "url": url
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Erreur lors de la publication sur {platform}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la publication: {str(e)}")

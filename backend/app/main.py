@@ -63,6 +63,7 @@ from fastapi import Depends
 from app.database import engine
 from app.models.user import Base
 from app.models.conges import Conge
+from app.models.communication import Post, SocialAccount
 from app.models.settings import SystemSettings
 
 # Configuration du logging

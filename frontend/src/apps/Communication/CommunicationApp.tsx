@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { MessageSquare, Layout, Paintbrush, ArrowLeft, Settings } from 'lucide-react';
+import { MessageSquare, Layout, Paintbrush, ArrowLeft } from 'lucide-react';
 import { LogoCreator } from './LogoCreator';
 
 const CommunicationDashboard: React.FC = () => {
@@ -58,73 +58,62 @@ const CommunicationDashboard: React.FC = () => {
     );
 };
 
-const AutopostIntegration: React.FC = () => {
-    // Permet à l'utilisateur de configurer l'URL locale de son instance Autopost
-    const [autopostUrl, setAutopostUrl] = useState(() => {
-        return localStorage.getItem('autopost_iframe_url') || 'http://localhost:5174';
-    });
-    const [isEditingUrl, setIsEditingUrl] = useState(false);
-    const [tempUrl, setTempUrl] = useState(autopostUrl);
+import { Generator } from './Generator';
+import { History } from './History';
+import { SocialAccounts } from './SocialAccounts';
+import { Link, Navigate } from 'react-router-dom';
 
-    const saveUrl = () => {
-        setAutopostUrl(tempUrl);
-        localStorage.setItem('autopost_iframe_url', tempUrl);
-        setIsEditingUrl(false);
-    };
+const AutopostIntegration: React.FC = () => {
+    const location = useLocation();
 
     return (
-        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
-            {/* Toolbar for Iframe Settings */}
-            <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between shadow-sm z-10">
-                <div className="flex items-center gap-3">
-                    <Layout className="w-5 h-5 text-blue-500" />
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Autopost (Réseaux Sociaux)</h2>
-                </div>
+        <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 overflow-y-auto">
+            <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 shadow-sm sticky top-0 z-10">
+                <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <Layout className="w-5 h-5 text-blue-500" />
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Réseaux Sociaux (Autopost)</h2>
+                    </div>
 
-                <div className="flex items-center gap-3">
-                    {isEditingUrl ? (
-                        <div className="flex items-center gap-2">
-                            <input
-                                type="url"
-                                value={tempUrl}
-                                onChange={(e) => setTempUrl(e.target.value)}
-                                className="border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-sm dark:bg-gray-700 dark:text-white"
-                                placeholder="http://localhost:5174"
-                            />
-                            <button onClick={saveUrl} className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded">Enregistrer</button>
-                            <button onClick={() => setIsEditingUrl(false)} className="text-sm bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded">Annuler</button>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => setIsEditingUrl(true)}
-                            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 px-3 py-1.5 rounded-md transition-colors"
-                            title="Modifier l'URL source de l'intégration"
+                    <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                        <Link
+                            to="/communication/reseaux-sociaux/generateur"
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${location.pathname.includes('/generateur')
+                                ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                                }`}
                         >
-                            <Settings className="w-4 h-4" />
-                            <span className="hidden sm:inline">URL Source: {autopostUrl}</span>
-                        </button>
-                    )}
+                            Générateur IA
+                        </Link>
+                        <Link
+                            to="/communication/reseaux-sociaux/historique"
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${location.pathname.includes('/historique')
+                                ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                                }`}
+                        >
+                            Historique
+                        </Link>
+                        <Link
+                            to="/communication/reseaux-sociaux/comptes"
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${location.pathname.includes('/comptes')
+                                ? 'bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm'
+                                : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                                }`}
+                        >
+                            Comptes Sociaux
+                        </Link>
+                    </div>
                 </div>
             </div>
 
-            {/* IFrame Container */}
-            <div className="flex-grow relative bg-gray-100 dark:bg-gray-800">
-                {!autopostUrl ? (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="text-center p-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg">
-                            <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-white">URL Source manquante</h3>
-                            <p className="text-gray-500 mt-2">Veuillez configurer l'URL de votre instance Autopost en haut à droite.</p>
-                        </div>
-                    </div>
-                ) : (
-                    <iframe
-                        src={autopostUrl}
-                        className="w-full h-full border-0 absolute inset-0"
-                        title="Autopost Integration"
-                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-                    />
-                )}
+            <div className="flex-grow p-6">
+                <Routes>
+                    <Route path="/" element={<Navigate to="generateur" replace />} />
+                    <Route path="generateur" element={<Generator />} />
+                    <Route path="historique" element={<History />} />
+                    <Route path="comptes" element={<SocialAccounts />} />
+                </Routes>
             </div>
         </div>
     );
