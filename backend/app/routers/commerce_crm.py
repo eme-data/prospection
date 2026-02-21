@@ -100,7 +100,7 @@ async def import_catalogue(
                     code=c_data["code"],
                     name=c_data["name_fr"],
                     unit=c_data["unit"],
-                    labor_cost=0, margin=0, overhead=0, material_cost=0, total_price=0
+                    margin=0, overhead=0, total_price=0
                 )
                 db.add(new_comp)
 
