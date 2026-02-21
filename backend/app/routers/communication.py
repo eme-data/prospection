@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from app.database import getattr, get_db
+from app.database import get_db
 from app.auth import get_current_active_user
 from app.models.user import User
 from app.models.communication import Post, SocialAccount
