@@ -1,22 +1,31 @@
 import React, { useState } from 'react';
-import { Loader2, AlertCircle, FileSearch, Upload } from 'lucide-react';
+import { Loader2, AlertCircle, FileSearch, Upload, X } from 'lucide-react';
 import { analyzeQuotes } from '../../../api/commerce';
 
 export const AnalyseDevis: React.FC = () => {
-    const [files, setFiles] = useState<File[]>([]);
+    // We will keep files in a fixed-size array corresponding to specific slots
+    const [fileSlots, setFileSlots] = useState<(File | null)[]>([null, null, null]);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<any>(null);
     const [error, setError] = useState<string | null>(null);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const newFiles = Array.from(e.target.files);
-            setFiles(prev => [...prev, ...newFiles]);
+    const handleFileChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files.length > 0) {
+            const newFiles = [...fileSlots];
+            newFiles[index] = e.target.files[0];
+            setFileSlots(newFiles);
         }
     };
 
+    const removeFile = (index: number) => {
+        const newFiles = [...fileSlots];
+        newFiles[index] = null;
+        setFileSlots(newFiles);
+    };
+
     const handleAnalyze = async () => {
-        if (files.length === 0) {
+        const validFiles = fileSlots.filter(f => f !== null) as File[];
+        if (validFiles.length === 0) {
             setError("Veuillez sélectionner au moins un devis.");
             return;
         }
@@ -26,7 +35,7 @@ export const AnalyseDevis: React.FC = () => {
         setResult(null);
 
         try {
-            const data = await analyzeQuotes(files);
+            const data = await analyzeQuotes(validFiles);
             setResult(data.analysis);
         } catch (err: any) {
             setError(err.message || 'Erreur inconnue.');
@@ -34,6 +43,8 @@ export const AnalyseDevis: React.FC = () => {
             setLoading(false);
         }
     };
+
+    const hasFiles = fileSlots.some(f => f !== null);
 
     return (
         <div className="max-w-5xl mx-auto px-4 py-8">
@@ -44,7 +55,7 @@ export const AnalyseDevis: React.FC = () => {
                 </div>
 
                 <p className="text-gray-600 dark:text-gray-400 mb-8">
-                    Déposez vos devis (PDF, images) pour les analyser et les comparer automatiquement via l'IA.
+                    Déposez vos devis (PDF, images) dans les emplacements ci-dessous pour les analyser et les comparer automatiquement via l'IA.
                 </p>
 
                 {error && (
@@ -54,53 +65,64 @@ export const AnalyseDevis: React.FC = () => {
                     </div>
                 )}
 
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                    <Upload className="mx-auto h-12 w-12 text-gray-400" />
-                    <div className="mt-4 flex justify-center text-sm leading-6 text-gray-600 dark:text-gray-400">
-                        <label className="relative cursor-pointer rounded-md bg-white dark:bg-gray-800 font-semibold text-orange-600 dark:text-orange-400 focus-within:outline-none focus-within:ring-2 focus-within:ring-orange-600 focus-within:ring-offset-2 hover:text-orange-500">
-                            <span>Sélectionner des fichiers</span>
-                            <input type="file" multiple className="sr-only" onChange={handleFileChange} accept=".pdf,image/*" />
-                        </label>
-                        <p className="pl-1">ou glissez-déposez ici</p>
-                    </div>
-                    <p className="text-xs leading-5 text-gray-500 dark:text-gray-500 mt-2">PDF, PNG, JPG jusqu'à 10MB</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    {fileSlots.map((file, index) => (
+                        <div key={index} className="relative h-48 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl flex flex-col items-center justify-center transition hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                            {file ? (
+                                <div className="w-full h-full p-4 flex flex-col items-center justify-center relative">
+                                    <button
+                                        onClick={() => removeFile(index)}
+                                        className="absolute top-2 right-2 p-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors"
+                                        title="Retirer ce devis"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                    <div className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 font-semibold px-3 py-1 rounded text-sm mb-3">
+                                        Devis {index + 1}
+                                    </div>
+                                    <div className="text-center w-full px-2">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate" title={file.name}>
+                                            {file.name}
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="w-full h-full p-4 flex flex-col items-center justify-center text-center">
+                                    <Upload className="h-8 w-8 text-gray-400 mb-3" />
+                                    <div className="bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 font-medium px-3 py-1 rounded text-xs mb-3">
+                                        Devis {index + 1}
+                                    </div>
+                                    <label className="cursor-pointer text-sm font-medium text-orange-600 hover:text-orange-500 focus:outline-none">
+                                        <span>Sélectionner le fichier</span>
+                                        <input
+                                            type="file"
+                                            className="sr-only"
+                                            onChange={(e) => handleFileChange(index, e)}
+                                            accept=".pdf,image/*"
+                                        />
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+                    ))}
                 </div>
 
-                {files.length > 0 && (
-                    <div className="mt-6">
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Devis analysés ({files.length}) :</h4>
-                        <ul className="space-y-2">
-                            {files.map((f, i) => (
-                                <li key={i} className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600">
-                                    <div className="flex items-center gap-3 overflow-hidden">
-                                        <div className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 font-semibold px-2.5 py-1 rounded text-xs whitespace-nowrap">
-                                            Devis {i + 1}
-                                        </div>
-                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{f.name}</span>
-                                    </div>
-                                    <button
-                                        onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
-                                        className="text-red-500 hover:text-red-700 text-sm font-medium ml-4 shrink-0 transition"
-                                    >
-                                        Retirer
-                                    </button>
-                                </li>
-                            ))}
-                        </ul>
-
-                        <div className="mt-8 flex justify-end">
-                            <button
-                                onClick={handleAnalyze}
-                                disabled={loading}
-                                className="inline-flex items-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {loading ? (
-                                    <><Loader2 className="w-5 h-5 animate-spin" /> Analyse IA en cours...</>
-                                ) : (
-                                    <><FileSearch className="w-5 h-5" /> Analyser les devis avec Gemini</>
-                                )}
-                            </button>
-                        </div>
+                {hasFiles && (
+                    <div className="mt-8 flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <button
+                            onClick={handleAnalyze}
+                            disabled={loading}
+                            className="inline-flex items-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {loading ? (
+                                <><Loader2 className="w-5 h-5 animate-spin" /> Analyse IA en cours...</>
+                            ) : (
+                                <><FileSearch className="w-5 h-5" /> Lancer l'analyse compartive</>
+                            )}
+                        </button>
                     </div>
                 )}
 
