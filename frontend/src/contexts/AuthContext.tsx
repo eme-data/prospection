@@ -8,8 +8,7 @@ export interface User {
     role?: string;
     modules?: {
         faisabilite: boolean;
-        crm: boolean;
-        travaux?: boolean;
+        commerce?: boolean;
         sav?: boolean;
         conges?: boolean;
         communication?: boolean;

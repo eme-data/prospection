@@ -97,8 +97,7 @@ async def lifespan(app: FastAPI):
             if "module_faisabilite" not in columns:
                 logger.info("Migrating users table: adding module columns...")
                 conn.execute(text("ALTER TABLE users ADD COLUMN module_faisabilite BOOLEAN DEFAULT 1"))
-                conn.execute(text("ALTER TABLE users ADD COLUMN module_crm BOOLEAN DEFAULT 0"))
-                conn.execute(text("ALTER TABLE users ADD COLUMN module_travaux BOOLEAN DEFAULT 0"))
+                conn.execute(text("ALTER TABLE users ADD COLUMN module_commerce BOOLEAN DEFAULT 0"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN module_sav BOOLEAN DEFAULT 0"))
                 conn.execute(text("ALTER TABLE users ADD COLUMN module_conges BOOLEAN DEFAULT 0"))
                 conn.commit()

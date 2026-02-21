@@ -7,8 +7,7 @@ export interface UserCreatePayload {
     full_name: string;
     role: string;
     module_faisabilite: boolean;
-    module_crm: boolean;
-    module_travaux: boolean;
+    module_commerce: boolean;
     module_sav: boolean;
     module_conges: boolean;
     module_communication?: boolean;

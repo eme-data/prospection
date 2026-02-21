@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Map, Users, HardHat, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare } from 'lucide-react';
+import { Map, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare, ShoppingBag } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Moon, Sun } from 'lucide-react';
 
@@ -26,15 +26,6 @@ export const PortalPage: React.FC = () => {
             active: user?.modules?.faisabilite ?? false
         },
         {
-            id: 'crm',
-            name: 'CRM',
-            description: 'Gestion des prospects, propriétaires et suivis.',
-            icon: <Users className="w-12 h-12 mb-4 text-green-500" />,
-            color: 'bg-green-50 hover:bg-green-100 border-green-200 dark:bg-green-900/20 dark:hover:bg-green-900/40 dark:border-green-800',
-            path: '/crm',
-            active: user?.modules?.crm ?? false
-        },
-        {
             id: 'communication',
             name: 'Communication',
             description: 'Gérer les réseaux sociaux et la création de contenus',
@@ -44,13 +35,13 @@ export const PortalPage: React.FC = () => {
             active: user?.modules?.communication ?? false
         },
         {
-            id: 'travaux',
-            name: 'Travaux',
-            description: 'Suivi de chantier et avancement des projets.',
-            icon: <HardHat className="w-12 h-12 mb-4 text-yellow-500" />,
-            color: 'bg-yellow-50 hover:bg-yellow-100 border-yellow-200 dark:bg-yellow-900/20 dark:hover:bg-yellow-900/40 dark:border-yellow-800',
-            path: '/travaux',
-            active: user?.modules?.travaux ?? false
+            id: 'commerce',
+            name: 'Commerce',
+            description: 'Gestion des ventes et suivis commerciaux.',
+            icon: <ShoppingBag className="w-12 h-12 mb-4 text-orange-500" />,
+            color: 'bg-orange-50 hover:bg-orange-100 border-orange-200 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 dark:border-orange-800',
+            path: '/commerce',
+            active: user?.modules?.commerce ?? false
         },
         {
             id: 'sav',
@@ -79,7 +70,7 @@ export const PortalPage: React.FC = () => {
                     <div className="flex justify-between items-center h-16">
                         <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
                             <Layout size={28} />
-                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Portail MDO Services</h1>
+                            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Portail LOFTWOOD</h1>
                         </div>
                         <div className="flex items-center gap-4">
                             {user?.role === 'admin' && (

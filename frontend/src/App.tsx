@@ -10,11 +10,12 @@ import { AdminUsersPage } from './components/AdminUsersPage';
 import { AdminSettings } from './components/AdminSettings';
 import { CongesApp } from './apps/Conges/CongesApp';
 import { CommunicationApp } from './apps/Communication/CommunicationApp';
+import { CommerceApp } from './apps/Commerce/CommerceApp';
 
 const queryClient = new QueryClient();
 
 // Composant pour protéger les routes
-const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'faisabilite' | 'crm' | 'travaux' | 'sav' | 'conges' | 'communication' }> = ({ children, requiredModule }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'faisabilite' | 'commerce' | 'sav' | 'conges' | 'communication' }> = ({ children, requiredModule }) => {
     const { isAuthenticated, user } = useAuth();
 
     if (!isAuthenticated) {
@@ -102,6 +103,15 @@ function App() {
                                 element={
                                     <ProtectedRoute requiredModule="communication">
                                         <CommunicationApp />
+                                    </ProtectedRoute>
+                                }
+                            />
+
+                            <Route
+                                path="/commerce/*"
+                                element={
+                                    <ProtectedRoute requiredModule="commerce">
+                                        <CommerceApp />
                                     </ProtectedRoute>
                                 }
                             />

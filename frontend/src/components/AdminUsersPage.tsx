@@ -14,8 +14,7 @@ const initialFormData: UserFormData = {
     full_name: '',
     role: 'user',
     module_faisabilite: true,
-    module_crm: false,
-    module_travaux: false,
+    module_commerce: false,
     module_sav: false,
     module_conges: false,
     module_communication: false,
@@ -75,8 +74,7 @@ export const AdminUsersPage: React.FC = () => {
                 full_name: user.full_name || '',
                 role: user.role || 'user',
                 module_faisabilite: user.modules?.faisabilite ?? true,
-                module_crm: user.modules?.crm ?? false,
-                module_travaux: user.modules?.travaux ?? false,
+                module_commerce: user.modules?.commerce ?? false,
                 module_sav: user.modules?.sav ?? false,
                 module_conges: user.modules?.conges ?? false,
                 module_communication: user.modules?.communication ?? false,
@@ -121,7 +119,7 @@ export const AdminUsersPage: React.FC = () => {
 
     if (isLoading) return <div className="p-8 text-center text-gray-500">Chargement des utilisateurs...</div>;
 
-    const moduleKeys = ['faisabilite', 'crm', 'travaux', 'sav', 'conges', 'communication'] as const;
+    const moduleKeys = ['faisabilite', 'commerce', 'sav', 'conges', 'communication'] as const;
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

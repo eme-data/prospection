@@ -18,8 +18,7 @@ class UserCreate(BaseModel):
     full_name: str
     role: str = "user"
     module_faisabilite: bool = True
-    module_crm: bool = False
-    module_travaux: bool = False
+    module_commerce: bool = False
     module_sav: bool = False
     module_conges: bool = False
     module_communication: bool = False
@@ -32,8 +31,7 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     role: Optional[str] = None
     module_faisabilite: Optional[bool] = None
-    module_crm: Optional[bool] = None
-    module_travaux: Optional[bool] = None
+    module_commerce: Optional[bool] = None
     module_sav: Optional[bool] = None
     module_conges: Optional[bool] = None
     module_communication: Optional[bool] = None
@@ -72,8 +70,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             "role": user.role,
             "modules": {
                 "faisabilite": user.module_faisabilite,
-                "crm": user.module_crm,
-                "travaux": user.module_travaux,
+                "commerce": user.module_commerce,
                 "sav": user.module_sav,
                 "conges": user.module_conges,
                 "communication": user.module_communication
@@ -100,8 +97,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         full_name=user.full_name,
         role="admin" if is_first_user else user.role,
         module_faisabilite=user.module_faisabilite,
-        module_crm=user.module_crm,
-        module_travaux=user.module_travaux,
+        module_commerce=user.module_commerce,
         module_sav=user.module_sav,
         module_conges=user.module_conges,
         module_communication=user.module_communication,
@@ -118,8 +114,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         "role": db_user.role,
         "modules": {
             "faisabilite": db_user.module_faisabilite,
-            "crm": db_user.module_crm,
-            "travaux": db_user.module_travaux,
+            "commerce": db_user.module_commerce,
             "sav": db_user.module_sav,
             "conges": db_user.module_conges,
             "communication": db_user.module_communication
@@ -137,8 +132,7 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
         "role": current_user.role,
         "modules": {
             "faisabilite": current_user.module_faisabilite,
-            "crm": current_user.module_crm,
-            "travaux": current_user.module_travaux,
+            "commerce": current_user.module_commerce,
             "sav": current_user.module_sav,
             "conges": current_user.module_conges,
             "communication": current_user.module_communication
@@ -162,8 +156,7 @@ async def get_all_users(current_user: User = Depends(get_current_active_user), d
             "is_active": u.is_active,
             "modules": {
                 "faisabilite": u.module_faisabilite,
-                "crm": u.module_crm,
-                "travaux": u.module_travaux,
+                "commerce": u.module_commerce,
                 "sav": u.module_sav,
                 "conges": u.module_conges
             },
