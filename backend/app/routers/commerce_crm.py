@@ -59,15 +59,13 @@ async def import_catalogue(
             if existing:
                 existing.name_fr = m_data["name_fr"]
                 existing.unit = m_data["unit"]
-                existing.internal_price = m_data["internal_price"]
-                existing.price_eur = m_data["internal_price"] # Assuming internal equals eur for now
+                existing.price_eur = m_data["internal_price"] 
             else:
                 new_mat = MaterialModel(
                     id=generate_uuid(),
                     code=m_data["code"],
                     name_fr=m_data["name_fr"],
                     unit=m_data["unit"],
-                    internal_price=m_data["internal_price"],
                     price_eur=m_data["internal_price"]
                 )
                 db.add(new_mat)
