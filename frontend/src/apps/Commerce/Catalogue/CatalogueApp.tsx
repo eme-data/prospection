@@ -73,7 +73,7 @@ export const CatalogueApp: React.FC = () => {
                         </Link>
                         <div className="w-px bg-gray-300 dark:bg-gray-600 mx-1"></div>
                         <Link
-                            to="/commerce/quotes"
+                            to="/commerce/catalogue/quotes"
                             className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${location.pathname.includes('/quotes')
                                 ? 'bg-indigo-600 text-white shadow-sm'
                                 : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900 hover:text-indigo-700 dark:hover:text-indigo-300'

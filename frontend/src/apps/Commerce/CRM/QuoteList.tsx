@@ -47,7 +47,7 @@ export const QuoteList: React.FC = () => {
                     </p>
                 </div>
                 <Link
-                    to="/commerce/quotes/new"
+                    to="/commerce/catalogue/quotes/new"
                     className="inline-flex items-center gap-2 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700"
                 >
                     <Plus className="w-4 h-4" />

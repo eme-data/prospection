@@ -378,7 +378,7 @@ export function FaisabiliteApp() {
           <Home size={20} />
         </button>
         <h1 className="text-xl font-bold text-gray-800 dark:text-white whitespace-nowrap">
-          Prospection Foncière
+          LOFTWOOD
         </h1>
         <SearchBar onSelectAddress={handleSelectAddress} />
 

@@ -24,7 +24,7 @@ export const QuoteBuilder: React.FC = () => {
         mutationFn: createQuote,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['quotes'] });
-            navigate('/commerce/quotes');
+            navigate('/commerce/catalogue/quotes');
         }
     });
 
@@ -98,7 +98,7 @@ export const QuoteBuilder: React.FC = () => {
         <div className="max-w-7xl mx-auto pb-12">
             <div className="flex items-center gap-4 mb-6">
                 <button
-                    onClick={() => navigate('/commerce/quotes')}
+                    onClick={() => navigate('/commerce/catalogue/quotes')}
                     className="p-2 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition"
                     title="Retour aux devis"
                 >
