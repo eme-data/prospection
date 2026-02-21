@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUsers, createUser, updateUser, deleteUser, UserCreatePayload, UserUpdatePayload } from '../api/users';
 import { User as AuthUser } from '../contexts/AuthContext';
-import { Settings, Plus, Edit, Trash2 } from 'lucide-react';
+import { Settings, Plus, Edit, Trash2, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface UserFormData extends UserCreatePayload {
     id?: string;
@@ -23,6 +24,7 @@ const initialFormData: UserFormData = {
 };
 
 export const AdminUsersPage: React.FC = () => {
+    const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formData, setFormData] = useState<UserFormData>(initialFormData);
@@ -124,14 +126,23 @@ export const AdminUsersPage: React.FC = () => {
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="sm:flex sm:items-center">
-                <div className="sm:flex-auto">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Settings className="text-indigo-600" />
-                        Administration des Utilisateurs
-                    </h1>
-                    <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
-                        Gérez les comptes de l'équipe et leurs accès aux différents modules.
-                    </p>
+                <div className="sm:flex-auto flex items-center gap-4">
+                    <button
+                        onClick={() => navigate('/')}
+                        className="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        title="Retour au portail"
+                    >
+                        <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                            <Settings className="text-indigo-600" />
+                            Administration des Utilisateurs
+                        </h1>
+                        <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                            Gérez les comptes de l'équipe et leurs accès aux différents modules.
+                        </p>
+                    </div>
                 </div>
                 <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
                     <button

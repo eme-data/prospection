@@ -57,18 +57,6 @@ class HistoryResponse(BaseModel):
 # AI Generation Setup (Gemini & Groq)
 # ---------------------------------------------------------
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-
-if GROQ_API_KEY:
-    groq_client = Groq(api_key=GROQ_API_KEY)
-else:
-    groq_client = None
-
-
 def build_prompt(params: GenerateRequest) -> str:
     length_guide = {
         "short": "100-150 mots",
@@ -134,15 +122,27 @@ async def generate_post(
         content = ""
 
         if request.ai_model == "gemini":
-            if not GEMINI_API_KEY:
+            from app.models.settings import SystemSettings
+            gemini_setting = db.query(SystemSettings).filter_by(key="gemini_api_key").first()
+            api_key = gemini_setting.value if gemini_setting and gemini_setting.value else os.getenv("GEMINI_API_KEY")
+            
+            if not api_key:
                 raise HTTPException(status_code=500, detail="Clé API Gemini non configurée")
+            
+            genai.configure(api_key=api_key)
             model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt)
             content = response.text
 
         elif request.ai_model == "groq":
-            if not groq_client:
+            from app.models.settings import SystemSettings
+            groq_setting = db.query(SystemSettings).filter_by(key="groq_api_key").first()
+            api_key = groq_setting.value if groq_setting and groq_setting.value else os.getenv("GROQ_API_KEY")
+
+            if not api_key:
                 raise HTTPException(status_code=500, detail="Clé API Groq non configurée")
+                
+            groq_client = Groq(api_key=api_key)
             chat_completion = groq_client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
                 model="llama-3.3-70b-versatile",
