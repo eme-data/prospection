@@ -163,7 +163,7 @@ export const CommunicationApp: React.FC = () => {
             <main className="flex-grow flex flex-col relative h-[calc(100vh-64px)] overflow-auto">
                 <Routes>
                     <Route path="/" element={<CommunicationDashboard />} />
-                    <Route path="/reseaux-sociaux" element={<AutopostIntegration />} />
+                    <Route path="/reseaux-sociaux/*" element={<AutopostIntegration />} />
                     <Route path="/creation-logo" element={<div className="py-8"><LogoCreator /></div>} />
                 </Routes>
             </main>
