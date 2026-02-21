@@ -68,14 +68,19 @@ export const AnalyseDevis: React.FC = () => {
 
                 {files.length > 0 && (
                     <div className="mt-6">
-                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Fichiers sélectionnés ({files.length}) :</h4>
+                        <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Devis analysés ({files.length}) :</h4>
                         <ul className="space-y-2">
                             {files.map((f, i) => (
-                                <li key={i} className="flex items-center justify-between py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{f.name}</span>
+                                <li key={i} className="flex items-center justify-between py-3 px-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-100 dark:border-gray-600">
+                                    <div className="flex items-center gap-3 overflow-hidden">
+                                        <div className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 font-semibold px-2.5 py-1 rounded text-xs whitespace-nowrap">
+                                            Devis {i + 1}
+                                        </div>
+                                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{f.name}</span>
+                                    </div>
                                     <button
                                         onClick={() => setFiles(files.filter((_, idx) => idx !== i))}
-                                        className="text-red-500 hover:text-red-700 text-sm font-medium"
+                                        className="text-red-500 hover:text-red-700 text-sm font-medium ml-4 shrink-0 transition"
                                     >
                                         Retirer
                                     </button>
