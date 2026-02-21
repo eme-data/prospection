@@ -3,7 +3,8 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { MyLeaves } from './MyLeaves';
 import { TeamLeaves } from './TeamLeaves';
-import { Calendar, Users, LogOut } from 'lucide-react';
+import { Planning } from './Planning';
+import { Calendar, Users, LogOut, CalendarDays } from 'lucide-react';
 
 export const CongesApp: React.FC = () => {
     const { logout, user } = useAuth();
@@ -31,6 +32,13 @@ export const CongesApp: React.FC = () => {
                                 >
                                     <Calendar className="mr-2 h-4 w-4" />
                                     Mes Demandes
+                                </Link>
+                                <Link
+                                    to="/conges/planning"
+                                    className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${location.pathname.includes('/planning') ? 'border-indigo-500 text-gray-900 dark:text-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'}`}
+                                >
+                                    <CalendarDays className="mr-2 h-4 w-4" />
+                                    Planning
                                 </Link>
                                 <Link
                                     to="/conges/equipe"
@@ -68,6 +76,7 @@ export const CongesApp: React.FC = () => {
                 <Routes>
                     <Route path="/" element={<MyLeaves />} />
                     <Route path="/mes-demandes" element={<MyLeaves />} />
+                    <Route path="/planning" element={<Planning />} />
                     <Route path="/equipe" element={<TeamLeaves />} />
                 </Routes>
             </main>
