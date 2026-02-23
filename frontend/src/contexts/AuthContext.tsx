@@ -12,6 +12,7 @@ export interface User {
         sav?: boolean;
         conges?: boolean;
         communication?: boolean;
+        autobot?: boolean;
     };
     solde_conges?: number;
     manager_id?: string;

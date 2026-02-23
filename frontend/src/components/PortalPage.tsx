@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Map, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare, ShoppingBag } from 'lucide-react';
+import { Map, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare, ShoppingBag, Bot } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Moon, Sun } from 'lucide-react';
 
@@ -60,6 +60,15 @@ export const PortalPage: React.FC = () => {
             color: 'bg-teal-50 hover:bg-teal-100 border-teal-200 dark:bg-teal-900/20 dark:hover:bg-teal-900/40 dark:border-teal-800',
             path: '/conges',
             active: user?.modules?.conges ?? false
+        },
+        {
+            id: 'autobot',
+            name: 'Autobot',
+            description: 'Assistant intelligent et automatisations.',
+            icon: <Bot className="w-12 h-12 mb-4 text-rose-500" />,
+            color: 'bg-rose-50 hover:bg-rose-100 border-rose-200 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 dark:border-rose-800',
+            path: '/autobot',
+            active: user?.modules?.autobot ?? true // true defaut pour le voir
         }
     ];
 
