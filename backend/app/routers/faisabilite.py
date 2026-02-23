@@ -35,12 +35,14 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
     """
     try:
         # 1. Obtenir le top 10 via search
+        # 1. Obtenir le top 20 via search avec un pré-filtre sur les zones U et AU
         filters = SearchFilters(
             code_insee=code_insee,
             include_score=True,
+            zone_types=["U", "AU"],
             sort_by="score",
             page=1,
-            per_page=10
+            per_page=20
         )
         # Appel interne
         search_result = await search_parcelles(request, filters)
@@ -74,7 +76,17 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
 
         results = await asyncio.gather(*(fetch_report(p) for p in top10_parcelles))
         
-        return [r for r in results if r is not None]
+        # Filtrer uniquement les parcelles dont la conclusion s'avère "Favorable"
+        buildable_results = []
+        for r in results:
+            if r is not None and r.get("report"):
+                conclusion = r["report"].get("synthese", {}).get("conclusion", "")
+                if conclusion == "Favorable":
+                    buildable_results.append(r)
+            if len(buildable_results) == 10:
+                break
+                
+        return buildable_results
 
     except Exception as e:
         logger.error(f"Erreur top 10 faisabilité {code_insee}: {e}")

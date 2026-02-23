@@ -29,7 +29,7 @@ import { ReportGenerator } from './ReportGenerator'
 import { RappelsPanel } from './RappelsPanel'
 import { FeasibilityReport } from './FeasibilityReport'
 import { ProspectionPanel } from './ProspectionPanel'
-import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions, searchParcelles, getFaisabiliteReport } from '../api'
+import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions, searchParcelles, getFaisabiliteReport, getCommuneZonagePLU } from '../api'
 import type {
   MapViewState,
   LayerType,
@@ -173,6 +173,23 @@ export function FaisabiliteApp() {
 
   // Adapter pour MapView (qui attend parcelles)
   const parcelles = parcellesData
+
+  // Récupération des zones PLU
+  const { data: pluZonesData } = useQuery({
+    queryKey: ['pluZones', currentCodeInsee],
+    queryFn: async () => {
+      if (!currentCodeInsee) return null
+      const result = await getCommuneZonagePLU(currentCodeInsee)
+
+      // Convertir en FeatureCollection pour MapLibre
+      return {
+        type: 'FeatureCollection',
+        features: result.zones
+      } as GeoJSONFeatureCollection<any>
+    },
+    enabled: !!currentCodeInsee && activeLayers.has('plu') && viewState.zoom >= 13,
+    staleTime: 60 * 60 * 1000,
+  })
 
   // Récupération des transactions DVF
   const { data: rawTransactions } = useQuery({
@@ -551,6 +568,7 @@ export function FaisabiliteApp() {
           activeLayers={activeLayers}
           parcelles={parcelles ?? null}
           transactions={transactions}
+          pluZones={pluZonesData ?? null}
           onSelectParcelle={setSelectedParcelle}
           onSelectTransaction={setSelectedTransaction}
         />
@@ -707,8 +725,15 @@ export function FaisabiliteApp() {
 
         {/* Zoom indicator */}
         {viewState.zoom < 15 && activeLayers.has('parcelles') && (
-          <div className="absolute bottom-4 right-4 z-10 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-4 py-2 rounded-lg shadow-lg text-sm">
+          <div className="absolute bottom-4 right-4 mb-10 z-10 bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-4 py-2 rounded-lg shadow-lg text-sm">
             Zoomez pour voir les parcelles cadastrales (zoom {viewState.zoom.toFixed(0)}/15)
+          </div>
+        )}
+
+        {/* PLU Zoom indicator */}
+        {viewState.zoom < 13 && activeLayers.has('plu') && (
+          <div className="absolute bottom-4 right-4 mb-20 z-10 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-4 py-2 rounded-lg shadow-lg text-sm">
+            Zoomez pour voir le zonage PLU (zoom {viewState.zoom.toFixed(0)}/13)
           </div>
         )}
 

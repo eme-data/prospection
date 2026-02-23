@@ -80,7 +80,7 @@ export interface MapViewState {
   zoom: number
 }
 
-export type LayerType = 'parcelles' | 'dvf' | 'satellite'
+export type LayerType = 'parcelles' | 'dvf' | 'satellite' | 'plu'
 
 // Nouveaux types pour les fonctionnalités avancées
 

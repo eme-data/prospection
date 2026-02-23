@@ -213,6 +213,10 @@ export async function getZonagePLU(lon: number, lat: number): Promise<ZonageResp
   return fetchJSON<ZonageResponse>(`${API_BASE}/urbanisme/zonage?lon=${lon}&lat=${lat}`)
 }
 
+export async function getCommuneZonagePLU(codeInsee: string): Promise<{ code_insee: string; zones: any[]; count: number }> {
+  return fetchJSON(`${API_BASE}/urbanisme/commune/${codeInsee}/zones`)
+}
+
 export async function getPrescriptionsPLU(lon: number, lat: number): Promise<{
   longitude: number
   latitude: number

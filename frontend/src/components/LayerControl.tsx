@@ -8,6 +8,7 @@ interface LayerControlProps {
 
 const layers: { id: LayerType; label: string; icon: typeof Map }[] = [
   { id: 'parcelles', label: 'Parcelles cadastrales', icon: Home },
+  { id: 'plu', label: 'Zonage PLU', icon: Map },
   { id: 'dvf', label: 'Transactions DVF', icon: TrendingUp },
   { id: 'satellite', label: 'Vue satellite', icon: Map },
 ]

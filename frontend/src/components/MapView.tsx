@@ -48,6 +48,7 @@ interface MapViewProps {
   activeLayers: Set<LayerType>
   parcelles: GeoJSONFeatureCollection<Parcelle> | null
   transactions: GeoJSONFeatureCollection<DVFTransaction> | null
+  pluZones?: GeoJSONFeatureCollection<any> | null
   onSelectParcelle: (parcelle: Parcelle | null) => void
   onSelectTransaction: (transaction: DVFTransaction | null) => void
   inseeLayerConfig?: InseeLayerConfig
@@ -59,6 +60,7 @@ export function MapView({
   activeLayers,
   parcelles,
   transactions,
+  pluZones,
   onSelectParcelle,
   onSelectTransaction,
   inseeLayerConfig,
@@ -208,6 +210,41 @@ export function MapView({
     },
   }
 
+  // Couche des zones PLU
+  const pluFillLayer = {
+    id: 'plu-fill',
+    type: 'fill' as const,
+    paint: {
+      'fill-color': [
+        'match',
+        ['get', 'typezone'],
+        'U', '#ef4444', // Urbain -> Rouge
+        'AU', '#f97316', // A urbaniser -> Orange
+        'A', '#eab308', // Agricole -> Jaune
+        'N', '#22c55e', // Naturel -> Vert
+        '#9ca3af' // Autre -> Gris
+      ] as unknown as string,
+      'fill-opacity': 0.4,
+    },
+  }
+
+  const pluLineLayer = {
+    id: 'plu-line',
+    type: 'line' as const,
+    paint: {
+      'line-color': [
+        'match',
+        ['get', 'typezone'],
+        'U', '#b91c1c',
+        'AU', '#c2410c',
+        'A', '#a16207',
+        'N', '#15803d',
+        '#4b5563'
+      ] as unknown as string,
+      'line-width': 2,
+    },
+  }
+
   return (
     <>
       <MapGL
@@ -219,7 +256,7 @@ export function MapView({
         onMouseLeave={handleMouseLeave}
         mapStyle={mapStyle}
         style={{ width: '100%', height: '100%' }}
-        interactiveLayerIds={['parcelles-fill', 'dvf-points', 'insee-fill']}
+        interactiveLayerIds={['parcelles-fill', 'dvf-points', 'insee-fill', 'plu-fill']}
         cursor={hoveredParcelleId || hoveredInseeCommune ? 'pointer' : 'grab'}
       >
         <NavigationControl position="top-right" />
@@ -243,6 +280,14 @@ export function MapView({
           )
         })()}
 
+        {/* Couche PLU (en dessous des parcelles) */}
+        {activeLayers.has('plu') && pluZones && pluZones.features.length > 0 && (
+          <Source id="plu" type="geojson" data={pluZones}>
+            <Layer {...pluFillLayer} beforeId={activeLayers.has('parcelles') ? 'parcelles-fill' : undefined} />
+            <Layer {...pluLineLayer} beforeId={activeLayers.has('parcelles') ? 'parcelles-fill' : undefined} />
+          </Source>
+        )}
+
         {/* Couche des parcelles cad astrales */}
         {activeLayers.has('parcelles') && parcelles && parcelles.features.length > 0 && (
           <Source id="parcelles" type="geojson" data={parcelles}>
@@ -260,24 +305,28 @@ export function MapView({
       </MapGL>
 
       {/* Légende INSEE */}
-      {inseeLayerConfig?.visible && (
-        <InseeLegend
-          indicator={inseeLayerConfig.indicator}
-          colorScale={inseeLayerConfig.colorScale}
-          min={minValue}
-          max={maxValue}
-          position="bottom-right"
-        />
-      )}
+      {
+        inseeLayerConfig?.visible && (
+          <InseeLegend
+            indicator={inseeLayerConfig.indicator}
+            colorScale={inseeLayerConfig.colorScale}
+            min={minValue}
+            max={maxValue}
+            position="bottom-right"
+          />
+        )
+      }
 
       {/* Tooltip INSEE */}
-      {hoveredInseeCommune && inseeLayerConfig && (
-        <InseeTooltip
-          data={hoveredInseeCommune.data}
-          indicator={inseeLayerConfig.indicator}
-          position={hoveredInseeCommune.position}
-        />
-      )}
+      {
+        hoveredInseeCommune && inseeLayerConfig && (
+          <InseeTooltip
+            data={hoveredInseeCommune.data}
+            indicator={inseeLayerConfig.indicator}
+            position={hoveredInseeCommune.position}
+          />
+        )
+      }
     </>
   )
 }
