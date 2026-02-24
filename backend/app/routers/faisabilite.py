@@ -42,7 +42,7 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
             zone_types=["U", "AU"],
             sort_by="score",
             page=1,
-            per_page=50
+            per_page=100
         )
         # Appel interne
         search_result = await search_parcelles(request, filters)
@@ -81,12 +81,12 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
 
         results = await asyncio.gather(*(fetch_report(p) for p in top10_parcelles))
         
-        # Filtrer uniquement les parcelles dont la conclusion s'avère "Favorable"
+        # Filtrer uniquement les parcelles dont la conclusion s'avère "Favorable" et SDP >= 2000m2
         buildable_results = []
         for r in results:
             if r is not None and r.get("report"):
                 conclusion = r["report"].get("synthese", {}).get("conclusion", "")
-                if conclusion == "Favorable":
+                if conclusion == "Favorable" and r.get("sdp", 0) >= 2000:
                     buildable_results.append(r)
         
         # 3. Trier par SDP décroissant et prendre le Top 10
