@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { FaisabiliteReport } from '../types'
-import { CheckCircle, AlertTriangle, XCircle, Home, Map as MapIcon, Activity, Calculator, TrendingDown, TrendingUp, HelpCircle } from 'lucide-react'
+import { CheckCircle, AlertTriangle, XCircle, Home, Map as MapIcon, Activity, Calculator, TrendingDown, TrendingUp, HelpCircle, ExternalLink } from 'lucide-react'
 
 interface FeasibilityReportProps {
     report: FaisabiliteReport
@@ -138,6 +138,22 @@ export function FeasibilityReport({ report, onClose }: FeasibilityReportProps) {
                                                     </div>
                                                 ))}
                                             </div>
+
+                                            {/* Lien vers Géoportail de l'Urbanisme basé sur les coordonnées du backend */}
+                                            {report.lon && report.lat && (
+                                                <div className="mt-3 flex justify-end">
+                                                    <a
+                                                        href={`https://www.geoportail-urbanisme.gouv.fr/map/#tile=1&lon=${report.lon}&lat=${report.lat}&zoom=19`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-xs font-medium text-blue-600 hover:text-blue-800 flex items-center gap-1 bg-blue-50 px-2 py-1 rounded"
+                                                        title="Ouvrir le GPU à l'emplacement exact de la parcelle"
+                                                    >
+                                                        <ExternalLink className="w-3 h-3" />
+                                                        Consulter sur Géoportail de l'Urbanisme
+                                                    </a>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 

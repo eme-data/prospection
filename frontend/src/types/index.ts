@@ -528,6 +528,8 @@ export interface FaisabiliteReport {
   adresse: string
   surface: number
   sdp?: number
+  lon?: number
+  lat?: number
   zonage: any[]
   risques: {
     libelle: string

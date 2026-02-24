@@ -255,6 +255,8 @@ class FaisabiliteService:
             "adresse": f"{parcelle_props.get('numero', '')} {parcelle_props.get('nom_voie', '')}, {parcelle_props.get('code_postal', '')} {parcelle_props.get('nom_commune', '')}".strip(" ,"),
             "surface": surface_m2,
             "sdp": sdp_estime,
+            "lon": lon,
+            "lat": lat,
             "zonage": [z["properties"] for z in zonage_enrichi],
             "risques": [{"libelle": r.get("libelle_risque_long"), "niveau": r.get("niveau_risque")} for r in risques],
             "is_built": is_built,
