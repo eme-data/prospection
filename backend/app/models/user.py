@@ -23,6 +23,8 @@ class User(Base):
     module_sav = Column(Boolean, default=False)
     module_conges = Column(Boolean, default=False)
     module_communication = Column(Boolean, default=False)
+    module_autobot = Column(Boolean, default=False)
+    module_secondaryBrain = Column(Boolean, default=True)
     
     # Congés et Hiérarchie
     manager_id = Column(String, ForeignKey("users.id"), nullable=True)

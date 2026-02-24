@@ -22,6 +22,8 @@ class UserCreate(BaseModel):
     module_sav: bool = False
     module_conges: bool = False
     module_communication: bool = False
+    module_autobot: bool = False
+    module_secondaryBrain: bool = True
     manager_id: Optional[str] = None
     solde_conges: float = 25.0
 
@@ -35,6 +37,8 @@ class UserUpdate(BaseModel):
     module_sav: Optional[bool] = None
     module_conges: Optional[bool] = None
     module_communication: Optional[bool] = None
+    module_autobot: Optional[bool] = None
+    module_secondaryBrain: Optional[bool] = None
     manager_id: Optional[str] = None
     solde_conges: Optional[float] = None
 
@@ -73,7 +77,9 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
                 "commerce": user.module_commerce,
                 "sav": user.module_sav,
                 "conges": user.module_conges,
-                "communication": user.module_communication
+                "communication": user.module_communication,
+                "autobot": user.module_autobot,
+                "secondaryBrain": user.module_secondaryBrain
             },
             "manager_id": user.manager_id,
             "solde_conges": user.solde_conges
@@ -101,6 +107,8 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         module_sav=user.module_sav,
         module_conges=user.module_conges,
         module_communication=user.module_communication,
+        module_autobot=user.module_autobot,
+        module_secondaryBrain=user.module_secondaryBrain,
         manager_id=user.manager_id,
         solde_conges=user.solde_conges
     )
@@ -117,7 +125,9 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
             "commerce": db_user.module_commerce,
             "sav": db_user.module_sav,
             "conges": db_user.module_conges,
-            "communication": db_user.module_communication
+            "communication": db_user.module_communication,
+            "autobot": db_user.module_autobot,
+            "secondaryBrain": db_user.module_secondaryBrain
         },
         "manager_id": db_user.manager_id,
         "solde_conges": db_user.solde_conges
@@ -135,7 +145,9 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
             "commerce": current_user.module_commerce,
             "sav": current_user.module_sav,
             "conges": current_user.module_conges,
-            "communication": current_user.module_communication
+            "communication": current_user.module_communication,
+            "autobot": current_user.module_autobot,
+            "secondaryBrain": current_user.module_secondaryBrain
         },
         "manager_id": current_user.manager_id,
         "solde_conges": current_user.solde_conges
@@ -158,7 +170,10 @@ async def get_all_users(current_user: User = Depends(get_current_active_user), d
                 "faisabilite": u.module_faisabilite,
                 "commerce": u.module_commerce,
                 "sav": u.module_sav,
-                "conges": u.module_conges
+                "conges": u.module_conges,
+                "communication": u.module_communication,
+                "autobot": u.module_autobot,
+                "secondaryBrain": u.module_secondaryBrain
             },
             "manager_id": u.manager_id,
             "solde_conges": u.solde_conges

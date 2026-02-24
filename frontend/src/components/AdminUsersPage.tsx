@@ -19,6 +19,8 @@ const initialFormData: UserFormData = {
     module_sav: false,
     module_conges: false,
     module_communication: false,
+    module_autobot: false,
+    module_secondaryBrain: true,
     manager_id: undefined,
     solde_conges: 25,
 };
@@ -80,6 +82,8 @@ export const AdminUsersPage: React.FC = () => {
                 module_sav: user.modules?.sav ?? false,
                 module_conges: user.modules?.conges ?? false,
                 module_communication: user.modules?.communication ?? false,
+                module_autobot: user.modules?.autobot ?? false,
+                module_secondaryBrain: user.modules?.secondaryBrain ?? true,
                 manager_id: user.manager_id,
                 solde_conges: user.solde_conges ?? 25,
             });
@@ -121,7 +125,7 @@ export const AdminUsersPage: React.FC = () => {
 
     if (isLoading) return <div className="p-8 text-center text-gray-500">Chargement des utilisateurs...</div>;
 
-    const moduleKeys = ['faisabilite', 'commerce', 'sav', 'conges', 'communication'] as const;
+    const moduleKeys = ['faisabilite', 'commerce', 'sav', 'conges', 'communication', 'autobot', 'secondaryBrain'] as const;
 
     return (
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
@@ -285,7 +289,7 @@ export const AdminUsersPage: React.FC = () => {
                                                                 className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700"
                                                             />
                                                             <label htmlFor={`module_${key}`} className="ml-2 block text-sm text-gray-900 dark:text-gray-300 capitalize">
-                                                                {key === 'faisabilite' ? 'Faisabilité' : key}
+                                                                {key === 'faisabilite' ? 'Faisabilité' : key === 'secondaryBrain' ? 'Secondary Brain' : key === 'autobot' ? 'Autobot' : key}
                                                             </label>
                                                         </div>
                                                     ))}
