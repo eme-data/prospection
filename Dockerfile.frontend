@@ -15,9 +15,15 @@ RUN npm install --legacy-peer-deps
 # Copie du code source
 COPY frontend/ ./
 
-# Define VITE_API_URL argument for build
+# Define VITE_API_URL and MSAL variables for build
 ARG VITE_API_URL=""
 ENV VITE_API_URL=${VITE_API_URL}
+
+ARG VITE_MSAL_CLIENT_ID=""
+ENV VITE_MSAL_CLIENT_ID=${VITE_MSAL_CLIENT_ID}
+
+ARG VITE_MSAL_TENANT_ID=""
+ENV VITE_MSAL_TENANT_ID=${VITE_MSAL_TENANT_ID}
 
 # Build de production
 RUN npm run build

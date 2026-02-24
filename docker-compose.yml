@@ -27,9 +27,11 @@ services:
       dockerfile: Dockerfile.backend
     container_name: prospection-backend
     environment:
+      - MSAL_CLIENT_ID=${MSAL_CLIENT_ID:-"67ae828e-a871-46c9-9606-925672c43c4e"}
+      - MSAL_TENANT_ID=${MSAL_TENANT_ID:-"11d55f60-e3b1-48e4-a5cd-911c091fc1a7"}
       - ENVIRONMENT=production
       - DEBUG=false
-      - CORS_ORIGINS=["http://localhost:5173","http://localhost:80","http://localhost"]
+      - CORS_ORIGINS=["http://localhost:5173","http://localhost:80","http://localhost","https://app.loftwood.fr","https://loftwood.fr"]
       - REDIS_URL=redis://redis:6379/0
       - RATE_LIMIT_REQUESTS=100
       - RATE_LIMIT_WINDOW=60
@@ -63,7 +65,9 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
       args:
-        VITE_API_URL: ""
+        VITE_API_URL: ${VITE_API_URL:-""}
+        VITE_MSAL_CLIENT_ID: ${VITE_MSAL_CLIENT_ID:-"67ae828e-a871-46c9-9606-925672c43c4e"}
+        VITE_MSAL_TENANT_ID: ${VITE_MSAL_TENANT_ID:-"11d55f60-e3b1-48e4-a5cd-911c091fc1a7"}
     container_name: prospection-frontend
     ports:
       - "80:80"
