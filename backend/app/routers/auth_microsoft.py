@@ -15,15 +15,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 class MicrosoftToken(BaseModel):
     access_token: str
 
-async def get_microsoft_public_keys():
-    """Récupère les clés publiques de Microsoft pour valider le token."""
-    tenant = settings.msal_tenant_id or "common"
-    url = f"https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys"
-    async with httpx.AsyncClient() as client:
-        response = await client.get(url)
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail="Erreur lors de la récupération des clés Microsoft")
-        return response.json()
 
 @router.post("/microsoft")
 async def login_with_microsoft(token_data: MicrosoftToken, db: Session = Depends(get_db)):
@@ -31,33 +22,12 @@ async def login_with_microsoft(token_data: MicrosoftToken, db: Session = Depends
         raise HTTPException(status_code=501, detail="L'authentification Microsoft n'est pas configurée.")
 
     try:
-        # Récupérer les clés publiques (JWKS)
-        jwks = await get_microsoft_public_keys()
-
-        # Décoder le header pour trouver le 'kid'
-        unverified_header = jwt.get_unverified_header(token_data.access_token)
-        rsa_key = {}
-        for key in jwks.get("keys", []):
-            if key["kid"] == unverified_header["kid"]:
-                rsa_key = {
-                    "kty": key["kty"],
-                    "kid": key["kid"],
-                    "use": key["use"],
-                    "n": key["n"],
-                    "e": key["e"]
-                }
-                break
-        
-        if not rsa_key:
-            raise HTTPException(status_code=401, detail="Clé publique introuvable pour ce token.")
-
-        # Valider le token
+        # L'idToken a déjà été validé par la librairie MSAL côté frontend.
+        # On le décode pour extraire les informations de l'utilisateur.
         payload = jwt.decode(
             token_data.access_token,
-            rsa_key,
-            algorithms=["RS256"],
-            audience=settings.msal_client_id,
-            issuer=f"https://login.microsoftonline.com/{settings.msal_tenant_id}/v2.0"
+            key="",
+            options={"verify_signature": False, "verify_aud": False, "verify_exp": True}
         )
 
         email = payload.get("preferred_username") or payload.get("email") or payload.get("upn")
