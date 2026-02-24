@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { X, Award, MapPin, Loader, AlertTriangle, ShieldCheck } from 'lucide-react'
 import { getTop10Faisabilites } from '../api'
@@ -11,9 +12,11 @@ interface Top10PanelProps {
 }
 
 export function Top10Panel({ codeInsee, cityName, onClose, onSelectParcelle }: Top10PanelProps) {
+    const [minSdp, setMinSdp] = useState(2000)
+
     const { data: results, isLoading, error } = useQuery({
-        queryKey: ['top10', codeInsee],
-        queryFn: () => getTop10Faisabilites(codeInsee),
+        queryKey: ['top10', codeInsee, minSdp],
+        queryFn: () => getTop10Faisabilites(codeInsee, minSdp),
         staleTime: 5 * 60 * 1000, // 5 min
     })
 
@@ -33,11 +36,27 @@ export function Top10Panel({ codeInsee, cityName, onClose, onSelectParcelle }: T
                 </button>
             </div>
 
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 shrink-0 space-y-3">
                 <p className="text-sm text-gray-600 flex items-center gap-1.5">
                     <MapPin className="h-4 w-4" />
                     Analyse des meilleures parcelles pour : <strong>{cityName || codeInsee}</strong>
                 </p>
+
+                <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-600 font-medium">SDP Minimale Visée</span>
+                        <span className="text-blue-700 font-bold bg-blue-100 px-2 py-0.5 rounded-full">{minSdp} m²</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="500"
+                        max="10000"
+                        step="500"
+                        value={minSdp}
+                        onChange={(e) => setMinSdp(Number(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-4">

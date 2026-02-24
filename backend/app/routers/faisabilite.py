@@ -27,9 +27,15 @@ async def get_faisabilite_report(request: Request, parcelle_id: str):
         logger.error(f"Erreur rapport faisabilité {parcelle_id}: {e}")
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du rapport")
 
+from fastapi import APIRouter, HTTPException, Request, Query
+
 @router.get("/top10/{code_insee}")
 @limiter.limit("5/minute")
-async def get_top10_faisabilite(request: Request, code_insee: str):
+async def get_top10_faisabilite(
+    request: Request, 
+    code_insee: str,
+    min_sdp: int = Query(2000, description="Surface de Plancher (SDP) minimale souhaitée")
+):
     """
     Récupère les 10 meilleures parcelles d'une commune et génère leur rapport de faisabilité.
     """
@@ -86,7 +92,7 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
         for r in results:
             if r is not None and r.get("report"):
                 conclusion = r["report"].get("synthese", {}).get("conclusion", "")
-                if conclusion == "Favorable" and r.get("sdp", 0) >= 2000:
+                if conclusion == "Favorable" and r.get("sdp", 0) >= min_sdp:
                     buildable_results.append(r)
         
         # 3. Trier par SDP décroissant et prendre le Top 10

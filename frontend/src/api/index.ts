@@ -69,9 +69,9 @@ export async function getFaisabiliteReport(parcelleId: string): Promise<Faisabil
   }
 }
 
-export async function getTop10Faisabilites(codeInsee: string): Promise<Top10Result[]> {
+export async function getTop10Faisabilites(codeInsee: string, minSdp: number = 2000): Promise<Top10Result[]> {
   try {
-    return await fetchJSON<Top10Result[]>(`${API_BASE}/faisabilite/top10/${codeInsee}`)
+    return await fetchJSON<Top10Result[]>(`${API_BASE}/faisabilite/top10/${codeInsee}?min_sdp=${minSdp}`)
   } catch (error: any) {
     console.error('Erreur getTop10Faisabilites:', error)
     throw error
