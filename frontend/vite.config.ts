@@ -10,5 +10,9 @@ export default defineConfig({
         changeOrigin: true
       }
     }
+  },
+  define: {
+    'import.meta.env.VITE_MSAL_CLIENT_ID': JSON.stringify(process.env.VITE_MSAL_CLIENT_ID || '67ae828e-a871-46c9-9606-925672c43c4e'),
+    'import.meta.env.VITE_MSAL_TENANT_ID': JSON.stringify(process.env.VITE_MSAL_TENANT_ID || '11d55f60-e3b1-48e4-a5cd-911c091fc1a7')
   }
 })
