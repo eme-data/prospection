@@ -25,6 +25,11 @@ ENV VITE_MSAL_CLIENT_ID=${VITE_MSAL_CLIENT_ID}
 ARG VITE_MSAL_TENANT_ID=""
 ENV VITE_MSAL_TENANT_ID=${VITE_MSAL_TENANT_ID}
 
+# Generate .env file for Vite
+RUN echo "VITE_API_URL=${VITE_API_URL}" > .env && \
+    echo "VITE_MSAL_CLIENT_ID=${VITE_MSAL_CLIENT_ID}" >> .env && \
+    echo "VITE_MSAL_TENANT_ID=${VITE_MSAL_TENANT_ID}" >> .env
+
 # Build de production
 RUN npm run build
 
