@@ -81,8 +81,49 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
+  # Ollama - Moteur LLM local
+  ollama:
+    image: ollama/ollama:latest
+    container_name: prospection-ollama
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    networks:
+      - prospection-internal
+    # Décommenter la section suivante si le serveur dispose d'un GPU Nvidia
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+    # Open WebUI - Interface Chatbot Locale (Autobot)
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: prospection-open-webui
+    volumes:
+      - open-webui_data:/app/backend/data
+    ports:
+      - "3000:8080" # Accessible sur le port 3000
+    environment:
+      - 'OLLAMA_BASE_URL=http://ollama:11434'
+      - 'WEBUI_SECRET_KEY=prospection-secret-key-change-me'
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    networks:
+      - prospection-internal
+
 volumes:
   redis_data:
+    driver: local
+  ollama_data:
+    driver: local
+  open-webui_data:
     driver: local
 
 networks:

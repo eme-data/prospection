@@ -203,7 +203,10 @@ fi
 #===============================================================================
 # RECONSTRUCTION
 #===============================================================================
-log_info "Reconstruction des images Docker..."
+log_info "Mise à jour des images externes (Ollama, Open WebUI, Redis)..."
+sudo -u "$APP_USER" docker compose pull --ignore-pull-failures || true
+
+log_info "Reconstruction des images Docker locales..."
 
 BUILD_FLAGS=""
 if [[ "$FORCE_REBUILD" == true ]]; then
