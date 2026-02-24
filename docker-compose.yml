@@ -112,7 +112,6 @@ services:
     environment:
       - 'OLLAMA_BASE_URL=http://ollama:11434'
       - 'WEBUI_SECRET_KEY=prospection-secret-key-change-me'
-      - 'WEBUI_URL_PREFIX=/webui'
     depends_on:
       - ollama
     restart: unless-stopped
