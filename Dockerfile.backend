@@ -35,6 +35,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Copie du code source
 COPY backend/app ./app
 COPY backend/create_admin.py ./
+COPY backend/update_db_modules.py ./
 
 # Changement d'utilisateur pour la securite
 USER appuser
