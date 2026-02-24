@@ -1,7 +1,7 @@
 export const msalConfig = {
     auth: {
-        clientId: import.meta.env.VITE_MSAL_CLIENT_ID || "",
-        authority: `https://login.microsoftonline.com/${import.meta.env.VITE_MSAL_TENANT_ID || "common"}`,
+        clientId: "67ae828e-a871-46c9-9606-925672c43c4e", // Hardcoded temporarily to bypass Vite env issues
+        authority: "https://login.microsoftonline.com/11d55f60-e3b1-48e4-a5cd-911c091fc1a7",
         redirectUri: "/",
         postLogoutRedirectUri: "/",
     },
