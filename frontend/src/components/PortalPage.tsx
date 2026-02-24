@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Map, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare, ShoppingBag, Bot } from 'lucide-react';
+import { Map, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare, ShoppingBag, Bot, Brain } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Moon, Sun } from 'lucide-react';
 
@@ -68,7 +68,16 @@ export const PortalPage: React.FC = () => {
             icon: <Bot className="w-12 h-12 mb-4 text-rose-500" />,
             color: 'bg-rose-50 hover:bg-rose-100 border-rose-200 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 dark:border-rose-800',
             path: '/autobot',
-            active: user?.modules?.autobot ?? true // true defaut pour le voir
+            active: false // En construction
+        },
+        {
+            id: 'secondaryBrain',
+            name: 'Secondary Brain',
+            description: 'Base de connaissances et IA locale.',
+            icon: <Brain className="w-12 h-12 mb-4 text-indigo-500" />,
+            color: 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/40 dark:border-indigo-800',
+            path: '/secondary-brain',
+            active: user?.modules?.secondaryBrain ?? true // Accès par défaut pour le moment
         }
     ];
 

@@ -16,11 +16,13 @@ import { CommunicationApp } from './apps/Communication/CommunicationApp';
 import { CommerceApp } from './apps/Commerce/CommerceApp';
 import { AutobotApp } from './apps/Autobot/AutobotApp';
 
+import { SecondaryBrainApp } from './apps/SecondaryBrain/SecondaryBrainApp';
+
 const queryClient = new QueryClient();
 const msalInstance = new PublicClientApplication(msalConfig);
 
 // Composant pour protéger les routes
-const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'faisabilite' | 'commerce' | 'sav' | 'conges' | 'communication' | 'autobot' }> = ({ children, requiredModule }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'faisabilite' | 'commerce' | 'sav' | 'conges' | 'communication' | 'autobot' | 'secondaryBrain' }> = ({ children, requiredModule }) => {
     const { isAuthenticated, user } = useAuth();
 
     if (!isAuthenticated) {
@@ -127,6 +129,15 @@ function App() {
                                     element={
                                         <ProtectedRoute requiredModule="autobot">
                                             <AutobotApp />
+                                        </ProtectedRoute>
+                                    }
+                                />
+
+                                <Route
+                                    path="/secondary-brain/*"
+                                    element={
+                                        <ProtectedRoute requiredModule="secondaryBrain">
+                                            <SecondaryBrainApp />
                                         </ProtectedRoute>
                                     }
                                 />

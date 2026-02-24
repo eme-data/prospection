@@ -15,17 +15,12 @@ export const AutobotApp: React.FC = () => {
                 </div>
             </header>
 
-            <main className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-                {/* 
-                  On charge directement l'interface d'Open WebUI ici via l'iFrame.
-                  Il sera accessible via le port 3000 tel que configuré dans Docker.
-                */}
-                <iframe
-                    src="http://localhost:3000"
-                    className="w-full h-full border-none"
-                    title="Autobot Chat"
-                    allow="clipboard-write; clipboard-read; microphone; camera"
-                />
+            <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 p-6 flex items-center justify-center">
+                <div className="text-center">
+                    <Bot className="h-24 w-24 text-gray-400 mx-auto mb-4" />
+                    <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Module Autobot en construction</h2>
+                    <p className="mt-2 text-gray-500 dark:text-gray-400">Cette fonctionnalité sera bientôt disponible.</p>
+                </div>
             </main>
         </div>
     );

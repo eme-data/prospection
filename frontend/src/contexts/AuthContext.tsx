@@ -14,6 +14,7 @@ export interface User {
         conges?: boolean;
         communication?: boolean;
         autobot?: boolean;
+        secondaryBrain?: boolean;
     };
     solde_conges?: number;
     manager_id?: string;
