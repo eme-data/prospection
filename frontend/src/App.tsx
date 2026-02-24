@@ -29,8 +29,18 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'fa
         return <Navigate to="/login" replace />;
     }
 
-    if (requiredModule && user && !user.modules?.[requiredModule]) {
-        return <Navigate to="/" replace />;
+    if (requiredModule && user) {
+        const moduleAccess = user.modules?.[requiredModule];
+        // Si l'accès est explicitement faux, on bloque.
+        // Si c'est undefined, on autorise 'faisabilite' et 'secondaryBrain' par défaut.
+        if (moduleAccess === false) {
+            return <Navigate to="/" replace />;
+        }
+        if (moduleAccess === undefined) {
+            if (requiredModule !== 'faisabilite' && requiredModule !== 'secondaryBrain') {
+                return <Navigate to="/" replace />;
+            }
+        }
     }
 
     return <>{children}</>;
