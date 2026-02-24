@@ -237,8 +237,11 @@ class FaisabiliteService:
                 conclusion = "Complexe (Risques Forts)"
                 details.append(f"{count_high} risques forts détectés")
 
+        # Extraction des propriétés d'origine de la parcelle
+        parcelle_props = parcelle.get("properties", {})
+
         # Parsing de la surface (contenance peut être un string ou entier)
-        surface_str = props.get("contenance", 0)
+        surface_str = parcelle_props.get("contenance", 0)
         try:
             surface_m2 = float(surface_str) if surface_str else 0.0
         except ValueError:
@@ -249,7 +252,7 @@ class FaisabiliteService:
 
         return {
             "parcelle_id": parcelle_id,
-            "adresse": f"{props.get('numero', '')} {props.get('nom_voie', '')}, {props.get('code_postal', '')} {props.get('nom_commune', '')}",
+            "adresse": f"{parcelle_props.get('numero', '')} {parcelle_props.get('nom_voie', '')}, {parcelle_props.get('code_postal', '')} {parcelle_props.get('nom_commune', '')}".strip(" ,"),
             "surface": surface_m2,
             "sdp": sdp_estime,
             "zonage": [z["properties"] for z in zonage_enrichi],

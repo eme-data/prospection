@@ -1,0 +1,112 @@
+[
+  {
+    "id": "323310000A0004",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "4",
+    "contenance": 17582,
+    "arpente": false,
+    "created": "2006-02-07",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0027",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "27",
+    "contenance": 1480,
+    "arpente": false,
+    "created": "2006-02-07",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0370",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "370",
+    "contenance": 64595,
+    "arpente": false,
+    "created": "2006-02-07",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0141",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "141",
+    "contenance": 69087,
+    "arpente": false,
+    "created": "2015-11-17",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0468",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "468",
+    "contenance": 38785,
+    "arpente": false,
+    "created": "2015-11-17",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0057",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "57",
+    "contenance": 30720,
+    "arpente": false,
+    "created": "2006-02-07",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0050",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "50",
+    "contenance": 24472,
+    "arpente": false,
+    "created": "2006-02-07",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0398",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "398",
+    "contenance": 68632,
+    "arpente": false,
+    "created": "2006-02-07",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0054",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "54",
+    "contenance": 41830,
+    "arpente": false,
+    "created": "2006-02-07",
+    "updated": "2015-11-19"
+  },
+  {
+    "id": "323310000A0403",
+    "commune": "32331",
+    "prefixe": "000",
+    "section": "A",
+    "numero": "403",
+    "contenance": 39363,
+    "arpente": false,
+    "created": "2015-11-17",
+    "updated": "2015-11-19"
+  }
+]

@@ -58,9 +58,10 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
                 return None
             try:
                 report = await faisabilite_service.generate_report(parcelle_id)
-                # Estimation SDP : 60% de la surface par défaut
-                surface = report.get("surface", 0) or 0
-                sdp_estime = round(surface * 0.6)
+                
+                # Récupération SDP depuis le rapport
+                sdp_estime = report.get("sdp", round((report.get("surface", 0) or 0) * 0.6))
+                
                 return {
                     "parcelleId": parcelle_id,
                     "score": p.get("score"),
