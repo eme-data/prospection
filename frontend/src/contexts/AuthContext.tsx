@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { useMsal } from '@azure/msal-react';
 
 export interface User {
     id: string;
@@ -29,6 +30,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const { instance } = useMsal();
     const [token, setToken] = useState<string | null>(() => localStorage.getItem('prospection_token'));
     const [user, setUser] = useState<User | null>(() => {
         const savedUser = localStorage.getItem('prospection_user');
@@ -51,6 +53,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         localStorage.removeItem('prospection_token');
         localStorage.removeItem('prospection_user');
+
+        // Logout from MSAL if active account exists
+        if (instance.getActiveAccount() || instance.getAllAccounts().length > 0) {
+            instance.logoutRedirect().catch(e => console.error(e));
+        }
     };
 
     useEffect(() => {

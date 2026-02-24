@@ -3,6 +3,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { PublicClientApplication } from '@azure/msal-browser';
+import { MsalProvider } from '@azure/msal-react';
+import { msalConfig } from './auth/msalConfig';
 import { LoginPage } from './components/LoginPage';
 import { PortalPage } from './components/PortalPage';
 import { FaisabiliteApp } from './components/FaisabiliteApp';
@@ -14,6 +17,7 @@ import { CommerceApp } from './apps/Commerce/CommerceApp';
 import { AutobotApp } from './apps/Autobot/AutobotApp';
 
 const queryClient = new QueryClient();
+const msalInstance = new PublicClientApplication(msalConfig);
 
 // Composant pour protéger les routes
 const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'faisabilite' | 'commerce' | 'sav' | 'conges' | 'communication' | 'autobot' }> = ({ children, requiredModule }) => {
@@ -49,88 +53,90 @@ function App() {
     return (
         <QueryClientProvider client={queryClient}>
             <ThemeProvider>
-                <AuthProvider>
-                    <BrowserRouter>
-                        <Routes>
-                            {/* Route publique */}
-                            <Route path="/login" element={<LoginPage />} />
+                <MsalProvider instance={msalInstance}>
+                    <AuthProvider>
+                        <BrowserRouter>
+                            <Routes>
+                                {/* Route publique */}
+                                <Route path="/login" element={<LoginPage />} />
 
-                            {/* Routes protégées */}
-                            <Route
-                                path="/"
-                                element={
-                                    <ProtectedRoute>
-                                        <PortalPage />
-                                    </ProtectedRoute>
-                                }
-                            />
-                            <Route
-                                path="/faisabilite"
-                                element={
-                                    <ProtectedRoute>
-                                        <FaisabiliteApp />
-                                    </ProtectedRoute>
-                                }
-                            />
+                                {/* Routes protégées */}
+                                <Route
+                                    path="/"
+                                    element={
+                                        <ProtectedRoute>
+                                            <PortalPage />
+                                        </ProtectedRoute>
+                                    }
+                                />
+                                <Route
+                                    path="/faisabilite"
+                                    element={
+                                        <ProtectedRoute>
+                                            <FaisabiliteApp />
+                                        </ProtectedRoute>
+                                    }
+                                />
 
-                            <Route
-                                path="/admin/users"
-                                element={
-                                    <AdminRoute>
-                                        <AdminUsersPage />
-                                    </AdminRoute>
-                                }
-                            />
-                            <Route
-                                path="/admin/settings"
-                                element={
-                                    <AdminRoute>
-                                        <AdminSettings />
-                                    </AdminRoute>
-                                }
-                            />
+                                <Route
+                                    path="/admin/users"
+                                    element={
+                                        <AdminRoute>
+                                            <AdminUsersPage />
+                                        </AdminRoute>
+                                    }
+                                />
+                                <Route
+                                    path="/admin/settings"
+                                    element={
+                                        <AdminRoute>
+                                            <AdminSettings />
+                                        </AdminRoute>
+                                    }
+                                />
 
-                            <Route
-                                path="/conges/*"
-                                element={
-                                    <ProtectedRoute requiredModule="conges">
-                                        <CongesApp />
-                                    </ProtectedRoute>
-                                }
-                            />
+                                <Route
+                                    path="/conges/*"
+                                    element={
+                                        <ProtectedRoute requiredModule="conges">
+                                            <CongesApp />
+                                        </ProtectedRoute>
+                                    }
+                                />
 
-                            <Route
-                                path="/communication/*"
-                                element={
-                                    <ProtectedRoute requiredModule="communication">
-                                        <CommunicationApp />
-                                    </ProtectedRoute>
-                                }
-                            />
+                                <Route
+                                    path="/communication/*"
+                                    element={
+                                        <ProtectedRoute requiredModule="communication">
+                                            <CommunicationApp />
+                                        </ProtectedRoute>
+                                    }
+                                />
 
-                            <Route
-                                path="/commerce/*"
-                                element={
-                                    <ProtectedRoute requiredModule="commerce">
-                                        <CommerceApp />
-                                    </ProtectedRoute>
-                                }
-                            />
+                                <Route
+                                    path="/commerce/*"
+                                    element={
+                                        <ProtectedRoute requiredModule="commerce">
+                                            <CommerceApp />
+                                        </ProtectedRoute>
+                                    }
+                                />
 
-                            <Route
-                                path="/autobot/*"
-                                element={
-                                    <ProtectedRoute requiredModule="autobot">
-                                        <AutobotApp />
-                                    </ProtectedRoute>
-                                }
-                            />
+                                <Route
+                                    path="/autobot/*"
+                                    element={
+                                        <ProtectedRoute requiredModule="autobot">
+                                            <AutobotApp />
+                                        </ProtectedRoute>
+                                    }
+                                />
 
-                            {/* Fallback */}
-                            <Route path="*" element={<Navigate to="/" replace />} />
-                        </Routes>
-                    </BrowserRouter>
-                </AuthProvider>
+                                {/* Fallback */}
+                                <Route path="*" element={<Navigate to="/" replace />} />
+                            </Routes>
+                        </BrowserRouter>
+                    </AuthProvider>
+                </MsalProvider>
             </ThemeProvider>
         </QueryClientProvider>
     );

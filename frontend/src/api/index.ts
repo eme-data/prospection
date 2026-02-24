@@ -57,6 +57,23 @@ export async function login(email: string, password: string): Promise<{ access_t
   return response.json()
 }
 
+export async function loginWithMicrosoft(accessToken: string): Promise<{ access_token: string; token_type: string; user: any }> {
+  const response = await fetch(`${API_BASE}/auth/microsoft`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ access_token: accessToken }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    throw new Error(errorData?.detail || 'Erreur lors de la connexion via Microsoft')
+  }
+
+  return response.json()
+}
+
 export async function getFaisabiliteReport(parcelleId: string): Promise<FaisabiliteReport> {
   try {
     return await fetchJSON<FaisabiliteReport>(`${API_BASE}/faisabilite/${parcelleId}`)

@@ -44,6 +44,7 @@ from app.economic_layers import router as economic_router
 from app.isochrones import router as isochrone_router
 from app.routers import (
     auth,
+    auth_microsoft,
     address,
     cadastre,
     dvf,
@@ -159,6 +160,7 @@ app.add_middleware(RequestLoggingMiddleware)
 # Routes publiques
 app.include_router(health_router)
 app.include_router(auth.router, prefix="/api")
+app.include_router(auth_microsoft.router, prefix="/api")
 
 # Dépendance globale pour le reste des routes métier (hors /, /docs, etc.)
 protected_dep = [Depends(get_current_active_user)]

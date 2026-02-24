@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     secret_key: str = Field(default="change-ce-secret-immédiatement-en-production", description="Cle secrete JWT")
     access_token_expire_minutes: int = Field(default=1440, description="Expiration du token en minutes (24h)")
 
+    # Microsoft Authentication
+    msal_client_id: Optional[str] = Field(default=None, description="Azure AD Client ID")
+    msal_tenant_id: Optional[str] = Field(default=None, description="Azure AD Tenant ID")
+
     # Redis Cache
     redis_url: Optional[str] = Field(default=None, description="URL Redis pour le cache")
     cache_ttl: int = Field(default=300, description="TTL du cache en secondes")
