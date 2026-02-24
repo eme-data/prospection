@@ -237,10 +237,21 @@ class FaisabiliteService:
                 conclusion = "Complexe (Risques Forts)"
                 details.append(f"{count_high} risques forts détectés")
 
+        # Parsing de la surface (contenance peut être un string ou entier)
+        surface_str = props.get("contenance", 0)
+        try:
+            surface_m2 = float(surface_str) if surface_str else 0.0
+        except ValueError:
+            surface_m2 = 0.0
+            
+        # Estimation SDP (60% par défaut)
+        sdp_estime = round(surface_m2 * 0.6)
+
         return {
             "parcelle_id": parcelle_id,
             "adresse": f"{props.get('numero', '')} {props.get('nom_voie', '')}, {props.get('code_postal', '')} {props.get('nom_commune', '')}",
-            "surface": props.get("contenance"),
+            "surface": surface_m2,
+            "sdp": sdp_estime,
             "zonage": [z["properties"] for z in zonage_enrichi],
             "risques": [{"libelle": r.get("libelle_risque_long"), "niveau": r.get("niveau_risque")} for r in risques],
             "is_built": is_built,

@@ -14,7 +14,7 @@ export function FeasibilityReport({ report, onClose }: FeasibilityReportProps) {
     const [activeTab, setActiveTab] = useState<'technique' | 'financier'>('technique')
 
     // Variables du bilan financier (Compte à rebours)
-    const [sdpEstimations, setSdpEstimations] = useState(Math.round(report.surface * 0.6)) // Estimation empirique CES/Gabarit
+    const [sdpEstimations, setSdpEstimations] = useState(report.sdp || Math.round(report.surface * 0.6)) // Estimation fournie par le backend ou calculée empiriquement
     const [prixVenteM2, setPrixVenteM2] = useState(4000)
     const [coutConstructionM2, setCoutConstructionM2] = useState(1800)
     const [margePct, setMargePct] = useState(10)
@@ -53,8 +53,8 @@ export function FeasibilityReport({ report, onClose }: FeasibilityReportProps) {
                     <button
                         onClick={() => setActiveTab('technique')}
                         className={`pb-3 px-4 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'technique'
-                                ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'border-blue-600 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         <Activity className="w-4 h-4" /> Analyse Technique
@@ -62,8 +62,8 @@ export function FeasibilityReport({ report, onClose }: FeasibilityReportProps) {
                     <button
                         onClick={() => setActiveTab('financier')}
                         className={`pb-3 px-4 font-medium text-sm flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'financier'
-                                ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'border-blue-600 text-blue-600'
+                            : 'border-transparent text-gray-500 hover:text-gray-700'
                             }`}
                     >
                         <Calculator className="w-4 h-4" /> Bilan Promoteur
@@ -87,13 +87,20 @@ export function FeasibilityReport({ report, onClose }: FeasibilityReportProps) {
                                 <div className="bg-gray-50 p-3 rounded-lg flex items-start gap-3">
                                     <Home className="w-5 h-5 text-gray-400 mt-0.5" />
                                     <div>
-                                        <p className="text-gray-500">Surface</p>
+                                        <p className="text-gray-500">Surface Terrain</p>
                                         <p className="font-semibold text-gray-900">{report.surface} m²</p>
                                     </div>
                                 </div>
-                                <div className="bg-gray-50 p-3 rounded-lg col-span-2">
+                                <div className="bg-gray-50 p-3 rounded-lg flex items-start gap-3 col-span-2 sm:col-span-1">
+                                    <Activity className="w-5 h-5 text-blue-500 mt-0.5" />
+                                    <div>
+                                        <p className="text-gray-500">SDP ({Math.round(((report.sdp || 0) / report.surface) * 100)}%)</p>
+                                        <p className="font-bold text-blue-700">{report.sdp || Math.round(report.surface * 0.6)} m²</p>
+                                    </div>
+                                </div>
+                                <div className="bg-gray-50 p-3 rounded-lg col-span-2 sm:col-span-1">
                                     <p className="text-gray-500">Adresse</p>
-                                    <p className="font-medium text-gray-900">{report.adresse}</p>
+                                    <p className="font-medium text-gray-900 line-clamp-2">{report.adresse}</p>
                                 </div>
                             </div>
 

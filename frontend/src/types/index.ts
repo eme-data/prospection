@@ -527,6 +527,7 @@ export interface FaisabiliteReport {
   parcelle_id: string
   adresse: string
   surface: number
+  sdp?: number
   zonage: any[]
   risques: {
     libelle: string
