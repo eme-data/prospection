@@ -21,7 +21,7 @@ export const SecondaryBrainApp: React.FC = () => {
                   Il sera accessible via le port 3000 tel que configuré dans Docker.
                 */}
                 <iframe
-                    src="http://prospection.mdoservices.fr:3000"
+                    src="/webui/"
                     className="w-full h-full border-none"
                     title="Secondary Brain Chat"
                     allow="clipboard-write; clipboard-read; microphone; camera"
