@@ -261,6 +261,16 @@ else
 fi
 
 #===============================================================================
+# MIGRATIONS DE DONNÉES
+#===============================================================================
+log_info "Exécution des migrations de base de données..."
+# On attend que le conteneur backend soit prêt
+sleep 5
+if [[ -f "backend/update_db_modules.py" ]]; then
+    sudo -u "$APP_USER" docker compose exec -T backend python update_db_modules.py >/dev/null 2>&1 || log_warn "Le script de migration a retourné une erreur (peut-être a-t-il été déjà appliqué)."
+fi
+
+#===============================================================================
 # NETTOYAGE
 #===============================================================================
 log_info "Nettoyage des anciennes images..."
