@@ -117,6 +117,13 @@ export function Top10Panel({ codeInsee, cityName, onClose, onSelectParcelle }: T
                                         </span>
                                     </div>
 
+                                    <div className="flex justify-between items-start pt-1">
+                                        <span className="text-gray-600 w-24 shrink-0">SDP (Est.)</span>
+                                        <span className="font-bold text-right text-blue-700">
+                                            {item.sdp || Math.round((report.surface || 0) * 0.6)} m²
+                                        </span>
+                                    </div>
+
                                     {report.synthese.conclusion.includes('Favorable') ? (
                                         <div className="flex items-center gap-1.5 text-emerald-600 font-medium pt-1">
                                             <ShieldCheck className="h-4 w-4" />

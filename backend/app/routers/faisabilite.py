@@ -35,14 +35,14 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
     """
     try:
         # 1. Obtenir le top 10 via search
-        # 1. Obtenir le top 20 via search avec un pré-filtre sur les zones U et AU
+        # 1. Obtenir le top 50 via search avec un pré-filtre sur les zones U et AU
         filters = SearchFilters(
             code_insee=code_insee,
             include_score=True,
             zone_types=["U", "AU"],
             sort_by="score",
             page=1,
-            per_page=20
+            per_page=50
         )
         # Appel interne
         search_result = await search_parcelles(request, filters)
@@ -58,11 +58,15 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
                 return None
             try:
                 report = await faisabilite_service.generate_report(parcelle_id)
+                # Estimation SDP : 60% de la surface par défaut
+                surface = report.get("surface", 0) or 0
+                sdp_estime = round(surface * 0.6)
                 return {
                     "parcelleId": parcelle_id,
                     "score": p.get("score"),
                     "parcelle_info": p["parcelle"],
-                    "report": report
+                    "report": report,
+                    "sdp": sdp_estime
                 }
             except Exception as e:
                 logger.error(f"Top 10: Erreur faisabilité {parcelle_id}: {e}")
@@ -83,10 +87,10 @@ async def get_top10_faisabilite(request: Request, code_insee: str):
                 conclusion = r["report"].get("synthese", {}).get("conclusion", "")
                 if conclusion == "Favorable":
                     buildable_results.append(r)
-            if len(buildable_results) == 10:
-                break
-                
-        return buildable_results
+        
+        # 3. Trier par SDP décroissant et prendre le Top 10
+        buildable_results.sort(key=lambda x: x.get("sdp", 0), reverse=True)
+        return buildable_results[:10]
 
     except Exception as e:
         logger.error(f"Erreur top 10 faisabilité {code_insee}: {e}")

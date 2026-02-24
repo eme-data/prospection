@@ -552,6 +552,7 @@ export interface Top10Result {
   parcelle_info: Parcelle
   report: FaisabiliteReport | null
   error?: string
+  sdp?: number
 }
 
 export interface POI {
