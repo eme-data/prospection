@@ -1,7 +1,10 @@
 import React from 'react';
-import { Brain } from 'lucide-react';
+import { Brain, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export const SecondaryBrainApp: React.FC = () => {
+    const navigate = useNavigate();
+
     return (
         <div className="flex h-[calc(100vh-4rem)] flex-col">
             <header className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -11,6 +14,13 @@ export const SecondaryBrainApp: React.FC = () => {
                             <Brain size={28} />
                             <h1 className="text-xl font-bold text-gray-900 dark:text-white">Secondary Brain</h1>
                         </div>
+                        <button
+                            onClick={() => navigate('/')}
+                            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                            <ArrowLeft size={16} />
+                            Retour au portail
+                        </button>
                     </div>
                 </div>
             </header>
