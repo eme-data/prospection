@@ -203,8 +203,14 @@ fi
 #===============================================================================
 # RECONSTRUCTION
 #===============================================================================
+COMPOSE_FILE="docker-compose.yml"
+if [[ -f "docker-compose.prod.yml" ]]; then
+    COMPOSE_FILE="docker-compose.prod.yml"
+    log_info "Utilisation du fichier de production: $COMPOSE_FILE"
+fi
+
 log_info "Mise à jour des images externes (Ollama, Open WebUI, Redis)..."
-sudo -u "$APP_USER" docker compose pull --ignore-pull-failures || true
+sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" pull --ignore-pull-failures || true
 
 log_info "Reconstruction des images Docker locales..."
 
@@ -218,12 +224,12 @@ if [[ "$NO_DOWNTIME" == true ]]; then
     log_info "Mode zero-downtime activé"
 
     # Construire les nouvelles images
-    sudo -u "$APP_USER" docker compose build $BUILD_FLAGS
+    sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" build $BUILD_FLAGS
 
     # Mettre à jour un par un
     if [[ "$BACKEND_CHANGED" == true ]] || [[ "$CONFIG_CHANGED" == true ]]; then
         log_info "Mise à jour du backend..."
-        sudo -u "$APP_USER" docker compose up -d --no-deps backend
+        sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d --no-deps backend
         sleep 5
 
         # Vérifier que le backend répond
@@ -238,26 +244,41 @@ if [[ "$NO_DOWNTIME" == true ]]; then
 
     if [[ "$FRONTEND_CHANGED" == true ]] || [[ "$CONFIG_CHANGED" == true ]]; then
         log_info "Mise à jour du frontend..."
-        sudo -u "$APP_USER" docker compose up -d --no-deps frontend
+        sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d --no-deps frontend
         sleep 3
     fi
 else
-    # Mise à jour standard avec arrêt
-    log_info "Arrêt de l'application..."
-    systemctl stop prospection
-
-    # Construire
+    # Mise à jour standard
+    log_info "Redémarrage de l'application..."
+    
+    # On utilise docker compose directement pour éviter les conflits systemd pendant la build
     if [[ "$BACKEND_CHANGED" == true ]] || [[ "$FORCE_REBUILD" == true ]] || [[ "$CONFIG_CHANGED" == true ]]; then
-        sudo -u "$APP_USER" docker compose build $BUILD_FLAGS backend
+        sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" build $BUILD_FLAGS backend
     fi
 
     if [[ "$FRONTEND_CHANGED" == true ]] || [[ "$FORCE_REBUILD" == true ]] || [[ "$CONFIG_CHANGED" == true ]]; then
-        sudo -u "$APP_USER" docker compose build $BUILD_FLAGS frontend
+        sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" build $BUILD_FLAGS frontend
     fi
 
-    # Redémarrer
-    log_info "Redémarrage de l'application..."
-    systemctl start prospection
+    # Lancement/Update
+    sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d
+fi
+
+#===============================================================================
+# CONFIGURATION AI (OLLAMA)
+#===============================================================================
+log_info "Vérification des modèles AI..."
+if docker ps | grep -q "prospection-ollama"; then
+    log_info "Téléchargement du modèle de base (llama3.2:3b) si manquant..."
+    # On ne fait pas pull si le modèle existe déjà pour gagner du temps
+    if ! docker exec prospection-ollama ollama list | grep -q "llama3.2"; then
+        log_info "Ceci peut prendre quelques minutes..."
+        docker exec prospection-ollama ollama pull llama3.2:3b || log_warn "Échec du téléchargement du modèle llama3.2"
+    else
+        log_success "Modèle llama3.2 déjà présent"
+    fi
+else
+    log_warn "Conteneur Ollama non trouvé, saut de l'étape AI"
 fi
 
 #===============================================================================
@@ -267,7 +288,7 @@ log_info "Exécution des migrations de base de données..."
 # On attend que le conteneur backend soit prêt
 sleep 5
 if [[ -f "backend/update_db_modules.py" ]]; then
-    sudo -u "$APP_USER" docker compose exec -T backend python update_db_modules.py >/dev/null 2>&1 || log_warn "Le script de migration a retourné une erreur (peut-être a-t-il été déjà appliqué)."
+    sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" exec -T backend python update_db_modules.py >/dev/null 2>&1 || log_warn "Le script de migration a retourné une erreur (peut-être a-t-il été déjà appliqué)."
 fi
 
 #===============================================================================
@@ -284,16 +305,15 @@ log_info "Vérification du déploiement..."
 sleep 5
 
 # Health check
-if curl -sf http://localhost/health > /dev/null 2>&1; then
+if curl -sf http://localhost/health > /dev/null 2>&1 || curl -sf -k https://localhost/health > /dev/null 2>&1; then
     log_success "✓ Health check OK"
 else
     log_warn "Health check échoué - vérifiez les logs"
-    docker compose logs --tail=50
 fi
 
 # État des conteneurs
-RUNNING_CONTAINERS=$(docker compose ps --services --filter "status=running" | wc -l)
-TOTAL_CONTAINERS=$(docker compose ps --services | wc -l)
+RUNNING_CONTAINERS=$(docker compose -f "$COMPOSE_FILE" ps --services --filter "status=running" | wc -l)
+TOTAL_CONTAINERS=$(docker compose -f "$COMPOSE_FILE" ps --services | wc -l)
 
 if [[ "$RUNNING_CONTAINERS" -eq "$TOTAL_CONTAINERS" ]]; then
     log_success "✓ Tous les conteneurs sont démarrés ($RUNNING_CONTAINERS/$TOTAL_CONTAINERS)"
@@ -328,9 +348,9 @@ if [[ "$COMMITS_COUNT" -gt 0 ]]; then
 fi
 
 echo "Commandes utiles:"
-echo "  docker compose logs -f              # Voir les logs"
-echo "  docker compose ps                   # État des conteneurs"
-echo "  curl http://localhost/health        # Health check"
-echo "  sudo ./update.sh --rollback         # Rollback si problème"
+echo "  docker compose -f $COMPOSE_FILE logs -f    # Voir les logs"
+echo "  docker compose -f $COMPOSE_FILE ps         # État des conteneurs"
+echo "  sudo ./update.sh --rollback                # Rollback si problème"
 echo ""
 echo "=============================================="
+
