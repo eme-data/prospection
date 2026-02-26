@@ -119,24 +119,39 @@ Fournis UNIQUEMENT le JSON, sans bloquages markdown ```json.
         prompt_parts.append(prompt)
         prompt_parts.extend(uploaded_gemini_files)
         
-        # Try different model names as fallbacks
-        models_to_try = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-2.0-flash']
+        # Try different model names as fallbacks with full resource names
+        # Most reliable models first
+        models_to_try = [
+            'models/gemini-1.5-flash', 
+            'models/gemini-1.5-flash-latest',
+            'models/gemini-1.5-flash-8b',
+            'models/gemini-2.0-flash',
+            'gemini-1.5-flash',
+            'gemini-2.0-flash'
+        ]
         last_error = None
         
         for model_name in models_to_try:
             try:
-                print(f"Attempting analysis with model: {model_name}")
+                print(f"DEBUG: Attempting analysis with model: {model_name}")
                 model = genai.GenerativeModel(model_name)
                 
                 # Call Gemini
                 response = await asyncio.to_thread(model.generate_content, prompt_parts)
                 text = response.text
                 
+                if not text:
+                    raise ValueError("Empty response from Gemini")
+                    
                 # If we reach here, it worked!
-                # Parse output
-                text = text.replace('```json', '').replace('```', '').replace('json', '', 1).strip()
+                # Parse output - handle multiple common markdown formats
+                text = text.replace('```json', '').replace('```', '').strip()
+                if text.startswith('json'):
+                    text = text[4:].strip()
+                    
                 analysis_data = json.loads(text)
                 
+                print(f"SUCCESS: Analysis completed with model {model_name}")
                 return {
                     "success": True,
                     "analysis": analysis_data,
@@ -145,15 +160,22 @@ Fournis UNIQUEMENT le JSON, sans bloquages markdown ```json.
                 }
             except Exception as e:
                 last_error = e
-                print(f"Error with model {model_name}: {e}")
-                if "not found" not in str(e).lower() and "not supported" not in str(e).lower() and "unsupported model" not in str(e).lower():
-                    # If it's a different kind of error (e.g. API key, quota), don't bother trying other models
-                    break
-                continue
+                err_str = str(e).lower()
+                print(f"DEBUG: Error with model {model_name}: {e}")
                 
-        # If all models failed
-        error_msg = f"Gemini Analysis failed after trying {models_to_try}. Last error: {last_error}"
-        print(error_msg)
+                # Only fallback if the model itself is not found or not supported
+                # If it's a quota (429) or auth (403) error, stop and report it
+                if "not found" in err_str or "not supported" in err_str or "unsupported model" in err_str or "404" in err_str:
+                    continue
+                else:
+                    break
+                
+        # If all models failed or we hit a non-retryable error
+        error_msg = f"Erreur Analyse Gemini : {last_error}"
+        if "429" in str(last_error):
+            error_msg = "Quota API dépassé (429). Veuillez patienter une minute ou vérifier votre plan sur Google AI Studio."
+            
+        print(f"ERROR: {error_msg}")
         raise HTTPException(status_code=500, detail=error_msg)
         
     except Exception as e:

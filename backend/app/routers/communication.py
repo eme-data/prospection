@@ -130,7 +130,7 @@ async def generate_post(
                 raise HTTPException(status_code=500, detail="Clé API Gemini non configurée")
             
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-2.5-flash')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             response = model.generate_content(prompt)
             content = response.text
 
