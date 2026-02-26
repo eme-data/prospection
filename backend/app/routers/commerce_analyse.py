@@ -120,20 +120,18 @@ Fournis UNIQUEMENT le JSON, sans bloquages markdown ```json.
         prompt_parts.extend(uploaded_gemini_files)
         
         # Try different model names as fallbacks with full resource names
-        # Most reliable models first
         models_to_try = [
             'models/gemini-1.5-flash', 
             'models/gemini-1.5-flash-latest',
             'models/gemini-1.5-flash-8b',
             'models/gemini-2.0-flash',
-            'gemini-1.5-flash',
-            'gemini-2.0-flash'
         ]
         last_error = None
         
+        # 1. Try Gemini first
         for model_name in models_to_try:
             try:
-                print(f"DEBUG: Attempting analysis with model: {model_name}")
+                print(f"DEBUG: Attempting analysis with Gemini model: {model_name}")
                 model = genai.GenerativeModel(model_name)
                 
                 # Call Gemini
@@ -143,43 +141,72 @@ Fournis UNIQUEMENT le JSON, sans bloquages markdown ```json.
                 if not text:
                     raise ValueError("Empty response from Gemini")
                     
-                # If we reach here, it worked!
-                # Parse output - handle multiple common markdown formats
+                # Parse output
                 text = text.replace('```json', '').replace('```', '').strip()
-                if text.startswith('json'):
-                    text = text[4:].strip()
-                    
+                if text.startswith('json'): text = text[4:].strip()
                 analysis_data = json.loads(text)
                 
-                print(f"SUCCESS: Analysis completed with model {model_name}")
                 return {
                     "success": True,
                     "analysis": analysis_data,
                     "files_analyzed": [f.filename for f in files],
-                    "model_used": model_name
+                    "model_used": f"Gemini ({model_name})"
                 }
             except Exception as e:
                 last_error = e
                 err_str = str(e).lower()
-                print(f"DEBUG: Error with model {model_name}: {e}")
+                print(f"DEBUG: Gemini error with {model_name}: {e}")
                 
-                # Only fallback if the model itself is not found or not supported
-                # If it's a quota (429) or auth (403) error, stop and report it
-                if "not found" in err_str or "not supported" in err_str or "unsupported model" in err_str or "404" in err_str:
+                # If it's a quota (429), break Gemini loop and jump to Ollama
+                if "429" in err_str or "quota" in err_str:
+                    print("DEBUG: Gemini Quota exceeded, switching to Ollama...")
+                    break
+                # Otherwise continue to next Gemini model if it was an availability issue
+                if "not found" in err_str or "not supported" in err_str or "404" in err_str:
                     continue
                 else:
                     break
-                
-        # If all models failed or we hit a non-retryable error
-        error_msg = f"Erreur Analyse Gemini : {last_error}"
-        if "429" in str(last_error):
-            error_msg = "Quota API dépassé (429). Veuillez patienter une minute ou vérifier votre plan sur Google AI Studio."
+
+        # 2. Fallback to Local Ollama if Gemini failed or quota exceeded
+        try:
+            print("DEBUG: Attempting analysis with Local Ollama (llama3.2)...")
+            import httpx
             
-        print(f"ERROR: {error_msg}")
-        raise HTTPException(status_code=500, detail=error_msg)
-        
+            ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
+            if not ollama_url.startswith("http"):
+                ollama_url = f"http://{ollama_url}"
+                
+            # Reconstruct prompt for a text model
+            text_prompt = prompt + "\nNote: Analyse les données issues des fichiers transmis."
+            
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    f"{ollama_url}/api/generate",
+                    json={
+                        "model": "llama3.2:3b",
+                        "prompt": text_prompt,
+                        "stream": False,
+                        "format": "json"
+                    }
+                )
+                resp.raise_for_status()
+                result = resp.json()
+                text = result.get("response", "")
+                
+                analysis_data = json.loads(text)
+                return {
+                    "success": True,
+                    "analysis": analysis_data,
+                    "files_analyzed": [f.filename for f in files],
+                    "model_used": "Ollama (Local llama3.2)"
+                }
+        except Exception as ollama_err:
+            print(f"ERROR: Ollama fallback failed: {ollama_err}")
+            error_msg = f"Toutes les tentatives ont échoué. Gemini: {last_error}. Ollama: {ollama_err}"
+            raise HTTPException(status_code=500, detail=error_msg)
+            
     except Exception as e:
-        print(f"Global error during Gemini Analysis: {e}")
+        print(f"Global error during Gemini/Ollama Analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
         
     finally:
