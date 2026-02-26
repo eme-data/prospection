@@ -43,7 +43,7 @@ async def analyze_quotes(
         raise HTTPException(status_code=500, detail="Clé API Gemini non configurée dans l'administration.")
         
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('models/gemini-1.5-flash')
     
     uploaded_gemini_files = []
     temp_files = []
