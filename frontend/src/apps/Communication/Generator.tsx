@@ -6,7 +6,7 @@ export const Generator: React.FC = () => {
     const [params, setParams] = useState<GeneratePostParams>({
         topic: '',
         platform: 'linkedin',
-        ai_model: 'gemini',
+        ai_model: 'claude',
         tone: 'professional',
         length: 'medium',
         include_hashtags: true,
@@ -85,9 +85,9 @@ export const Generator: React.FC = () => {
                                 onChange={(e) => setParams(prev => ({ ...prev, ai_model: e.target.value }))}
                                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                             >
-                                <option value="gemini">Google Gemini (Recommandé)</option>
+                                <option value="claude">Claude (Anthropic) — Recommandé</option>
+                                <option value="gemini">Google Gemini</option>
                                 <option value="groq">Groq (Llama 3)</option>
-                                <option value="claude">Claude (Anthropic)</option>
                             </select>
                         </div>
 

@@ -4,7 +4,7 @@ import { Paintbrush, Download, RefreshCw } from 'lucide-react';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export const LogoCreator: React.FC = () => {
-    const [provider, setProvider] = useState('auto');
+    const [provider, setProvider] = useState('claude');
     const [companyName, setCompanyName] = useState('');
     const [industry, setIndustry] = useState('');
     const [style, setStyle] = useState('moderne');
@@ -116,7 +116,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                     Générateur de Logos IA
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Créez des logos vectoriels uniques en utilisant la puissance de Gemini et Groq.
+                    Créez des logos vectoriels uniques en utilisant la puissance de Claude, Gemini et Groq.
                 </p>
             </div>
 
@@ -132,7 +132,8 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                                 onChange={(e) => setProvider(e.target.value)}
                                 className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             >
-                                <option value="auto">🔄 Auto (Gemini → Groq si échec)</option>
+                                <option value="claude">✦ Claude (Anthropic) — Recommandé</option>
+                                <option value="auto">🔄 Auto (Claude → Groq si échec)</option>
                                 <option value="gemini">🔵 Gemini Flash (Google)</option>
                                 <option value="groq">⚡ Llama 3.3 70B (Groq)</option>
                             </select>

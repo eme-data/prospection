@@ -1,10 +1,12 @@
 """
-Routes API pour l'analyse de devis par IA (Gemini 1.5 Flash)
+Routes API pour l'analyse de devis par IA
+Priorité : Claude (Anthropic) → Gemini → Ollama (local)
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from typing import List
 import os
+import base64
 import tempfile
 import json
 import asyncio
@@ -13,72 +15,20 @@ from app.models.user import User
 from app.models.settings import SystemSettings
 from app.database import get_db
 from sqlalchemy.orm import Session
+import anthropic
 import google.generativeai as genai
 
 router = APIRouter(prefix="/commerce/analyse-devis", tags=["commerce"])
 
-def get_gemini_api_key(db: Session):
-    setting = db.query(SystemSettings).filter_by(key="gemini_api_key").first()
+
+def _get_api_key(db: Session, db_key: str, env_key: str) -> str | None:
+    setting = db.query(SystemSettings).filter_by(key=db_key).first()
     if setting and setting.value:
         return setting.value
-    # Fallback to environment variable
-    return os.environ.get("GEMINI_API_KEY")
+    return os.environ.get(env_key)
 
-@router.post("/")
-async def analyze_quotes(
-    files: List[UploadFile] = File(...),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Analyse 1 à N devis (PDF/Images) avec Gemini 1.5 Flash utilisant la File API.
-    """
-    if len(files) < 1:
-        raise HTTPException(status_code=400, detail="Au moins un fichier est requis.")
-    if len(files) > 10:
-        raise HTTPException(status_code=400, detail="Maximum 10 fichiers autorisés.")
-        
-    api_key = get_gemini_api_key(db)
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Clé API Gemini non configurée dans l'administration.")
-        
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('models/gemini-1.5-flash')
-    
-    uploaded_gemini_files = []
-    temp_files = []
-    
-    try:
-        # Save uploaded files to temp directory and upload to Gemini
-        for file in files:
-            # Create a temporary file with the original extension
-            ext = os.path.splitext(file.filename)[1]
-            fd, temp_path = tempfile.mkstemp(suffix=ext)
-            
-            with os.fdopen(fd, 'wb') as f:
-                content = await file.read()
-                f.write(content)
-            
-            temp_files.append(temp_path)
-            
-            # Upload to Gemini File API
-            # determine mime type
-            mime_type = file.content_type
-            if not mime_type or mime_type == "application/octet-stream":
-                if ext.lower() == ".pdf":
-                    mime_type = "application/pdf"
-                elif ext.lower() in [".jpg", ".jpeg"]:
-                    mime_type = "image/jpeg"
-                elif ext.lower() == ".png":
-                    mime_type = "image/png"
-                    
-            gemini_file = genai.upload_file(path=temp_path, mime_type=mime_type, display_name=file.filename)
-            uploaded_gemini_files.append(gemini_file)
-            
-        # Create prompt content list
-        prompt_parts = []
-        
-        prompt = f"""Tu es un expert en analyse de devis de CONSTRUCTION (BTP). Analyse et compare ces {len(files)} devis joints.
+
+PROMPT_ANALYSE = """Tu es un expert en analyse de devis de CONSTRUCTION (BTP). Analyse et compare ces {n} devis joints.
 
 Fournis une analyse COMPLÈTE au format JSON suivant EXACTEMENT:
 
@@ -116,69 +66,170 @@ Fournis une analyse COMPLÈTE au format JSON suivant EXACTEMENT:
 
 Fournis UNIQUEMENT le JSON, sans bloquages markdown ```json.
 """
-        prompt_parts.append(prompt)
-        prompt_parts.extend(uploaded_gemini_files)
-        
-        # Try different model names as fallbacks with full resource names
-        models_to_try = [
-            'models/gemini-1.5-flash', 
-            'models/gemini-1.5-flash-latest',
-            'models/gemini-1.5-flash-8b',
-            'models/gemini-2.0-flash',
-        ]
-        last_error = None
-        
-        # 1. Try Gemini first
-        for model_name in models_to_try:
+
+
+def _parse_json_response(text: str) -> dict:
+    text = text.replace('```json', '').replace('```', '').strip()
+    if text.startswith('json'):
+        text = text[4:].strip()
+    return json.loads(text)
+
+
+@router.post("/")
+async def analyze_quotes(
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Analyse 1 à N devis (PDF/Images).
+    Essaie Claude en premier, puis Gemini, puis Ollama en dernier recours.
+    """
+    if len(files) < 1:
+        raise HTTPException(status_code=400, detail="Au moins un fichier est requis.")
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="Maximum 10 fichiers autorisés.")
+
+    prompt = PROMPT_ANALYSE.format(n=len(files))
+
+    # Sauvegarder les fichiers en local (nécessaire pour Gemini File API et lecture base64)
+    temp_files = []
+    file_infos = []  # (temp_path, ext, mime_type, original_filename)
+
+    try:
+        for file in files:
+            ext = os.path.splitext(file.filename)[1].lower()
+            fd, temp_path = tempfile.mkstemp(suffix=ext)
+            content = await file.read()
+            with os.fdopen(fd, 'wb') as f:
+                f.write(content)
+
+            mime_type = file.content_type or "application/octet-stream"
+            if mime_type == "application/octet-stream":
+                if ext == ".pdf":
+                    mime_type = "application/pdf"
+                elif ext in [".jpg", ".jpeg"]:
+                    mime_type = "image/jpeg"
+                elif ext == ".png":
+                    mime_type = "image/png"
+
+            temp_files.append(temp_path)
+            file_infos.append((temp_path, ext, mime_type, file.filename))
+
+        # ── 1. Claude (Anthropic) ────────────────────────────────────────────
+        anthropic_key = _get_api_key(db, "anthropic_api_key", "ANTHROPIC_API_KEY")
+        if anthropic_key:
             try:
-                print(f"DEBUG: Attempting analysis with Gemini model: {model_name}")
-                model = genai.GenerativeModel(model_name)
-                
-                # Call Gemini
-                response = await asyncio.to_thread(model.generate_content, prompt_parts)
-                text = response.text
-                
-                if not text:
-                    raise ValueError("Empty response from Gemini")
-                    
-                # Parse output
-                text = text.replace('```json', '').replace('```', '').strip()
-                if text.startswith('json'): text = text[4:].strip()
-                analysis_data = json.loads(text)
-                
+                print("DEBUG: Attempting analysis with Claude (Anthropic)...")
+                content_parts = []
+
+                for temp_path, ext, mime_type, filename in file_infos:
+                    with open(temp_path, "rb") as f:
+                        file_data = base64.standard_b64encode(f.read()).decode("utf-8")
+
+                    if ext == ".pdf":
+                        content_parts.append({
+                            "type": "document",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": file_data,
+                            },
+                        })
+                    elif mime_type.startswith("image/"):
+                        content_parts.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime_type,
+                                "data": file_data,
+                            },
+                        })
+
+                content_parts.append({"type": "text", "text": prompt})
+
+                claude_client = anthropic.Anthropic(api_key=anthropic_key)
+                message = await asyncio.to_thread(
+                    claude_client.messages.create,
+                    model="claude-sonnet-4-6",
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": content_parts}],
+                )
+                analysis_data = _parse_json_response(message.content[0].text)
                 return {
                     "success": True,
                     "analysis": analysis_data,
                     "files_analyzed": [f.filename for f in files],
-                    "model_used": f"Gemini ({model_name})"
+                    "model_used": "Claude Sonnet (Anthropic)",
                 }
-            except Exception as e:
-                last_error = e
-                err_str = str(e).lower()
-                print(f"DEBUG: Gemini error with {model_name}: {e}")
-                
-                # If it's a quota (429), break Gemini loop and jump to Ollama
-                if "429" in err_str or "quota" in err_str:
-                    print("DEBUG: Gemini Quota exceeded, switching to Ollama...")
-                    break
-                # Otherwise continue to next Gemini model if it was an availability issue
-                if "not found" in err_str or "not supported" in err_str or "404" in err_str:
-                    continue
-                else:
-                    break
 
-        # 2. Fallback to Local Ollama if Gemini failed or quota exceeded
+            except Exception as e:
+                print(f"DEBUG: Claude error: {e}, switching to Gemini...")
+
+        # ── 2. Gemini (Google) ───────────────────────────────────────────────
+        gemini_key = _get_api_key(db, "gemini_api_key", "GEMINI_API_KEY")
+        if gemini_key:
+            uploaded_gemini_files = []
+            try:
+                print("DEBUG: Attempting analysis with Gemini...")
+                genai.configure(api_key=gemini_key)
+
+                for temp_path, ext, mime_type, filename in file_infos:
+                    gemini_file = genai.upload_file(
+                        path=temp_path, mime_type=mime_type, display_name=filename
+                    )
+                    uploaded_gemini_files.append(gemini_file)
+
+                models_to_try = [
+                    "models/gemini-1.5-flash",
+                    "models/gemini-2.0-flash",
+                    "models/gemini-1.5-flash-8b",
+                ]
+                last_gemini_error = None
+
+                for model_name in models_to_try:
+                    try:
+                        print(f"DEBUG: Trying Gemini model: {model_name}")
+                        model = genai.GenerativeModel(model_name)
+                        prompt_parts = [prompt] + uploaded_gemini_files
+                        response = await asyncio.to_thread(model.generate_content, prompt_parts)
+                        analysis_data = _parse_json_response(response.text)
+                        return {
+                            "success": True,
+                            "analysis": analysis_data,
+                            "files_analyzed": [f.filename for f in files],
+                            "model_used": f"Gemini ({model_name})",
+                        }
+                    except Exception as e:
+                        last_gemini_error = e
+                        err_str = str(e).lower()
+                        print(f"DEBUG: Gemini error with {model_name}: {e}")
+                        if "429" in err_str or "quota" in err_str:
+                            break
+                        if "not found" in err_str or "404" in err_str:
+                            continue
+                        break
+
+                print(f"DEBUG: Gemini failed ({last_gemini_error}), switching to Ollama...")
+
+            finally:
+                for gemini_file in uploaded_gemini_files:
+                    try:
+                        genai.delete_file(gemini_file.name)
+                    except Exception:
+                        pass
+
+        # ── 3. Ollama (local) — dernier recours ──────────────────────────────
         try:
             print("DEBUG: Attempting analysis with Local Ollama (llama3.2)...")
             import httpx
-            
+
             ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
             if not ollama_url.startswith("http"):
                 ollama_url = f"http://{ollama_url}"
-                
-            # Reconstruct prompt for a text model
+
             text_prompt = prompt + "\nNote: Analyse les données issues des fichiers transmis."
-            
+
             async with httpx.AsyncClient(timeout=120.0) as client:
                 resp = await client.post(
                     f"{ollama_url}/api/generate",
@@ -186,41 +237,39 @@ Fournis UNIQUEMENT le JSON, sans bloquages markdown ```json.
                         "model": "llama3.2:3b",
                         "prompt": text_prompt,
                         "stream": False,
-                        "format": "json"
-                    }
+                        "format": "json",
+                    },
                 )
                 resp.raise_for_status()
                 result = resp.json()
-                text = result.get("response", "")
-                
-                analysis_data = json.loads(text)
+                analysis_data = json.loads(result.get("response", "{}"))
                 return {
                     "success": True,
                     "analysis": analysis_data,
                     "files_analyzed": [f.filename for f in files],
-                    "model_used": "Ollama (Local llama3.2)"
+                    "model_used": "Ollama (Local llama3.2)",
                 }
+
         except Exception as ollama_err:
             print(f"ERROR: Ollama fallback failed: {ollama_err}")
-            error_msg = f"Toutes les tentatives ont échoué. Gemini: {last_error}. Ollama: {ollama_err}"
-            raise HTTPException(status_code=500, detail=error_msg)
-            
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "Analyse impossible : aucun modèle IA disponible. "
+                    "Vérifiez vos clés API (Claude / Gemini) dans Administration > Clés API."
+                ),
+            )
+
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"Global error during Gemini/Ollama Analysis: {e}")
+        print(f"Global error during analysis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-        
+
     finally:
-        # Clean up temporary files
         for temp_path in temp_files:
             try:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
-            except Exception:
-                pass
-                
-        # Clean up Gemini Files in background
-        for gemini_file in uploaded_gemini_files:
-            try:
-                genai.delete_file(gemini_file.name)
             except Exception:
                 pass

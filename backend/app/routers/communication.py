@@ -245,6 +245,81 @@ async def delete_post(
         raise HTTPException(status_code=500, detail="Erreur serveur")
 
 
+@router.post("/logo")
+async def generate_logo(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Génère un logo SVG via IA — Claude en priorité, Groq en fallback"""
+    try:
+        body = await request.json()
+        prompt = body.get("prompt", "")
+        provider = body.get("provider", "claude")
+
+        if not prompt:
+            raise HTTPException(status_code=400, detail="prompt requis")
+
+        # 1. Claude (Anthropic) — prioritaire
+        if provider in ["claude", "auto"]:
+            from app.models.settings import SystemSettings
+            claude_setting = db.query(SystemSettings).filter_by(key="anthropic_api_key").first()
+            api_key = claude_setting.value if claude_setting and claude_setting.value else os.getenv("ANTHROPIC_API_KEY")
+
+            if api_key:
+                try:
+                    claude_client = anthropic.Anthropic(api_key=api_key)
+                    message = claude_client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    return {"content": [{"text": message.content[0].text}], "provider_used": "claude"}
+                except Exception as e:
+                    logger.warning(f"Claude logo failed: {e}")
+                    if provider == "claude":
+                        raise HTTPException(status_code=500, detail=f"Erreur Claude: {str(e)}")
+
+        # 2. Gemini — fallback explicite
+        if provider == "gemini":
+            from app.models.settings import SystemSettings
+            import google.generativeai as genai
+            gemini_setting = db.query(SystemSettings).filter_by(key="gemini_api_key").first()
+            api_key = gemini_setting.value if gemini_setting and gemini_setting.value else os.getenv("GEMINI_API_KEY")
+
+            if not api_key:
+                raise HTTPException(status_code=500, detail="Clé API Gemini non configurée")
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            response = model.generate_content(prompt)
+            return {"content": [{"text": response.text}], "provider_used": "gemini"}
+
+        # 3. Groq — fallback auto ou explicite
+        if provider in ["groq", "auto"]:
+            from app.models.settings import SystemSettings
+            groq_setting = db.query(SystemSettings).filter_by(key="groq_api_key").first()
+            api_key = groq_setting.value if groq_setting and groq_setting.value else os.getenv("GROQ_API_KEY")
+
+            if not api_key:
+                raise HTTPException(status_code=500, detail="Aucune clé API IA configurée (Claude / Groq)")
+            groq_client = Groq(api_key=api_key)
+            completion = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=4096,
+                temperature=0.7,
+            )
+            return {"content": [{"text": completion.choices[0].message.content}], "provider_used": "groq"}
+
+        raise HTTPException(status_code=500, detail="Aucun provider valide disponible")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("logo_generation_error", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Erreur génération logo: {str(e)}")
+
+
 @router.get("/accounts")
 async def get_accounts(
     db: Session = Depends(get_db),
