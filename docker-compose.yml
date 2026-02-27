@@ -71,6 +71,8 @@ services:
       - LOG_FORMAT=json
       - API_TIMEOUT=30.0
       - API_MAX_RETRIES=3
+      # Dossier de données (PDF uploadés, fichiers générés, etc.)
+      - DATA_DIR=/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,6 +87,8 @@ services:
     restart: unless-stopped
     networks:
       - prospection-internal
+    volumes:
+      - ./data:/data
     expose:
       - "8000"
 
