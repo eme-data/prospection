@@ -404,9 +404,6 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
         return d ? (d.nom_fournisseur || `Devis ${id}`) : `Devis ${id}`;
     };
 
-    const getDevisIndex = (id: number | string) =>
-        devis.findIndex(d => String(d.id) === String(id));
-
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -468,7 +465,7 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
                                 {/* Corps d'état */}
                                 <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{poste.corps_etat}</td>
                                 {/* Colonnes par devis */}
-                                {devis.map((d, i) => {
+                                {devis.map((d) => {
                                     const entry = poste.par_devis.find(e => String(e.id) === String(d.id));
                                     const isBestQte = String(poste.best_qte_id) === String(d.id);
                                     const isBestPu  = String(poste.best_pu_id) === String(d.id);
@@ -672,7 +669,7 @@ function exportToPDF(data: AnalysisData) {
     const comparaisonPostes = data.comparaison_postes ?? [];
     const comparaisonTableHtml = comparaisonPostes.length > 0 && data.devis?.length >= 2 ? (() => {
         const devisArr = data.devis ?? [];
-        const devisHeaders = devisArr.map((d, i) =>
+        const devisHeaders = devisArr.map((_d, i) =>
             `<th style="padding:5px 8px;text-align:right;font-weight:600;color:#ea580c">Qté D${i+1}</th>
              <th style="padding:5px 8px;text-align:right;font-weight:600;color:#ea580c">PU D${i+1}</th>`
         ).join('');
@@ -701,7 +698,7 @@ function exportToPDF(data: AnalysisData) {
         }).join('');
 
         const postesNeg = comparaisonPostes.filter((p: any) => p.negocier);
-        const negList = postesNeg.map((p: any, i: number) =>
+        const negList = postesNeg.map((p: any) =>
             `<li style="margin-bottom:6px"><strong>${p.libelle}</strong>${p.motif ? ` — ${p.motif}` : ''}<br/>
              <span style="font-size:11px;color:#92400e">Meilleure qté : D${p.best_qte_id} · Meilleur PU : D${p.best_pu_id}</span></li>`
         ).join('');
