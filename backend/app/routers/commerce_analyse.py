@@ -77,7 +77,22 @@ Fournis l'analyse au format JSON suivant EXACTEMENT (sois concis dans les descri
   "recommandation": {{
     "devis_recommande": "ID recommandé",
     "justification": "Justification en 2-3 phrases (prix, délai, conformité)"
-  }}
+  }},
+  "comparaison_postes": [
+    {{
+      "libelle": "Description courte (max 50 car)",
+      "corps_etat": "Corps d'état",
+      "par_devis": [{{"id": 1, "qte": "X", "pu": "X€", "total": "X€"}}, {{"id": 2, "qte": "X", "pu": "X€", "total": "X€"}}],
+      "best_qte_id": 1,
+      "best_pu_id": 2,
+      "target_ht": "X€",
+      "ecart_qte": "+X%",
+      "ecart_pu": "-X%",
+      "negocier": true,
+      "motif": "Raison courte (max 60 car)"
+    }}
+  ],
+  "prix_cible_ht": "Total HT si on retient la meilleure qté ET le meilleur PU sur chaque poste"
 }}
 
 RÈGLES ABSOLUES :
@@ -88,6 +103,7 @@ RÈGLES ABSOLUES :
 - Pas de commentaires dans le JSON
 - null pour toute valeur absente (jamais de chaîne vide)
 - Descriptions courtes pour économiser l'espace
+- comparaison_postes : UNIQUEMENT postes comparables entre devis avec écart >5%, max 12 entrées triées par impact financier décroissant
 """
 
 

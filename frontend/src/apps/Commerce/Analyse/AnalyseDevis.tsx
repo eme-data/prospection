@@ -142,6 +142,19 @@ interface Devis {
     postes_travaux: PosteTravaux[];
 }
 
+interface PosteComparaison {
+    libelle: string;
+    corps_etat: string;
+    par_devis: Array<{ id: number | string; qte: string; pu: string; total: string }>;
+    best_qte_id: number | string;
+    best_pu_id: number | string;
+    target_ht: string;
+    ecart_qte: string;
+    ecart_pu: string;
+    negocier: boolean;
+    motif?: string;
+}
+
 interface AnalysisData {
     resume_executif: string;
     devis: Devis[];
@@ -157,6 +170,8 @@ interface AnalysisData {
         devis_recommande: string;
         justification: string;
     };
+    comparaison_postes?: PosteComparaison[];
+    prix_cible_ht?: string;
 }
 
 // ── Carte devis ───────────────────────────────────────────────────────────────
@@ -366,6 +381,205 @@ const DevisCard: React.FC<{ devis: Devis; isRecommended: boolean; isBestValue: b
     );
 };
 
+// ── Comparaison poste par poste ───────────────────────────────────────────────
+
+const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
+    const postes = data.comparaison_postes ?? [];
+    const devis = data.devis ?? [];
+
+    if (postes.length === 0 || devis.length < 2) return null;
+
+    const postesANegocier = postes.filter(p => p.negocier);
+
+    // Couleurs par devis (max 4)
+    const devisTheme = [
+        { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-700 dark:text-orange-300', badge: 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-100', border: 'border-orange-300 dark:border-orange-700' },
+        { bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300',   badge: 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100',   border: 'border-blue-300 dark:border-blue-700'   },
+        { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-700 dark:text-purple-300', badge: 'bg-purple-100 text-purple-800', border: 'border-purple-300' },
+        { bg: 'bg-teal-50 dark:bg-teal-900/20',   text: 'text-teal-700 dark:text-teal-300',   badge: 'bg-teal-100 text-teal-800',   border: 'border-teal-300'   },
+    ];
+
+    const getDevisName = (id: number | string) => {
+        const d = devis.find(d => String(d.id) === String(id));
+        return d ? (d.nom_fournisseur || `Devis ${id}`) : `Devis ${id}`;
+    };
+
+    const getDevisIndex = (id: number | string) =>
+        devis.findIndex(d => String(d.id) === String(id));
+
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Euro className="w-5 h-5 text-orange-500" />
+                    Analyse comparative poste par poste
+                </h3>
+                {data.prix_cible_ht && (
+                    <div className="text-right">
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Prix cible (best qté × best PU)</p>
+                        <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{data.prix_cible_ht}</p>
+                    </div>
+                )}
+            </div>
+
+            {/* Légende devis */}
+            <div className="flex flex-wrap gap-3">
+                {devis.map((d, i) => (
+                    <span key={d.id} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${devisTheme[i % 4].badge}`}>
+                        <Building2 className="w-3 h-3" />
+                        Devis {i + 1} — {d.nom_fournisseur || 'Inconnu'}
+                    </span>
+                ))}
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">
+                    <Star className="w-3 h-3" /> Prix cible = meilleur de chaque
+                </span>
+            </div>
+
+            {/* Tableau */}
+            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                <table className="w-full text-xs">
+                    <thead>
+                        <tr className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            <th className="px-3 py-2.5 text-left font-semibold sticky left-0 bg-gray-100 dark:bg-gray-700 min-w-[160px]">Poste</th>
+                            <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">Corps d'état</th>
+                            {devis.map((d, i) => (
+                                <React.Fragment key={d.id}>
+                                    <th className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${devisTheme[i % 4].text}`}>
+                                        Qté D{i + 1}
+                                    </th>
+                                    <th className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${devisTheme[i % 4].text}`}>
+                                        PU HT D{i + 1}
+                                    </th>
+                                </React.Fragment>
+                            ))}
+                            <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap text-amber-600 dark:text-amber-400">Écart Qté</th>
+                            <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap text-amber-600 dark:text-amber-400">Écart PU</th>
+                            <th className="px-3 py-2.5 text-right font-semibold whitespace-nowrap text-emerald-600 dark:text-emerald-400">Prix cible</th>
+                            <th className="px-3 py-2.5 text-center font-semibold">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {postes.map((poste, idx) => (
+                            <tr key={idx} className={`${poste.negocier ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'bg-white dark:bg-gray-800'} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors`}>
+                                {/* Libellé */}
+                                <td className={`px-3 py-2 font-medium text-gray-800 dark:text-gray-200 sticky left-0 ${poste.negocier ? 'bg-amber-50/80 dark:bg-amber-900/20' : 'bg-white dark:bg-gray-800'}`}>
+                                    <span title={poste.libelle} className="line-clamp-2">{poste.libelle}</span>
+                                </td>
+                                {/* Corps d'état */}
+                                <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{poste.corps_etat}</td>
+                                {/* Colonnes par devis */}
+                                {devis.map((d, i) => {
+                                    const entry = poste.par_devis.find(e => String(e.id) === String(d.id));
+                                    const isBestQte = String(poste.best_qte_id) === String(d.id);
+                                    const isBestPu  = String(poste.best_pu_id) === String(d.id);
+                                    return (
+                                        <React.Fragment key={d.id}>
+                                            <td className={`px-3 py-2 text-right whitespace-nowrap font-medium ${isBestQte ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                {isBestQte && <span className="mr-1 text-emerald-500">✓</span>}
+                                                {entry?.qte ?? '—'}
+                                            </td>
+                                            <td className={`px-3 py-2 text-right whitespace-nowrap font-medium ${isBestPu ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
+                                                {isBestPu && <span className="mr-1 text-emerald-500">✓</span>}
+                                                {entry?.pu ?? '—'}
+                                            </td>
+                                        </React.Fragment>
+                                    );
+                                })}
+                                {/* Écart Qté */}
+                                <td className="px-3 py-2 text-center">
+                                    <span className={`inline-block px-2 py-0.5 rounded font-semibold ${
+                                        poste.ecart_qte?.startsWith('+')
+                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                    }`}>
+                                        {poste.ecart_qte}
+                                    </span>
+                                </td>
+                                {/* Écart PU */}
+                                <td className="px-3 py-2 text-center">
+                                    <span className={`inline-block px-2 py-0.5 rounded font-semibold ${
+                                        poste.ecart_pu?.startsWith('+')
+                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                    }`}>
+                                        {poste.ecart_pu}
+                                    </span>
+                                </td>
+                                {/* Prix cible */}
+                                <td className="px-3 py-2 text-right font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                    {poste.target_ht}
+                                </td>
+                                {/* Action */}
+                                <td className="px-3 py-2 text-center">
+                                    {poste.negocier && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 whitespace-nowrap">
+                                            <AlertTriangle className="w-2.5 h-2.5" /> Négocier
+                                        </span>
+                                    )}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    {/* Ligne récap prix cible */}
+                    {data.prix_cible_ht && (
+                        <tfoot>
+                            <tr className="bg-emerald-50 dark:bg-emerald-900/20 border-t-2 border-emerald-300 dark:border-emerald-700">
+                                <td colSpan={2 + devis.length * 2 + 2} className="px-3 py-2.5 text-sm font-bold text-emerald-800 dark:text-emerald-200">
+                                    Prix cible total (meilleure qté × meilleur PU sur chaque poste)
+                                </td>
+                                <td className="px-3 py-2.5 text-right text-lg font-extrabold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
+                                    {data.prix_cible_ht}
+                                </td>
+                                <td />
+                            </tr>
+                        </tfoot>
+                    )}
+                </table>
+            </div>
+
+            {/* Postes à négocier */}
+            {postesANegocier.length > 0 && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-5">
+                    <h4 className="text-sm font-bold text-amber-800 dark:text-amber-300 flex items-center gap-2 mb-3">
+                        <AlertTriangle className="w-4 h-4" /> {postesANegocier.length} poste{postesANegocier.length > 1 ? 's' : ''} à négocier en priorité
+                    </h4>
+                    <div className="space-y-2">
+                        {postesANegocier.map((p, i) => (
+                            <div key={i} className="flex items-start gap-3 text-sm">
+                                <span className="flex-shrink-0 mt-0.5 w-5 h-5 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs font-bold flex items-center justify-center">
+                                    {i + 1}
+                                </span>
+                                <div>
+                                    <span className="font-semibold text-amber-900 dark:text-amber-200">{p.libelle}</span>
+                                    {p.corps_etat && <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">({p.corps_etat})</span>}
+                                    {p.motif && <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">{p.motif}</p>}
+                                    <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+                                        Meilleure qté : <strong>{getDevisName(p.best_qte_id)}</strong> · Meilleur PU : <strong>{getDevisName(p.best_pu_id)}</strong>
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {data.prix_cible_ht && (() => {
+                        const recommId = String(data.recommandation?.devis_recommande ?? '');
+                        const recommDevis = data.devis?.find(d => String(d.id) === recommId);
+                        return recommDevis ? (
+                            <div className="mt-4 pt-3 border-t border-amber-200 dark:border-amber-700 flex items-center justify-between text-sm">
+                                <span className="text-amber-700 dark:text-amber-400">
+                                    Devis recommandé actuel ({recommDevis.nom_fournisseur}) : <strong>{recommDevis.prix_total_ht}</strong>
+                                </span>
+                                <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                    → Prix cible : {data.prix_cible_ht}
+                                </span>
+                            </div>
+                        ) : null;
+                    })()}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // ── Export PDF ────────────────────────────────────────────────────────────────
 
 function exportToPDF(data: AnalysisData) {
@@ -454,6 +668,71 @@ function exportToPDF(data: AnalysisData) {
         </div>`;
     }).join('');
 
+    // ── Tableau comparaison postes ───────────────────────────────────────────
+    const comparaisonPostes = data.comparaison_postes ?? [];
+    const comparaisonTableHtml = comparaisonPostes.length > 0 && data.devis?.length >= 2 ? (() => {
+        const devisArr = data.devis ?? [];
+        const devisHeaders = devisArr.map((d, i) =>
+            `<th style="padding:5px 8px;text-align:right;font-weight:600;color:#ea580c">Qté D${i+1}</th>
+             <th style="padding:5px 8px;text-align:right;font-weight:600;color:#ea580c">PU D${i+1}</th>`
+        ).join('');
+
+        const rows = comparaisonPostes.map(poste => {
+            const cellsDevis = devisArr.map(d => {
+                const entry = poste.par_devis?.find((e: any) => String(e.id) === String(d.id));
+                const isBestQte = String(poste.best_qte_id) === String(d.id);
+                const isBestPu  = String(poste.best_pu_id)  === String(d.id);
+                return `
+                    <td style="padding:4px 8px;text-align:right;font-weight:${isBestQte?'700':'400'};color:${isBestQte?'#166534':'#374151'}">${isBestQte?'✓ ':''}${entry?.qte??'—'}</td>
+                    <td style="padding:4px 8px;text-align:right;font-weight:${isBestPu?'700':'400'};color:${isBestPu?'#166534':'#374151'}">${isBestPu?'✓ ':''}${entry?.pu??'—'}</td>`;
+            }).join('');
+
+            const ecartQteColor = poste.ecart_qte?.startsWith('+') ? '#dc2626' : '#166534';
+            const ecartPuColor  = poste.ecart_pu?.startsWith('+')  ? '#dc2626' : '#166534';
+            return `<tr style="background:${poste.negocier?'#fffbeb':'#fff'};border-bottom:1px solid #f3f4f6">
+                <td style="padding:4px 8px;font-weight:500">${poste.libelle}</td>
+                <td style="padding:4px 8px;color:#6b7280">${poste.corps_etat}</td>
+                ${cellsDevis}
+                <td style="padding:4px 8px;text-align:center;font-weight:600;color:${ecartQteColor}">${poste.ecart_qte}</td>
+                <td style="padding:4px 8px;text-align:center;font-weight:600;color:${ecartPuColor}">${poste.ecart_pu}</td>
+                <td style="padding:4px 8px;text-align:right;font-weight:700;color:#166534">${poste.target_ht}</td>
+                <td style="padding:4px 8px;text-align:center">${poste.negocier?'<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:600">À négocier</span>':''}</td>
+            </tr>`;
+        }).join('');
+
+        const postesNeg = comparaisonPostes.filter((p: any) => p.negocier);
+        const negList = postesNeg.map((p: any, i: number) =>
+            `<li style="margin-bottom:6px"><strong>${p.libelle}</strong>${p.motif ? ` — ${p.motif}` : ''}<br/>
+             <span style="font-size:11px;color:#92400e">Meilleure qté : D${p.best_qte_id} · Meilleur PU : D${p.best_pu_id}</span></li>`
+        ).join('');
+
+        return `
+        <h2 style="font-size:16px;font-weight:700;color:#111827;margin:24px 0 12px">Analyse comparative poste par poste</h2>
+        <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead><tr style="background:#f3f4f6;color:#374151">
+                <th style="padding:5px 8px;text-align:left;font-weight:600">Poste</th>
+                <th style="padding:5px 8px;text-align:left;font-weight:600">Corps d'état</th>
+                ${devisHeaders}
+                <th style="padding:5px 8px;text-align:center;font-weight:600;color:#d97706">Écart Qté</th>
+                <th style="padding:5px 8px;text-align:center;font-weight:600;color:#d97706">Écart PU</th>
+                <th style="padding:5px 8px;text-align:right;font-weight:600;color:#166534">Prix cible</th>
+                <th style="padding:5px 8px;text-align:center;font-weight:600">Action</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            ${data.prix_cible_ht ? `<tfoot><tr style="background:#f0fdf4;border-top:2px solid #86efac">
+                <td colspan="${2 + devisArr.length * 2 + 2}" style="padding:6px 8px;font-weight:700;color:#166534">Prix cible total (meilleure qté × meilleur PU par poste)</td>
+                <td style="padding:6px 8px;text-align:right;font-size:14px;font-weight:800;color:#166534">${data.prix_cible_ht}</td>
+                <td></td>
+            </tr></tfoot>` : ''}
+        </table></div>
+        ${postesNeg.length > 0 ? `
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-top:16px">
+            <h4 style="font-size:13px;font-weight:700;color:#92400e;margin:0 0 8px">⚠ ${postesNeg.length} poste${postesNeg.length>1?'s':''} à négocier en priorité</h4>
+            <ul style="margin:0;padding-left:16px;font-size:12px">${negList}</ul>
+        </div>` : ''}`;
+    })() : '';
+
     const alertesHtml = (data.comparaison?.alertes_conformite ?? []).map(a =>
         `<li style="margin-bottom:4px;color:#92400e">⚠ ${a}</li>`
     ).join('');
@@ -495,6 +774,8 @@ function exportToPDF(data: AnalysisData) {
 
     <h2 style="font-size:16px;font-weight:700;color:#111827;margin:0 0 16px">Devis analysés</h2>
     ${devisHtml}
+
+    ${comparaisonTableHtml}
 
     ${(alertesHtml || pointsHtml) ? `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
@@ -585,6 +866,11 @@ const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
                     ))}
                 </div>
             </div>
+
+            {/* Comparaison poste par poste */}
+            {data.comparaison_postes && data.comparaison_postes.length > 0 && (
+                <ComparaisonPostes data={data} />
+            )}
 
             {/* Alertes & attention */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
