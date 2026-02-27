@@ -141,11 +141,6 @@ interface Devis {
     postes_travaux: PosteTravaux[];
 }
 
-interface TableauComparatif {
-    poste: string;
-    [key: string]: string;
-}
-
 interface AnalysisData {
     resume_executif: string;
     devis: Devis[];
@@ -156,11 +151,9 @@ interface AnalysisData {
         ecart_prix?: string;
         alertes_conformite: string[];
         points_attention_communs: string[];
-        tableau_comparatif?: TableauComparatif[];
     };
     recommandation: {
         devis_recommande: string;
-        score_qualite?: Record<string, string>;
         justification: string;
     };
 }
@@ -413,41 +406,6 @@ const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
                 </div>
             </div>
 
-            {/* Tableau comparatif inter-devis */}
-            {data.comparaison?.tableau_comparatif && data.comparaison.tableau_comparatif.length > 0 && (
-                <div>
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Tableau comparatif par poste</h3>
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-left">
-                                    <th className="px-4 py-3 font-semibold">Poste / Corps d'état</th>
-                                    {data.devis?.map((d, i) => (
-                                        <th key={i} className="px-4 py-3 font-semibold text-right">
-                                            <span className="block text-xs text-gray-500 dark:text-gray-400 font-normal">Devis {i + 1}</span>
-                                            <span className="text-xs">{d.nom_fournisseur}</span>
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                {data.comparaison.tableau_comparatif.map((row, i) => {
-                                    const keys = Object.keys(row).filter(k => k !== 'poste');
-                                    return (
-                                        <tr key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-800/50'}>
-                                            <td className="px-4 py-2.5 font-medium text-gray-800 dark:text-gray-200">{row.poste}</td>
-                                            {keys.map((k, j) => (
-                                                <td key={j} className="px-4 py-2.5 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap">{row[k]}</td>
-                                            ))}
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
             {/* Alertes & attention */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {data.comparaison?.alertes_conformite?.length > 0 && (
@@ -482,18 +440,6 @@ const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
                     </div>
                 )}
             </div>
-
-            {/* Scores qualité */}
-            {data.recommandation?.score_qualite && Object.keys(data.recommandation.score_qualite).length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {Object.entries(data.recommandation.score_qualite).map(([key, value], i) => (
-                        <div key={i} className="bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3">
-                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-wide">{key.replace('_', ' ')}</p>
-                            <p className="text-sm text-gray-800 dark:text-gray-200">{value}</p>
-                        </div>
-                    ))}
-                </div>
-            )}
 
             {/* Recommandation */}
             {data.recommandation && (

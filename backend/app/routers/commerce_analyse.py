@@ -29,80 +29,65 @@ def _get_api_key(db: Session, db_key: str, env_key: str) -> str | None:
 
 PROMPT_ANALYSE = """Tu es un expert en analyse de devis de CONSTRUCTION (BTP). Analyse et compare ces {n} devis joints.
 
-Extrais TOUTES les informations disponibles dans chaque document. Si une information est absente du document, utilise null.
+Extrais les informations clés de chaque document. Si une information est absente, utilise null.
 
-Fournis une analyse COMPLÈTE au format JSON suivant EXACTEMENT:
+Fournis l'analyse au format JSON suivant EXACTEMENT (sois concis dans les descriptions) :
 
 {{
-  "resume_executif": "Résumé global de la comparaison des devis en 3-4 phrases",
+  "resume_executif": "Résumé de 2-3 phrases comparant les devis",
   "devis": [
     {{
       "id": 1,
-      "nom_fournisseur": "Raison sociale complète de l'entreprise",
-      "siret": "Numéro SIRET (14 chiffres) si présent, sinon null",
-      "adresse": "Adresse complète de l'entreprise si présente",
-      "telephone": "Numéro de téléphone si présent",
-      "email": "Email si présent",
+      "nom_fournisseur": "Raison sociale",
+      "siret": "SIRET 14 chiffres ou null",
+      "adresse": "Adresse ou null",
+      "telephone": "Téléphone ou null",
+      "email": "Email ou null",
       "assurance_decennale": {{
-        "assureur": "Nom de la compagnie d'assurance si présent, sinon null",
-        "numero_police": "Numéro de police si présent, sinon null",
-        "validite": "Période de validité ou année si présente, sinon null"
+        "assureur": "Nom assureur ou null",
+        "numero_police": "N° police ou null",
+        "validite": "Validité ou null"
       }},
-      "prix_total_ht": "Montant HT en € (ex: 12 500,00 €)",
-      "prix_total_ttc": "Montant TTC en € (ex: 15 000,00 €)",
-      "tva": "Taux de TVA applicable (ex: 10%, 20%)",
-      "delais_execution": "Délai d'exécution des travaux",
-      "conditions_paiement": "Conditions de paiement (acompte, échéances) si mentionnées",
-      "validite_offre": "Durée de validité du devis si mentionnée",
+      "prix_total_ht": "Total HT en €",
+      "prix_total_ttc": "Total TTC en €",
+      "tva": "Taux TVA",
+      "delais_execution": "Délai ou null",
+      "conditions_paiement": "Conditions ou null",
+      "validite_offre": "Validité offre ou null",
       "postes_travaux": [
         {{
-          "numero": "Numéro du poste ou lot si présent",
-          "corps_etat": "Corps d'état (ex: Maçonnerie, Électricité, Plomberie)",
-          "description": "Description détaillée de la prestation",
-          "unite": "Unité de mesure (m², ml, u, h, forfait…)",
-          "quantite": "Quantité (valeur numérique)",
-          "prix_unitaire_ht": "Prix unitaire HT en € si disponible",
-          "prix_total_ht": "Prix total HT du poste en €"
+          "numero": "N° poste ou null",
+          "corps_etat": "Corps d'état",
+          "description": "Description courte (max 80 caractères)",
+          "unite": "Unité",
+          "quantite": "Qté",
+          "prix_unitaire_ht": "P.U. HT ou null",
+          "prix_total_ht": "Total HT"
         }}
       ]
     }}
   ],
   "comparaison": {{
-    "moins_disant": "ID du devis avec le prix le plus bas",
-    "mieux_disant": "ID du devis avec le meilleur rapport qualité/prix global",
-    "ecart_prix": "Écart en € et % entre le moins cher et le plus cher",
-    "alertes_conformite": [
-      "Alerte si SIRET manquant",
-      "Alerte si assurance décennale absente ou non mentionnée",
-      "Autres anomalies légales ou contractuelles"
-    ],
-    "points_attention_communs": ["Points à négocier ou vérifier communs aux devis"],
-    "tableau_comparatif": [
-      {{
-        "poste": "Corps d'état ou catégorie",
-        "devis_1": "Prix devis 1 ou null",
-        "devis_2": "Prix devis 2 ou null"
-      }}
-    ]
+    "moins_disant": "ID devis moins cher",
+    "mieux_disant": "ID meilleur rapport qualité/prix",
+    "ecart_prix": "Écart en € et %",
+    "alertes_conformite": ["Alerte SIRET manquant", "Alerte décennale absente"],
+    "points_attention_communs": ["Point 1", "Point 2"]
   }},
   "recommandation": {{
-    "devis_recommande": "ID du devis recommandé",
-    "score_qualite": {{
-      "devis_1": "Note /10 avec commentaire",
-      "devis_2": "Note /10 avec commentaire"
-    }},
-    "justification": "Justification détaillée de la recommandation (prix, délai, conformité, postes manquants)"
+    "devis_recommande": "ID recommandé",
+    "justification": "Justification en 2-3 phrases (prix, délai, conformité)"
   }}
 }}
 
-RÈGLES ABSOLUES pour le JSON :
+RÈGLES ABSOLUES :
 - Commence DIRECTEMENT par {{ sans aucun texte avant
 - Termine DIRECTEMENT par }} sans aucun texte après
-- Utilise UNIQUEMENT des guillemets doubles " (jamais de guillemets simples)
-- Échappe les guillemets dans les valeurs texte : \"
+- Guillemets doubles uniquement, jamais de guillemets simples
 - Pas de virgule après le dernier élément d'un tableau ou objet
 - Pas de commentaires dans le JSON
-- null pour toute valeur absente du document
+- null pour toute valeur absente (jamais de chaîne vide)
+- Descriptions courtes pour économiser l'espace
 """
 
 
