@@ -11,6 +11,7 @@ from datetime import datetime
 import os
 import google.generativeai as genai
 from groq import Groq
+import anthropic
 
 # Initialize router
 router = APIRouter(prefix="/communication", tags=["Communication"])
@@ -115,7 +116,7 @@ async def generate_post(
     try:
         if request.platform not in ["linkedin", "facebook", "instagram"]:
             raise HTTPException(status_code=400, detail="Plateforme invalide")
-        if request.ai_model not in ["gemini", "groq"]:
+        if request.ai_model not in ["gemini", "groq", "claude"]:
             raise HTTPException(status_code=400, detail="Modèle IA invalide")
 
         prompt = build_prompt(request)
@@ -141,7 +142,7 @@ async def generate_post(
 
             if not api_key:
                 raise HTTPException(status_code=500, detail="Clé API Groq non configurée")
-                
+
             groq_client = Groq(api_key=api_key)
             chat_completion = groq_client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
@@ -150,6 +151,22 @@ async def generate_post(
                 max_tokens=1024,
             )
             content = chat_completion.choices[0].message.content
+
+        elif request.ai_model == "claude":
+            from app.models.settings import SystemSettings
+            claude_setting = db.query(SystemSettings).filter_by(key="anthropic_api_key").first()
+            api_key = claude_setting.value if claude_setting and claude_setting.value else os.getenv("ANTHROPIC_API_KEY")
+
+            if not api_key:
+                raise HTTPException(status_code=500, detail="Clé API Anthropic non configurée")
+
+            claude_client = anthropic.Anthropic(api_key=api_key)
+            message = claude_client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            content = message.content[0].text
 
         # Save to database
         db_post = Post(

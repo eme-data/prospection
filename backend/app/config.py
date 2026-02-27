@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     msal_client_id: Optional[str] = Field(default=None, description="Azure AD Client ID")
     msal_tenant_id: Optional[str] = Field(default=None, description="Azure AD Tenant ID")
 
+    # Anthropic Claude (optionnel — module Communication)
+    anthropic_api_key: Optional[str] = Field(default=None, description="Clé API Anthropic Claude")
+
     # Redis Cache
     redis_url: Optional[str] = Field(default=None, description="URL Redis pour le cache")
     cache_ttl: int = Field(default=300, description="TTL du cache en secondes")

@@ -87,6 +87,7 @@ export const Generator: React.FC = () => {
                             >
                                 <option value="gemini">Google Gemini (Recommandé)</option>
                                 <option value="groq">Groq (Llama 3)</option>
+                                <option value="claude">Claude (Anthropic)</option>
                             </select>
                         </div>
 

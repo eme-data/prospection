@@ -9,7 +9,7 @@ export const AdminSettings: React.FC = () => {
     const queryClient = useQueryClient();
     const [smtpData, setSmtpData] = useState<SmtpConfig>({ host: '', port: 587, user: '', password: '' });
     const [apiKeysData, setApiKeysData] = useState<ApiKeysConfig>({
-        gemini_api_key: '', groq_api_key: '',
+        gemini_api_key: '', groq_api_key: '', anthropic_api_key: '',
         linkedin_client_id: '', linkedin_client_secret: '',
         facebook_client_id: '', facebook_client_secret: '',
         instagram_client_id: '', instagram_client_secret: ''
@@ -38,6 +38,7 @@ export const AdminSettings: React.FC = () => {
                 setApiKeysData({
                     gemini_api_key: data.gemini_api_key ? '********' : '',
                     groq_api_key: data.groq_api_key ? '********' : '',
+                    anthropic_api_key: data.anthropic_api_key ? '********' : '',
                     linkedin_client_id: data.linkedin_client_id ? '********' : '',
                     linkedin_client_secret: data.linkedin_client_secret ? '********' : '',
                     facebook_client_id: data.facebook_client_id ? '********' : '',
@@ -85,6 +86,7 @@ export const AdminSettings: React.FC = () => {
         const payload = { ...apiKeysData };
         if (payload.gemini_api_key === '********') delete payload.gemini_api_key;
         if (payload.groq_api_key === '********') delete payload.groq_api_key;
+        if (payload.anthropic_api_key === '********') delete payload.anthropic_api_key;
         if (payload.linkedin_client_id === '********') delete payload.linkedin_client_id;
         if (payload.linkedin_client_secret === '********') delete payload.linkedin_client_secret;
         if (payload.facebook_client_id === '********') delete payload.facebook_client_id;
@@ -163,7 +165,7 @@ export const AdminSettings: React.FC = () => {
                             Clés d'API (Environnement)
                         </h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                            Configurez ici vos clés d'API (remplaçant le fichier .env) pour les interactions avec l'IA (Gemini / Groq).
+                            Configurez ici vos clés d'API (remplaçant le fichier .env) pour les interactions avec l'IA (Gemini / Groq / Claude).
                         </p>
 
                         <form onSubmit={handleSubmitApiKeys} className="space-y-4">
@@ -185,6 +187,16 @@ export const AdminSettings: React.FC = () => {
                                         placeholder="Laissez vide pour ne pas modifier"
                                         value={apiKeysData.groq_api_key}
                                         onChange={e => setApiKeysData({ ...apiKeysData, groq_api_key: e.target.value })}
+                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Clé API Anthropic (Claude)</label>
+                                    <input
+                                        type="password"
+                                        placeholder="Laissez vide pour ne pas modifier"
+                                        value={apiKeysData.anthropic_api_key}
+                                        onChange={e => setApiKeysData({ ...apiKeysData, anthropic_api_key: e.target.value })}
                                         className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                     />
                                 </div>

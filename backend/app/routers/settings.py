@@ -66,6 +66,7 @@ from typing import Optional
 class ApiKeysConfig(BaseModel):
     gemini_api_key: str
     groq_api_key: str
+    anthropic_api_key: Optional[str] = None
     linkedin_client_id: Optional[str] = None
     linkedin_client_secret: Optional[str] = None
     facebook_client_id: Optional[str] = None
@@ -84,7 +85,8 @@ async def get_apikeys_settings(
         
     gemini = db.query(SystemSettings).filter_by(key="gemini_api_key").first()
     groq = db.query(SystemSettings).filter_by(key="groq_api_key").first()
-    
+    anthropic = db.query(SystemSettings).filter_by(key="anthropic_api_key").first()
+
     # Reseaux Sociaux
     linkedin_id = db.query(SystemSettings).filter_by(key="linkedin_client_id").first()
     linkedin_secret = db.query(SystemSettings).filter_by(key="linkedin_client_secret").first()
@@ -98,6 +100,7 @@ async def get_apikeys_settings(
     return {
         "gemini_api_key": gemini.value if gemini else os.getenv("GEMINI_API_KEY", ""),
         "groq_api_key": groq.value if groq else os.getenv("GROQ_API_KEY", ""),
+        "anthropic_api_key": anthropic.value if anthropic else os.getenv("ANTHROPIC_API_KEY", ""),
         "linkedin_client_id": linkedin_id.value if linkedin_id else os.getenv("LINKEDIN_CLIENT_ID", ""),
         "linkedin_client_secret": linkedin_secret.value if linkedin_secret else os.getenv("LINKEDIN_CLIENT_SECRET", ""),
         "facebook_client_id": facebook_id.value if facebook_id else os.getenv("FACEBOOK_CLIENT_ID", ""),
@@ -128,7 +131,9 @@ async def update_apikeys_settings(
         _upsert("gemini_api_key", config.gemini_api_key)
     if config.groq_api_key and config.groq_api_key != "********":
         _upsert("groq_api_key", config.groq_api_key)
-        
+    if config.anthropic_api_key and config.anthropic_api_key != "********":
+        _upsert("anthropic_api_key", config.anthropic_api_key)
+
     if config.linkedin_client_id and config.linkedin_client_id != "********":
         _upsert("linkedin_client_id", config.linkedin_client_id)
     if config.linkedin_client_secret and config.linkedin_client_secret != "********":

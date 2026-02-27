@@ -22,6 +22,7 @@ export const updateSmtpSettings = async (payload: SmtpConfig): Promise<void> => 
 export interface ApiKeysConfig {
     gemini_api_key?: string;
     groq_api_key?: string;
+    anthropic_api_key?: string;
     linkedin_client_id?: string;
     linkedin_client_secret?: string;
     facebook_client_id?: string;
