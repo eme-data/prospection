@@ -7,6 +7,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
 from sqlalchemy.orm import Session
 from app.database import engine, get_db
 from app.models.user import Base, User
+# Import tous les modèles pour que SQLAlchemy puisse résoudre les relationships
+import app.models.communication  # noqa: F401
 from app.auth import get_password_hash
 
 def main():
