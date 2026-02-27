@@ -58,12 +58,12 @@ class Settings(BaseSettings):
     database_url: str = Field(default="sqlite:////data/prospection.db", description="URL de la base de donnees")
     
     # JWT Authentication
-    secret_key: str = Field(default="change-ce-secret-immédiatement-en-production", description="Cle secrete JWT")
+    secret_key: str = Field(default="", description="Cle secrete JWT (obligatoire en production — definir dans .env)")
     access_token_expire_minutes: int = Field(default=1440, description="Expiration du token en minutes (24h)")
 
-    # Microsoft Authentication
-    msal_client_id: Optional[str] = Field(default="67ae828e-a871-46c9-9606-925672c43c4e", description="Azure AD Client ID")
-    msal_tenant_id: Optional[str] = Field(default="11d55f60-e3b1-48e4-a5cd-911c091fc1a7", description="Azure AD Tenant ID")
+    # Microsoft Authentication (optionnel — laisser vide pour desactiver)
+    msal_client_id: Optional[str] = Field(default=None, description="Azure AD Client ID")
+    msal_tenant_id: Optional[str] = Field(default=None, description="Azure AD Tenant ID")
 
     # Redis Cache
     redis_url: Optional[str] = Field(default=None, description="URL Redis pour le cache")
@@ -87,6 +87,17 @@ class Settings(BaseSettings):
     api_georisques_url: str = "https://georisques.gouv.fr/api/v1"
     api_gpu_url: str = "https://apicarto.ign.fr/api/gpu"
     api_ign_wfs_url: str = "https://data.geopf.fr/wfs/ows"
+
+    @field_validator("secret_key", mode="after")
+    @classmethod
+    def validate_secret_key(cls, v, info):
+        environment = (info.data or {}).get("environment", "production")
+        if environment == "production" and not v:
+            raise ValueError(
+                "SECRET_KEY est obligatoire en production. "
+                "Générez une clé avec : python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        return v
 
     @property
     def is_production(self) -> bool:

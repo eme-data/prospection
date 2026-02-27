@@ -1,216 +1,245 @@
-# Prospection Fonciere
+# Prospection Foncière
 
-Application web complete de prospection fonciere utilisant les donnees opendata francaises.
+Application web multi-modules pour la prospection foncière, l'analyse immobilière et la gestion d'équipe, basée sur les données opendata françaises.
 
-## Fonctionnalites
+## Fonctionnalités
 
-### Cartographie interactive
-- **Recherche d'adresse** : Autocompletion via la Base Adresse Nationale (BAN)
-- **Visualisation cadastrale** : Affichage des parcelles cadastrales sur carte interactive
-- **Transactions DVF** : Visualisation des Demandes de Valeurs Foncieres (ventes immobilieres)
-- **Navigation fluide** : Carte MapLibre GL avec zoom, pan et geolocalisation
+### Module Faisabilité (Prospection foncière)
+- **Cartographie interactive** : MapLibre GL avec couches cadastrales, DVF, INSEE, risques
+- **Recherche d'adresse** : Autocomplétion via la Base Adresse Nationale (BAN)
+- **Transactions DVF** : Visualisation et filtrage des ventes immobilières
+- **Score d'opportunité (0–100)** : Calcul automatique basé sur prix, surface, localisation, marché, PLU
+- **Workflow de prospection** : Suivi du statut par parcelle (à prospecter → acquis)
+- **Fiches terrain** : Documentation enrichie avec photos, documents, notes
+- **Isochrones** : Accessibilité temporelle par transport
+- **Couches INSEE** : Données démographiques et économiques
+- **Risques naturels/technologiques** : Géorisques, zones inondables
+- **Zonage PLU** : Zones urbaines, agricoles, naturelles
+- **Génération de rapports PDF**
+- **Export CSV / GeoJSON**
 
-### Filtres avances
-- Filtrage par type de bien (Maison, Appartement, Local commercial, etc.)
-- Filtrage par fourchette de prix
-- Filtrage par surface
-- Filtrage par periode (annees)
+### Module Commerce / CRM
+- Gestion clients (prospects, clients, partenaires)
+- Catalogue : matériaux, services, articles composés
+- Calcul automatique des prix avec marges et coefficients
+- Devis et compositions
 
-### Statistiques et analyse
-- Prix moyen, median, min/max
-- Prix au m2 moyen avec evolution
-- Repartition par type de bien
-- Evolution annuelle des prix
-- Graphiques de tendance
+### Module Congés
+- Gestion des demandes de congés
+- Suivi des soldes et validation manager
 
-### Risques et urbanisme
-- **Risques naturels** : Inondation, seisme, mouvement de terrain (Georisques)
-- **Risques technologiques** : Sites industriels, SEVESO
-- **Zonage PLU** : Zone urbaine, agricole, naturelle
-- **Prescriptions** : Servitudes, emplacements reserves
-
-### Export des donnees
-- Export CSV des transactions (compatible Excel)
-- Export GeoJSON des transactions (compatible QGIS)
-- Export GeoJSON des parcelles cadastrales
-
-### Gestion des favoris
-- Sauvegarde de parcelles en favoris
-- Ajout de notes personnalisees
-- Persistance locale (localStorage)
-- Export des favoris en JSON
-
-## Sources de donnees
-
-| Source | Description | API |
-|--------|-------------|-----|
-| Base Adresse Nationale | Geocodage et recherche d'adresses | api-adresse.data.gouv.fr |
-| Cadastre | Parcelles cadastrales | cadastre.data.gouv.fr |
-| DVF | Transactions immobilieres | api.cquest.org/dvf |
-| API Geo | Communes et departements | geo.api.gouv.fr |
-| Georisques | Risques naturels et technologiques | georisques.gouv.fr |
-| GPU | Zonages PLU/PLUi | apicarto.ign.fr |
+### Module Communication
+- Publication sur réseaux sociaux
+- Intégration IA (Groq, Google Generative AI)
+- Gestion des comptes sociaux
 
 ## Architecture
 
 ```
 prospection/
-├── backend/                 # API FastAPI (Python)
+├── backend/                    # API FastAPI (Python 3.11)
 │   ├── app/
-│   │   ├── __init__.py
-│   │   └── main.py         # Endpoints API
-│   └── requirements.txt
+│   │   ├── main.py             # Point d'entrée (middlewares + routers)
+│   │   ├── config.py           # Configuration centralisée (.env)
+│   │   ├── auth.py             # JWT + bcrypt
+│   │   ├── database.py         # SQLAlchemy + SQLite
+│   │   ├── security.py         # Rate limiting, headers sécurité
+│   │   ├── cache.py            # Redis cache
+│   │   ├── models/             # Modèles ORM (User, Commerce, Congés…)
+│   │   ├── routers/            # 23 routers spécialisés
+│   │   ├── scoring.py          # Algorithme de score parcellaire
+│   │   ├── report_generator.py # Génération PDF (ReportLab)
+│   │   └── …
+│   ├── requirements.txt
+│   └── tests/
 │
-└── frontend/               # Application React (TypeScript)
-    ├── src/
-    │   ├── api/            # Client API
-    │   ├── components/     # Composants React
-    │   │   ├── SearchBar.tsx
-    │   │   ├── MapView.tsx
-    │   │   ├── LayerControl.tsx
-    │   │   ├── InfoPanel.tsx
-    │   │   ├── FilterPanel.tsx
-    │   │   ├── StatsPanel.tsx
-    │   │   ├── ExportPanel.tsx
-    │   │   ├── RiskPanel.tsx
-    │   │   └── FavoritesPanel.tsx
-    │   ├── hooks/          # Hooks personnalises
-    │   ├── types/          # Types TypeScript
-    │   ├── App.tsx         # Composant principal
-    │   └── main.tsx        # Point d'entree
-    ├── package.json
-    └── vite.config.ts
+├── frontend/                   # Application React 18 + TypeScript
+│   └── src/
+│       ├── components/         # 30+ composants
+│       ├── auth/               # Composants d'authentification
+│       ├── apps/               # Vues par module
+│       ├── contexts/           # AuthContext, ThemeContext
+│       ├── hooks/              # Hooks personnalisés
+│       ├── api/                # Client API avec auth
+│       └── types/              # Types TypeScript
+│
+├── docker-compose.yml          # Stack complète (Redis + Backend + Frontend)
+├── Dockerfile.backend          # Build multi-stage Python
+├── Dockerfile.frontend         # Build multi-stage React + Nginx
+├── nginx.conf                  # Reverse proxy
+└── Makefile                    # Commandes de développement
 ```
 
-## Installation
+## Sources de données
 
-### Prerequis
-
-- Python 3.10+
-- Node.js 18+
-- npm ou yarn
-
-### Backend
-
-```bash
-cd backend
-
-# Creer un environnement virtuel
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# ou: venv\Scripts\activate  # Windows
-
-# Installer les dependances
-pip install -r requirements.txt
-
-# Lancer le serveur
-uvicorn app.main:app --reload --port 8000
-```
-
-### Frontend
-
-```bash
-cd frontend
-
-# Installer les dependances
-npm install
-
-# Lancer le serveur de developpement
-npm run dev
-```
-
-L'application sera accessible sur http://localhost:5173
-
-## Utilisation
-
-### Navigation
-1. **Recherche d'adresse** : Tapez une adresse dans la barre de recherche
-2. **Navigation carte** : Utilisez la souris pour naviguer, zoomer
-3. **Couches** : Activez/desactivez les couches via le panneau de gauche
-4. **Details** : Cliquez sur une parcelle ou une transaction pour voir les details
-
-### Filtres DVF
-1. Cliquez sur l'icone filtre dans la barre d'outils
-2. Selectionnez le type de bien souhaite
-3. Definissez les fourchettes de prix et surface
-4. Choisissez la periode
-
-### Statistiques
-1. Zoomez sur une commune
-2. Cliquez sur l'icone graphique
-3. Consultez les prix moyens, evolution et repartition
-
-### Risques et PLU
-1. Cliquez sur l'icone alerte
-2. Consultez les risques naturels de la commune
-3. Consultez le zonage PLU du point central
-
-### Export
-1. Cliquez sur l'icone telechargement
-2. Choisissez le format (CSV ou GeoJSON)
-3. Les filtres actifs sont appliques a l'export
-
-### Favoris
-1. Cliquez sur une parcelle
-2. Cliquez sur l'etoile pour l'ajouter aux favoris
-3. Ajoutez une note si souhaite
-4. Retrouvez vos favoris via l'icone etoile
-
-## API Endpoints
-
-### Adresses
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/address/search?q=` | Recherche d'adresse |
-| `GET /api/address/reverse?lon=&lat=` | Geocodage inverse |
-
-### Cadastre
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/cadastre/parcelles?code_insee=` | Parcelles d'une commune |
-| `GET /api/cadastre/parcelle/{id}` | Detail d'une parcelle |
-
-### DVF
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/dvf/transactions?code_insee=` | Transactions DVF |
-| `GET /api/dvf/statistiques?code_insee=` | Statistiques DVF |
-
-### Risques
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/risques/commune/{code}` | Risques d'une commune |
-| `GET /api/risques/parcelle?lon=&lat=` | Risques d'un point |
-| `GET /api/risques/inondation?lon=&lat=` | Zones inondables |
-
-### Urbanisme
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/urbanisme/zonage?lon=&lat=` | Zonage PLU |
-| `GET /api/urbanisme/prescriptions?lon=&lat=` | Prescriptions PLU |
-
-### Export
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/export/dvf/csv?code_insee=` | Export DVF en CSV |
-| `GET /api/export/dvf/geojson?code_insee=` | Export DVF en GeoJSON |
-| `GET /api/export/parcelles/geojson?code_insee=` | Export parcelles |
+| Source | Description | API |
+|--------|-------------|-----|
+| Base Adresse Nationale | Géocodage et recherche | api-adresse.data.gouv.fr |
+| Cadastre Étalab | Parcelles cadastrales | cadastre.data.gouv.fr |
+| DVF | Transactions immobilières | api.cquest.org/dvf |
+| API Géo | Communes et territoires | geo.api.gouv.fr |
+| Géorisques | Risques naturels et technologiques | georisques.gouv.fr |
+| GPU/IGN | Zonages PLU/PLUi | apicarto.ign.fr |
+| INSEE | Données démographiques | (via enrichissement) |
 
 ## Technologies
 
 ### Backend
-- **FastAPI** : Framework API Python moderne et performant
-- **httpx** : Client HTTP asynchrone
-- **Pydantic** : Validation des donnees
+| Composant | Technologie |
+|-----------|-------------|
+| Framework | FastAPI 0.109 |
+| Serveur | Uvicorn + Gunicorn |
+| Base de données | SQLite via SQLAlchemy 2.0 |
+| Authentification | JWT (python-jose) + bcrypt |
+| Cache | Redis 7 |
+| PDF | ReportLab |
+| IA | Groq, Google Generative AI |
+| Tests | pytest + pytest-asyncio |
 
 ### Frontend
-- **React 18** : Bibliotheque UI
-- **TypeScript** : Typage statique
-- **MapLibre GL** : Cartographie open source
-- **TanStack Query** : Gestion des requetes et cache
-- **Tailwind CSS** : Framework CSS utilitaire
-- **Lucide React** : Icones
-- **Vite** : Build tool rapide
+| Composant | Technologie |
+|-----------|-------------|
+| Framework | React 18 + TypeScript 5.3 |
+| Build | Vite 5 |
+| Cartographie | MapLibre GL 4 + react-map-gl |
+| UI | Tailwind CSS 3 |
+| Requêtes | TanStack Query 5 |
+| Graphiques | Recharts |
+| Icônes | Lucide React |
+
+## Installation
+
+### Prérequis
+- Python 3.11+
+- Node.js 20+
+- Redis (optionnel, le cache est désactivable)
+- Docker + Docker Compose (recommandé pour la production)
+
+### Développement local
+
+**1. Backend**
+```bash
+cd prospection/backend
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# venv\Scripts\activate   # Windows
+
+pip install -r requirements.txt
+
+# Copier et configurer l'environnement
+cp .env.example .env
+# Éditer .env avec vos valeurs (SECRET_KEY, etc.)
+
+uvicorn app.main:app --reload --port 8000
+```
+
+**2. Frontend**
+```bash
+cd prospection/frontend
+npm install
+npm run dev
+```
+
+L'application est accessible sur http://localhost:5173
+L'API est accessible sur http://localhost:8000
+La documentation API (mode debug) : http://localhost:8000/docs
+
+**3. Créer le premier compte administrateur**
+```bash
+cd prospection/backend
+python create_admin.py
+```
+
+### Production avec Docker
+
+```bash
+cd prospection
+
+# Copier et configurer l'environnement
+cp backend/.env.example backend/.env
+# Éditer backend/.env
+
+# Lancer la stack complète
+docker-compose up -d
+
+# Vérifier les logs
+docker-compose logs -f
+```
+
+La stack expose :
+- Port **80** : Application web (HTTP)
+- Port **443** : Application web (HTTPS, avec nginx-ssl.conf)
+
+### Commandes Makefile
+
+```bash
+make install         # Installation complète
+make backend-dev     # Backend en mode développement (hot-reload)
+make frontend-dev    # Frontend Vite dev server
+make build           # Build de production
+make docker-build    # Build des images Docker
+make docker-run      # Lancer avec Docker
+make test-api        # Tester les endpoints API
+make lint            # Vérification du code
+make clean           # Nettoyer les fichiers temporaires
+```
+
+## Configuration
+
+Copiez `backend/.env.example` en `backend/.env` et renseignez les variables :
+
+| Variable | Description | Défaut |
+|----------|-------------|--------|
+| `SECRET_KEY` | Clé secrète JWT **(obligatoire en production)** | — |
+| `ENVIRONMENT` | `development` / `production` | `production` |
+| `DEBUG` | Activer la doc API (`/docs`) | `false` |
+| `DATABASE_URL` | URL SQLite | `sqlite:////data/prospection.db` |
+| `REDIS_URL` | URL Redis (optionnel) | `None` |
+| `CORS_ORIGINS` | Origines CORS autorisées | `http://localhost:5173` |
+| `MSAL_CLIENT_ID` | Azure AD Client ID (auth Microsoft) | — |
+| `MSAL_TENANT_ID` | Azure AD Tenant ID (auth Microsoft) | — |
+| `WORKERS` | Nombre de workers Gunicorn | `4` |
+| `CACHE_TTL` | TTL du cache Redis (secondes) | `300` |
+
+## API — Endpoints principaux
+
+### Authentification
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/auth/token` | Connexion (email + mot de passe) |
+| `POST /api/auth/users` | Créer un utilisateur |
+| `GET /api/auth/users/me` | Profil utilisateur connecté |
+
+### Faisabilité / Prospection
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/address/search?q=` | Recherche d'adresse |
+| `GET /api/cadastre/parcelles?code_insee=` | Parcelles cadastrales |
+| `GET /api/dvf/transactions?code_insee=` | Transactions DVF |
+| `GET /api/dvf/statistiques?code_insee=` | Statistiques marché |
+| `GET /api/scoring/parcelle/{id}` | Score d'une parcelle |
+| `GET /api/scoring/commune/{code_insee}` | Top parcelles scorées |
+| `GET /api/risques/commune/{code}` | Risques naturels/technologiques |
+| `GET /api/urbanisme/zonage?lon=&lat=` | Zonage PLU |
+| `GET /api/enrichissement/demographics/{code_insee}` | Données démographiques |
+| `GET /api/prospection` | Liste des prospections |
+| `POST /api/reports/generate` | Générer un rapport PDF |
+| `GET /api/export/dvf/csv?code_insee=` | Export CSV |
+
+### Santé
+| Endpoint | Description |
+|----------|-------------|
+| `GET /health` | Vérification de santé (Docker) |
+
+## Sécurité
+
+- **Authentification JWT** : Token Bearer sur toutes les routes métier
+- **Rate limiting** : 100 req/minute par défaut (configurable)
+- **Headers sécurité** : CSP, X-Frame-Options, HSTS
+- **Validation des entrées** : Sanitisation et validation Pydantic
+- **Utilisateur non-root** en Docker
+- **CORS** configurable par environnement
+- **Secrets en variables d'environnement** (jamais en dur dans le code)
 
 ## Licence
 

@@ -1,0 +1,54 @@
+# Dépendances (reconstruites dans le build)
+node_modules
+frontend/node_modules
+**/node_modules
+
+# Environnements virtuels Python
+venv
+.venv
+env
+test_venv
+backend/venv
+
+# Artefacts de build
+dist
+build
+frontend/dist
+*.pyc
+__pycache__
+**/__pycache__
+
+# Secrets — ne jamais inclure dans l'image Docker
+.env
+*.env
+!.env.example
+
+# Base de données locale
+*.db
+*.sqlite
+backend/data/
+
+# Logs
+*.log
+logs/
+
+# Tests
+.pytest_cache
+htmlcov
+.coverage
+
+# Fichiers OS et IDE
+.DS_Store
+Thumbs.db
+.vscode
+.idea
+
+# Git
+.git
+.gitignore
+
+# Fichiers temporaires
+tmp/
+temp/
+tmp_*/
+*.tmp

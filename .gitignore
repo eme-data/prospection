@@ -32,18 +32,29 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# Données runtime (générées à l'exécution, ne pas versionner)
+backend/data/**/*.json
+backend/data/**/*.db
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 .Python
 venv/
+.venv/
 env/
+test_venv/
+*.db
+*.sqlite
 
-# Docker
-.dockerignore
+# Tests
+.pytest_cache/
+htmlcov/
+.coverage
 
 # Temporary files
 *.tmp
 tmp/
 temp/
+tmp_*/
