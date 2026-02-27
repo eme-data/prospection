@@ -157,6 +157,10 @@ log_success "Backup créé: $BACKUP_TAG"
 #===============================================================================
 log_info "Récupération des mises à jour..."
 
+# Reset des modifications locales pour éviter les conflits lors du pull
+# (ex: update.sh modifié manuellement sur le serveur)
+sudo -u "$APP_USER" git reset --hard HEAD 2>/dev/null || true
+
 sudo -u "$APP_USER" git fetch --all --tags
 
 if [[ -n "$TAG" ]]; then
