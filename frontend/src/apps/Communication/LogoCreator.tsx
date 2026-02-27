@@ -67,7 +67,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
 
         try {
             const prompt = buildPrompt();
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('prospection_token');
             const response = await fetch(`${API_URL}/api/communication/logo`, {
                 method: 'POST',
                 headers: {
