@@ -66,3 +66,36 @@ export const publishPost = async (platform: string, postId: number): Promise<{ s
         body: JSON.stringify({ post_id: postId }),
     });
 };
+
+// ========== GALERIE LOGOS ==========
+
+export interface SavedLogo {
+    id: string;
+    company_name: string;
+    sector: string | null;
+    style: string | null;
+    colors: string | null;
+    svg_content: string;
+    created_at: string;
+}
+
+export interface SaveLogoParams {
+    company_name: string;
+    sector?: string;
+    style?: string;
+    colors?: string;
+    svg_content: string;
+}
+
+export const saveLogo = (params: SaveLogoParams): Promise<{ id: string; created_at: string }> =>
+    fetchJSON('/api/communication/logos/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+    });
+
+export const getLogos = (): Promise<SavedLogo[]> =>
+    fetchJSON('/api/communication/logos/');
+
+export const deleteLogo = (id: string): Promise<{ success: boolean }> =>
+    fetchJSON(`/api/communication/logos/${id}`, { method: 'DELETE' });

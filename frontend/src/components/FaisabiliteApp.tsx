@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Filter,
@@ -30,6 +30,11 @@ import { RappelsPanel } from './RappelsPanel'
 import { FeasibilityReport } from './FeasibilityReport'
 import { ProspectionPanel } from './ProspectionPanel'
 import { getParcelles, getDVFTransactions, reverseGeocode, filterTransactions, searchParcelles, getFaisabiliteReport, getCommuneZonagePLU } from '../api'
+import {
+  getFavorites as apiFavs, addFavorite as apiAddFav, updateFavoriteNote as apiUpdateFavNote, deleteFavorite as apiDeleteFav,
+  getProjects as apiProjs, createProject as apiCreateProj, updateProject as apiUpdateProj, deleteProject as apiDeleteProj,
+  getSearchHistory as apiHist, addSearchHistory as apiAddHist, deleteSearchHistory as apiDeleteHist,
+} from '../api/faisabilite'
 import type {
   MapViewState,
   LayerType,
@@ -115,10 +120,73 @@ export function FaisabiliteApp() {
     }
   })
 
-  // Sauvegarde de l'historique
+  // Ref pour mapper parcelle_id → API UUID (favoris)
+  const favApiIds = useRef<Map<string, string>>(new Map())
+
+  // Synchronisation API au montage : charge depuis le serveur et remplace localStorage
   useEffect(() => {
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(searchHistory))
-  }, [searchHistory])
+    const syncFromApi = async () => {
+      try {
+        const [apiFavList, apiProjList, apiHistList] = await Promise.all([
+          apiFavs(), apiProjs(), apiHist(),
+        ])
+
+        // ── Favoris ──
+        if (apiFavList.length > 0) {
+          const mapped: FavoriteParcelle[] = apiFavList.map(f => {
+            favApiIds.current.set(f.parcelle_id, f.id)
+            return { id: f.parcelle_id, parcelle: f.parcelle as any, note: f.note || undefined, addedAt: f.addedAt, transactions: f.transactions || undefined }
+          })
+          setFavorites(mapped)
+          localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(mapped))
+        } else {
+          // Migration localStorage → API si API vide et localStorage non vide
+          const localFavs: FavoriteParcelle[] = JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || '[]')
+          for (const fav of localFavs) {
+            try {
+              const res = await apiAddFav({ parcelle_id: fav.id, parcelle_json: fav.parcelle, note: fav.note, transactions_json: fav.transactions })
+              favApiIds.current.set(fav.id, res.id)
+            } catch { /* silencieux */ }
+          }
+        }
+
+        // ── Projets ──
+        if (apiProjList.length > 0) {
+          const mapped: Project[] = apiProjList.map(p => ({
+            id: p.id, name: p.name, description: p.description || '',
+            color: p.color, status: p.status as Project['status'],
+            parcelles: p.parcelles, createdAt: p.createdAt, updatedAt: p.updatedAt,
+          }))
+          setProjects(mapped)
+          localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(mapped))
+        } else {
+          const localProjs: Project[] = JSON.parse(localStorage.getItem(PROJECTS_STORAGE_KEY) || '[]')
+          for (const proj of localProjs) {
+            try {
+              await apiCreateProj({ name: proj.name, description: proj.description, color: proj.color, status: proj.status, parcelles_json: proj.parcelles })
+            } catch { /* silencieux */ }
+          }
+        }
+
+        // ── Historique ──
+        if (apiHistList.length > 0) {
+          const mapped: SearchHistory[] = apiHistList.map(h => ({
+            id: h.id, query: h.query, address: h.address as any, timestamp: h.timestamp, filters: h.filters || undefined,
+          }))
+          setSearchHistory(mapped)
+          localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(mapped))
+        } else {
+          const localHist: SearchHistory[] = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || '[]')
+          for (const h of localHist) {
+            try {
+              await apiAddHist({ query: h.query, address_json: h.address, filters_json: h.filters })
+            } catch { /* silencieux */ }
+          }
+        }
+      } catch { /* fallback silencieux : localStorage reste actif */ }
+    }
+    syncFromApi()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Récupération du code INSEE quand la vue change
   useEffect(() => {
@@ -218,7 +286,7 @@ export function FaisabiliteApp() {
       setCurrentCodeInsee(address.citycode)
     }
 
-    // Ajouter à l'historique
+    // Ajouter à l'historique (local d'abord, API en arrière-plan)
     const historyItem: SearchHistory = {
       id: Date.now().toString(),
       query: address.label,
@@ -226,7 +294,17 @@ export function FaisabiliteApp() {
       timestamp: new Date().toISOString(),
       filters: Object.keys(filters).length > 0 ? filters : undefined,
     }
-    setSearchHistory((prev) => [historyItem, ...prev.slice(0, 49)]) // Limiter à 50
+    setSearchHistory((prev) => {
+      const next = [historyItem, ...prev.slice(0, 49)]
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+    apiAddHist({ query: address.label, address_json: address, filters_json: Object.keys(filters).length > 0 ? filters : undefined })
+      .then(res => {
+        // Remplace le local id par l'UUID de l'API pour les suppressions futures
+        setSearchHistory(prev => prev.map(h => h.id === historyItem.id ? { ...h, id: res.id } : h))
+      })
+      .catch(() => {})
   }, [filters])
 
   const handleToggleLayer = useCallback((layer: LayerType) => {
@@ -254,21 +332,34 @@ export function FaisabiliteApp() {
       addedAt: new Date().toISOString(),
     }
     setFavorites((prev) => {
-      if (prev.some((f) => f.id === parcelle.properties.id)) {
-        return prev
-      }
-      return [...prev, newFavorite]
+      if (prev.some((f) => f.id === parcelle.properties.id)) return prev
+      const next = [...prev, newFavorite]
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next))
+      return next
     })
+    apiAddFav({ parcelle_id: parcelle.properties.id, parcelle_json: parcelle }).then(res => {
+      favApiIds.current.set(parcelle.properties.id, res.id)
+    }).catch(() => {})
   }, [])
 
   const handleRemoveFavorite = useCallback((id: string) => {
-    setFavorites((prev) => prev.filter((f) => f.id !== id))
+    setFavorites((prev) => {
+      const next = prev.filter((f) => f.id !== id)
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+    const apiId = favApiIds.current.get(id)
+    if (apiId) apiDeleteFav(apiId).catch(() => {})
   }, [])
 
   const handleUpdateFavoriteNote = useCallback((id: string, note: string) => {
-    setFavorites((prev) =>
-      prev.map((f) => (f.id === id ? { ...f, note } : f))
-    )
+    setFavorites((prev) => {
+      const next = prev.map((f) => (f.id === id ? { ...f, note } : f))
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+    const apiId = favApiIds.current.get(id)
+    if (apiId) apiUpdateFavNote(apiId, note).catch(() => {})
   }, [])
 
   const handleSelectFavorite = useCallback((favorite: FavoriteParcelle) => {
@@ -294,51 +385,87 @@ export function FaisabiliteApp() {
 
   // Gestion des projets
   const handleCreateProject = useCallback((project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newProject: Project = {
-      ...project,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-    setProjects((prev) => [newProject, ...prev])
+    // Crée d'abord en DB, utilise l'UUID retourné comme id
+    apiCreateProj({ name: project.name, description: project.description, color: project.color, status: project.status, parcelles_json: project.parcelles }).then(apiProj => {
+      const newProject: Project = { ...project, id: apiProj.id, createdAt: apiProj.createdAt, updatedAt: apiProj.updatedAt }
+      setProjects((prev) => {
+        const next = [newProject, ...prev]
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next))
+        return next
+      })
+    }).catch(() => {
+      // Fallback local si API échoue
+      const newProject: Project = { ...project, id: Date.now().toString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+      setProjects((prev) => {
+        const next = [newProject, ...prev]
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next))
+        return next
+      })
+    })
   }, [])
 
   const handleUpdateProject = useCallback((projectId: string, updates: Partial<Project>) => {
-    setProjects((prev) =>
-      prev.map((p) =>
-        p.id === projectId ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
-      )
-    )
+    setProjects((prev) => {
+      const next = prev.map((p) => p.id === projectId ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p)
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+    const payload: any = {}
+    if (updates.name !== undefined) payload.name = updates.name
+    if (updates.description !== undefined) payload.description = updates.description
+    if (updates.color !== undefined) payload.color = updates.color
+    if (updates.status !== undefined) payload.status = updates.status
+    if (updates.parcelles !== undefined) payload.parcelles_json = updates.parcelles
+    apiUpdateProj(projectId, payload).catch(() => {})
   }, [])
 
   const handleDeleteProject = useCallback((projectId: string) => {
-    setProjects((prev) => prev.filter((p) => p.id !== projectId))
-    if (selectedProjectId === projectId) {
-      setSelectedProjectId(null)
-    }
+    setProjects((prev) => {
+      const next = prev.filter((p) => p.id !== projectId)
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+    if (selectedProjectId === projectId) setSelectedProjectId(null)
+    apiDeleteProj(projectId).catch(() => {})
   }, [selectedProjectId])
 
   const handleChangeProject = useCallback((parcelleId: string, newProjectId: string | null) => {
-    setProjects(prev => prev.map((p: Project) => {
-      const hasParcelle = p.parcelles.includes(parcelleId)
-
-      if (p.id === newProjectId && !hasParcelle) {
-        return { ...p, parcelles: [...p.parcelles, parcelleId], updatedAt: new Date().toISOString() }
-      }
-      if (p.id !== newProjectId && hasParcelle) {
-        return { ...p, parcelles: p.parcelles.filter(id => id !== parcelleId), updatedAt: new Date().toISOString() }
-      }
-      return p
-    }))
+    setProjects(prev => {
+      const next = prev.map((p: Project) => {
+        const hasParcelle = p.parcelles.includes(parcelleId)
+        if (p.id === newProjectId && !hasParcelle) {
+          const updated = { ...p, parcelles: [...p.parcelles, parcelleId], updatedAt: new Date().toISOString() }
+          apiUpdateProj(p.id, { parcelles_json: updated.parcelles }).catch(() => {})
+          return updated
+        }
+        if (p.id !== newProjectId && hasParcelle) {
+          const updated = { ...p, parcelles: p.parcelles.filter(id => id !== parcelleId), updatedAt: new Date().toISOString() }
+          apiUpdateProj(p.id, { parcelles_json: updated.parcelles }).catch(() => {})
+          return updated
+        }
+        return p
+      })
+      localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
   }, [])
 
   // Gestion de l'historique
   const handleDeleteHistory = useCallback((id: string) => {
-    setSearchHistory((prev) => prev.filter((h) => h.id !== id))
+    setSearchHistory((prev) => {
+      const next = prev.filter((h) => h.id !== id)
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(next))
+      return next
+    })
+    apiDeleteHist(id).catch(() => {})
   }, [])
 
   const handleClearHistory = useCallback(() => {
-    setSearchHistory([])
+    setSearchHistory((prev) => {
+      prev.forEach(h => apiDeleteHist(h.id).catch(() => {}))
+      localStorage.removeItem(HISTORY_STORAGE_KEY)
+      return []
+    })
   }, [])
 
   const handleSelectProjectParcelle = useCallback((parcelle: Parcelle) => {

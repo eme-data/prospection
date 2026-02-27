@@ -120,6 +120,49 @@ export interface Quote {
     items: QuoteItem[];
 }
 
+// ========== HISTORIQUE ANALYSES DEVIS ==========
+
+export interface FichierInfo {
+    name: string;
+    size_bytes: number;
+}
+
+export interface SavedAnalysisSummary {
+    id: string;
+    nom_projet: string | null;
+    created_at: string;
+    fichiers_info: FichierInfo[];
+    nb_devis: number;
+}
+
+export interface SavedAnalysisFull extends SavedAnalysisSummary {
+    result: any;
+}
+
+export const saveAnalysis = (
+    nomProjet: string | null,
+    fichiersInfo: FichierInfo[],
+    resultJson: any,
+): Promise<{ id: string; created_at: string }> =>
+    fetchJSON('/api/commerce/analyse-devis/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom_projet: nomProjet, fichiers_info: fichiersInfo, result_json: resultJson }),
+    });
+
+export const getAnalyses = (
+    limit = 20,
+    offset = 0,
+): Promise<{ items: SavedAnalysisSummary[]; total: number }> =>
+    fetchJSON(`/api/commerce/analyse-devis/history?limit=${limit}&offset=${offset}`);
+
+export const getAnalysis = (id: string): Promise<SavedAnalysisFull> =>
+    fetchJSON(`/api/commerce/analyse-devis/history/${id}`);
+
+export const deleteAnalysis = (id: string): Promise<{ success: boolean }> =>
+    fetchJSON(`/api/commerce/analyse-devis/history/${id}`, { method: 'DELETE' });
+
+
 // ========== ANALYSE DEVIS ==========
 
 export const analyzeQuotes = async (files: File[]): Promise<any> => {

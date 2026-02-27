@@ -4,7 +4,8 @@ Priorité : Claude (Anthropic) → Ollama (local, optionnel)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from typing import List
+from pydantic import BaseModel
+from typing import List, Optional
 import os
 import base64
 import tempfile
@@ -13,6 +14,7 @@ import asyncio
 from app.auth import get_current_active_user
 from app.models.user import User
 from app.models.settings import SystemSettings
+from app.models.analyse_devis import DevisAnalyse
 from app.database import get_db
 from sqlalchemy.orm import Session
 import anthropic
@@ -297,3 +299,114 @@ async def analyze_quotes(
                     os.remove(temp_path)
             except Exception:
                 pass
+
+
+# ── Historique des analyses ───────────────────────────────────────────────────
+
+class SaveAnalyseRequest(BaseModel):
+    nom_projet: Optional[str] = None
+    fichiers_info: list  # [{name, size_bytes}]
+    result_json: dict    # Full AnalysisData object
+
+
+@router.post("/save")
+def save_analyse(
+    body: SaveAnalyseRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Sauvegarde une analyse en base de données."""
+    record = DevisAnalyse(
+        user_id=current_user.id,
+        nom_projet=body.nom_projet or None,
+        fichiers_info=json.dumps(body.fichiers_info, ensure_ascii=False),
+        result_json=json.dumps(body.result_json, ensure_ascii=False),
+    )
+    db.add(record)
+    db.commit()
+    db.refresh(record)
+    return {"id": record.id, "created_at": record.created_at}
+
+
+@router.get("/history")
+def list_analyses(
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Liste les analyses sauvegardées de l'utilisateur (sans le résultat complet)."""
+    total = db.query(DevisAnalyse).filter_by(user_id=current_user.id).count()
+    records = (
+        db.query(DevisAnalyse)
+        .filter_by(user_id=current_user.id)
+        .order_by(DevisAnalyse.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    items = []
+    for r in records:
+        try:
+            fichiers = json.loads(r.fichiers_info or "[]")
+        except Exception:
+            fichiers = []
+        try:
+            result = json.loads(r.result_json or "{}")
+            nb_devis = len(result.get("devis", []))
+        except Exception:
+            nb_devis = 0
+        items.append({
+            "id": r.id,
+            "nom_projet": r.nom_projet,
+            "created_at": r.created_at,
+            "fichiers_info": fichiers,
+            "nb_devis": nb_devis,
+        })
+    return {"items": items, "total": total}
+
+
+@router.get("/history/{analyse_id}")
+def get_analyse(
+    analyse_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Récupère une analyse complète par son ID."""
+    record = db.query(DevisAnalyse).filter_by(id=analyse_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Analyse introuvable.")
+    if record.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Accès interdit.")
+    try:
+        result = json.loads(record.result_json)
+    except Exception:
+        result = {}
+    try:
+        fichiers = json.loads(record.fichiers_info or "[]")
+    except Exception:
+        fichiers = []
+    return {
+        "id": record.id,
+        "nom_projet": record.nom_projet,
+        "created_at": record.created_at,
+        "fichiers_info": fichiers,
+        "result": result,
+    }
+
+
+@router.delete("/history/{analyse_id}")
+def delete_analyse(
+    analyse_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Supprime une analyse sauvegardée."""
+    record = db.query(DevisAnalyse).filter_by(id=analyse_id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Analyse introuvable.")
+    if record.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Accès interdit.")
+    db.delete(record)
+    db.commit()
+    return {"success": True}

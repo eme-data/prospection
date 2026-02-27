@@ -30,6 +30,11 @@ from app.auth import get_current_active_user
 from app.database import engine
 from app.models.user import Base
 
+# Import des modèles pour que Base.metadata.create_all crée toutes les tables
+from app.models import analyse_devis as _m_analyse_devis  # noqa: F401
+from app.models import logo as _m_logo  # noqa: F401
+from app.models import faisabilite as _m_faisabilite  # noqa: F401
+
 from app.routers import (
     auth,
     auth_microsoft,
@@ -49,6 +54,8 @@ from app.routers import (
     commerce_crm,
     commerce_analyse,
 )
+from app.routers.logos import router as logos_router
+from app.routers.faisabilite_data import router as faisabilite_data_router
 from app.routers.enrichissement import router as enrichissement_router
 from app.routers.reports import router as reports_router
 from app.routers.scoring import router as scoring_router
@@ -213,6 +220,8 @@ app.include_router(conges.router, prefix="/api", dependencies=protected)
 app.include_router(communication.router, prefix="/api", dependencies=protected)
 app.include_router(commerce_crm.router, prefix="/api", dependencies=protected)
 app.include_router(commerce_analyse.router, prefix="/api", dependencies=protected)
+app.include_router(logos_router, prefix="/api", dependencies=protected)
+app.include_router(faisabilite_data_router, prefix="/api", dependencies=protected)
 app.include_router(economic_router, dependencies=protected)
 app.include_router(isochrone_router, dependencies=protected)
 app.include_router(enrichissement_router, dependencies=protected)

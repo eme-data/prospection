@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Paintbrush, Download, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Paintbrush, Download, RefreshCw, Images, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
+import { saveLogo, getLogos, deleteLogo, type SavedLogo } from '../../api/communication';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 
@@ -14,6 +15,25 @@ export const LogoCreator: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [currentSVG, setCurrentSVG] = useState<string | null>(null);
+
+    // Galerie
+    const [showGallery, setShowGallery] = useState(false);
+    const [gallery, setGallery] = useState<SavedLogo[]>([]);
+    const [galleryLoading, setGalleryLoading] = useState(false);
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+
+    const loadGallery = async () => {
+        setGalleryLoading(true);
+        try {
+            const items = await getLogos();
+            setGallery(items);
+        } catch { /* silencieux */ }
+        setGalleryLoading(false);
+    };
+
+    useEffect(() => {
+        if (showGallery) loadGallery();
+    }, [showGallery]);
 
     const buildPrompt = () => {
         let prompt = `Tu es un designer de logos professionnel expert en création SVG. Génère un logo DÉTAILLÉ et ÉLABORÉ au format SVG pour l'entreprise suivante:\n\nNom de l'entreprise: ${companyName}`;
@@ -85,7 +105,18 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
             const data = await response.json();
 
             if (data.content && data.content[0] && data.content[0].text) {
-                setCurrentSVG(data.content[0].text);
+                const svg = data.content[0].text;
+                setCurrentSVG(svg);
+                // Auto-save silencieux en arrière-plan
+                saveLogo({
+                    company_name: companyName,
+                    sector: industry || undefined,
+                    style,
+                    colors: colors || undefined,
+                    svg_content: svg,
+                }).then(() => {
+                    if (showGallery) loadGallery();
+                }).catch(() => { /* silencieux */ });
             } else {
                 throw new Error('Format de réponse invalide');
             }
@@ -97,29 +128,118 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
         }
     };
 
-    const downloadSVG = () => {
-        if (!currentSVG) return;
-        const blob = new Blob([currentSVG], { type: 'image/svg+xml' });
+    const downloadSVG = (svg: string, name: string) => {
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `${companyName || 'logo'}.svg`;
+        a.download = `${name || 'logo'}.svg`;
         a.click();
         URL.revokeObjectURL(url);
     };
 
+    const handleDeleteFromGallery = async (id: string) => {
+        setDeleteId(id);
+        try {
+            await deleteLogo(id);
+            setGallery(prev => prev.filter(l => l.id !== id));
+        } catch { /* silencieux */ }
+        setDeleteId(null);
+    };
+
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <div className="mb-8">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                    <Paintbrush className="h-8 w-8 text-emerald-500" />
-                    Générateur de Logos IA
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
-                    Créez des logos vectoriels uniques en utilisant la puissance de Claude, Gemini et Groq.
-                </p>
+            <div className="mb-8 flex items-start justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <Paintbrush className="h-8 w-8 text-emerald-500" />
+                        Générateur de Logos IA
+                    </h1>
+                    <p className="text-gray-600 dark:text-gray-400 mt-2">
+                        Créez des logos vectoriels uniques en utilisant la puissance de Claude, Gemini et Groq.
+                    </p>
+                </div>
+                <button
+                    onClick={() => setShowGallery(v => !v)}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        showGallery
+                            ? 'bg-emerald-600 text-white border-emerald-600'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    <Images className="w-4 h-4" />
+                    Galerie
+                    {gallery.length > 0 && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${showGallery ? 'bg-white/20' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                            {gallery.length}
+                        </span>
+                    )}
+                </button>
             </div>
 
+            {/* ── Galerie ── */}
+            {showGallery && (
+                <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                            <Images className="w-5 h-5 text-emerald-500" /> Logos sauvegardés
+                        </h2>
+                        <button onClick={() => setShowGallery(false)} className="p-1 rounded text-gray-400 hover:text-gray-600">
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                    {galleryLoading ? (
+                        <div className="flex items-center justify-center py-10 text-gray-400">
+                            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Chargement…
+                        </div>
+                    ) : gallery.length === 0 ? (
+                        <p className="text-center text-gray-400 py-8">Aucun logo sauvegardé. Générez votre premier logo !</p>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                            {gallery.map((logo) => (
+                                <div key={logo.id} className="group relative bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors">
+                                    {/* Miniature SVG */}
+                                    <button
+                                        onClick={() => { setCurrentSVG(logo.svg_content); setCompanyName(logo.company_name); }}
+                                        className="w-full aspect-square p-3 flex items-center justify-center"
+                                        title="Charger ce logo"
+                                    >
+                                        <div
+                                            className="w-full h-full [&>svg]:w-full [&>svg]:h-full"
+                                            dangerouslySetInnerHTML={{ __html: logo.svg_content }}
+                                        />
+                                    </button>
+                                    {/* Infos */}
+                                    <div className="px-2 pb-2">
+                                        <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{logo.company_name}</p>
+                                        <p className="text-[10px] text-gray-400">{new Date(logo.created_at).toLocaleDateString('fr-FR')}</p>
+                                    </div>
+                                    {/* Actions overlay */}
+                                    <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => downloadSVG(logo.svg_content, logo.company_name)}
+                                            className="p-1 bg-white dark:bg-gray-700 rounded shadow text-gray-600 dark:text-gray-300 hover:text-emerald-600"
+                                            title="Télécharger"
+                                        >
+                                            <Download className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteFromGallery(logo.id)}
+                                            disabled={deleteId === logo.id}
+                                            className="p-1 bg-white dark:bg-gray-700 rounded shadow text-gray-600 dark:text-gray-300 hover:text-red-500 disabled:opacity-50"
+                                            title="Supprimer"
+                                        >
+                                            {deleteId === logo.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ── Formulaire + Aperçu ── */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 h-fit">
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Paramètres du Logo</h2>
@@ -247,14 +367,26 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                     </div>
 
                     {currentSVG && (
-                        <div className="mt-6 flex gap-3">
-                            <button
-                                onClick={downloadSVG}
-                                className="flex-1 flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
-                            >
-                                <Download className="mr-2 h-4 w-4" />
-                                Télécharger SVG
-                            </button>
+                        <div className="mt-4 space-y-2">
+                            <div className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Logo sauvegardé automatiquement en galerie
+                            </div>
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => downloadSVG(currentSVG, companyName)}
+                                    className="flex-1 flex justify-center items-center py-2 px-4 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                >
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Télécharger SVG
+                                </button>
+                                <button
+                                    onClick={() => { setShowGallery(true); loadGallery(); }}
+                                    className="flex-1 flex justify-center items-center py-2 px-4 border border-emerald-300 dark:border-emerald-700 shadow-sm text-sm font-medium rounded-md text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+                                >
+                                    <Images className="mr-2 h-4 w-4" />
+                                    Voir la galerie
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

@@ -4,9 +4,17 @@ import {
     CheckCircle2, Award, AlertTriangle, ChevronDown, ChevronUp,
     Building2, Hash, Euro, Timer, Star, Phone, Mail, MapPin,
     Shield, ShieldCheck, ShieldAlert, CreditCard, Calendar, Info,
-    FileDown
+    FileDown, History, Save, Trash2, FolderOpen, RotateCcw
 } from 'lucide-react';
-import { analyzeQuotes } from '../../../api/commerce';
+import {
+    analyzeQuotes,
+    saveAnalysis,
+    getAnalyses,
+    getAnalysis,
+    deleteAnalysis,
+    type SavedAnalysisSummary,
+    type FichierInfo,
+} from '../../../api/commerce';
 
 // ── Estimation & progression ─────────────────────────────────────────────────
 
@@ -926,6 +934,7 @@ const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
 // ── Composant principal ───────────────────────────────────────────────────────
 
 export const AnalyseDevis: React.FC = () => {
+    const [view, setView] = useState<'nouvelle' | 'historique'>('nouvelle');
     const [fileSlots, setFileSlots] = useState<(File | null)[]>([null, null, null]);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<AnalysisData | null>(null);
@@ -935,6 +944,18 @@ export const AnalyseDevis: React.FC = () => {
     const [elapsed, setElapsed] = useState(0);
     const [estimated, setEstimated] = useState(60);
 
+    // Sauvegarde
+    const [nomProjet, setNomProjet] = useState('');
+    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const [currentFiles, setCurrentFiles] = useState<FichierInfo[]>([]);
+
+    // Historique
+    const [historyItems, setHistoryItems] = useState<SavedAnalysisSummary[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyTotal, setHistoryTotal] = useState(0);
+    const [historyDeleteId, setHistoryDeleteId] = useState<string | null>(null);
+    const [historyViewLoading, setHistoryViewLoading] = useState<string | null>(null);
+
     const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const elapsedRef  = useRef<ReturnType<typeof setInterval> | null>(null);
     const currentProgressRef = useRef(0);
@@ -942,6 +963,55 @@ export const AnalyseDevis: React.FC = () => {
     const clearTimers = () => {
         if (progressRef.current) clearInterval(progressRef.current);
         if (elapsedRef.current)  clearInterval(elapsedRef.current);
+    };
+
+    const loadHistory = async () => {
+        setHistoryLoading(true);
+        try {
+            const data = await getAnalyses();
+            setHistoryItems(data.items);
+            setHistoryTotal(data.total);
+        } catch { /* silencieux */ }
+        setHistoryLoading(false);
+    };
+
+    const handleViewHistory = () => {
+        setView('historique');
+        loadHistory();
+    };
+
+    const handleSave = async () => {
+        if (!result) return;
+        setSaveState('saving');
+        try {
+            await saveAnalysis(nomProjet || null, currentFiles, result);
+            setSaveState('saved');
+        } catch {
+            setSaveState('error');
+        }
+    };
+
+    const handleLoadFromHistory = async (id: string) => {
+        setHistoryViewLoading(id);
+        try {
+            const saved = await getAnalysis(id);
+            setResult(saved.result);
+            setCurrentFiles(saved.fichiers_info);
+            setNomProjet(saved.nom_projet || '');
+            setSaveState('saved');
+            setView('nouvelle');
+        } catch { /* silencieux */ }
+        setHistoryViewLoading(null);
+    };
+
+    const handleDeleteHistory = async (id: string) => {
+        setHistoryDeleteId(id);
+        try {
+            await deleteAnalysis(id);
+            setHistoryItems(prev => prev.filter(i => i.id !== id));
+            setHistoryTotal(prev => prev - 1);
+        } catch { /* silencieux */ }
+        setHistoryDeleteId(null);
     };
 
     const startProgress = (files: File[]) => {
@@ -1000,6 +1070,9 @@ export const AnalyseDevis: React.FC = () => {
         setLoading(true);
         setError(null);
         setResult(null);
+        setSaveState('idle');
+        setNomProjet('');
+        setCurrentFiles(validFiles.map(f => ({ name: f.name, size_bytes: f.size })));
         startProgress(validFiles);
 
         try {
@@ -1019,77 +1092,235 @@ export const AnalyseDevis: React.FC = () => {
     return (
         <div className="max-w-5xl mx-auto px-4 py-8">
             <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-                <div className="flex items-center gap-3 mb-6">
-                    <FileSearch className="w-8 h-8 text-orange-500" />
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Analyse des Devis Prestataires</h2>
-                </div>
 
-                <p className="text-gray-600 dark:text-gray-400 mb-8">
-                    Déposez vos devis (PDF, images) pour les analyser et comparer automatiquement : SIRET, assurance décennale, postes de travaux ligne par ligne.
-                </p>
-
-                {error && (
-                    <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg flex items-center gap-3">
-                        <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                        <p>{error}</p>
+                {/* Header avec onglets */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                        <FileSearch className="w-8 h-8 text-orange-500" />
+                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Analyse des Devis Prestataires</h2>
                     </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    {fileSlots.map((file, index) => (
-                        <div key={index} className="relative h-48 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl flex flex-col items-center justify-center transition hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            {file ? (
-                                <div className="w-full h-full p-4 flex flex-col items-center justify-center relative">
-                                    <button
-                                        onClick={() => removeFile(index)}
-                                        className="absolute top-2 right-2 p-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                    <div className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 font-semibold px-3 py-1 rounded text-sm mb-3">
-                                        Devis {index + 1}
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate w-full text-center px-2" title={file.name}>
-                                        {file.name}
-                                    </p>
-                                    <p className="text-xs text-gray-500 mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
-                                </div>
-                            ) : (
-                                <div className="w-full h-full p-4 flex flex-col items-center justify-center text-center">
-                                    <Upload className="h-8 w-8 text-gray-400 mb-3" />
-                                    <div className="bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 font-medium px-3 py-1 rounded text-xs mb-3">
-                                        Devis {index + 1}
-                                    </div>
-                                    <label className="cursor-pointer text-sm font-medium text-orange-600 hover:text-orange-500">
-                                        <span>Sélectionner le fichier</span>
-                                        <input type="file" className="sr-only" onChange={(e) => handleFileChange(index, e)} accept=".pdf,image/*" />
-                                    </label>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-
-                {(loading || progress > 0) && (
-                    <ProgressPanel progress={progress} elapsed={elapsed} estimated={estimated} />
-                )}
-
-                {hasFiles && (
-                    <div className="mt-8 flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                         <button
-                            onClick={handleAnalyze}
-                            disabled={loading}
-                            className="inline-flex items-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={() => setView('nouvelle')}
+                            className={`px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors ${
+                                view === 'nouvelle'
+                                    ? 'bg-orange-600 text-white'
+                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
                         >
-                            {loading
-                                ? <><Loader2 className="w-5 h-5 animate-spin" /> Analyse IA en cours...</>
-                                : <><FileSearch className="w-5 h-5" /> Lancer l'analyse comparative</>
-                            }
+                            <FileSearch className="w-4 h-4" /> Nouvelle analyse
+                        </button>
+                        <button
+                            onClick={handleViewHistory}
+                            className={`px-4 py-2 text-sm font-medium flex items-center gap-1.5 transition-colors border-l border-gray-200 dark:border-gray-700 ${
+                                view === 'historique'
+                                    ? 'bg-orange-600 text-white'
+                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
+                        >
+                            <History className="w-4 h-4" /> Historique
+                            {historyTotal > 0 && (
+                                <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full ${view === 'historique' ? 'bg-white/20' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'}`}>
+                                    {historyTotal}
+                                </span>
+                            )}
                         </button>
                     </div>
+                </div>
+
+                {/* ── VUE HISTORIQUE ── */}
+                {view === 'historique' && (
+                    <div>
+                        {historyLoading ? (
+                            <div className="flex items-center justify-center py-16 text-gray-400">
+                                <Loader2 className="w-6 h-6 animate-spin mr-2" /> Chargement de l'historique…
+                            </div>
+                        ) : historyItems.length === 0 ? (
+                            <div className="text-center py-16">
+                                <FolderOpen className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+                                <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Aucune analyse sauvegardée</p>
+                                <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Lancez une analyse puis cliquez sur "Sauvegarder"</p>
+                                <button
+                                    onClick={() => setView('nouvelle')}
+                                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-orange-600 hover:text-orange-700"
+                                >
+                                    <FileSearch className="w-4 h-4" /> Lancer une nouvelle analyse
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {historyItems.map((item) => (
+                                    <div key={item.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 hover:border-orange-300 dark:hover:border-orange-700 transition-colors group">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-semibold text-gray-900 dark:text-white truncate">
+                                                {item.nom_projet || <span className="text-gray-400 italic">Sans nom</span>}
+                                            </p>
+                                            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                <span className="flex items-center gap-1">
+                                                    <Calendar className="w-3 h-3" />
+                                                    {new Date(item.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <Building2 className="w-3 h-3" />
+                                                    {item.nb_devis} devis analysé{item.nb_devis > 1 ? 's' : ''}
+                                                </span>
+                                                {item.fichiers_info.length > 0 && (
+                                                    <span className="truncate max-w-[200px]" title={item.fichiers_info.map(f => f.name).join(', ')}>
+                                                        {item.fichiers_info.map(f => f.name).join(', ')}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 flex-shrink-0">
+                                            <button
+                                                onClick={() => handleLoadFromHistory(item.id)}
+                                                disabled={historyViewLoading === item.id}
+                                                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/20 dark:text-orange-400 dark:hover:bg-orange-900/40 disabled:opacity-50 transition-colors"
+                                            >
+                                                {historyViewLoading === item.id
+                                                    ? <Loader2 className="w-3 h-3 animate-spin" />
+                                                    : <FolderOpen className="w-3 h-3" />
+                                                }
+                                                Consulter
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteHistory(item.id)}
+                                                disabled={historyDeleteId === item.id}
+                                                className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 transition-colors"
+                                                title="Supprimer"
+                                            >
+                                                {historyDeleteId === item.id
+                                                    ? <Loader2 className="w-4 h-4 animate-spin" />
+                                                    : <Trash2 className="w-4 h-4" />
+                                                }
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                                <button
+                                    onClick={loadHistory}
+                                    className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1.5"
+                                >
+                                    <RotateCcw className="w-3 h-3" /> Rafraîchir
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 )}
 
-                {result && <AnalysisResults data={result} />}
+                {/* ── VUE NOUVELLE ANALYSE ── */}
+                {view === 'nouvelle' && (
+                    <>
+                        <p className="text-gray-600 dark:text-gray-400 mb-8">
+                            Déposez vos devis (PDF, images) pour les analyser et comparer automatiquement : SIRET, assurance décennale, postes de travaux ligne par ligne.
+                        </p>
+
+                        {error && (
+                            <div className="mb-6 p-4 bg-red-50 text-red-600 rounded-lg flex items-center gap-3">
+                                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                                <p>{error}</p>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                            {fileSlots.map((file, index) => (
+                                <div key={index} className="relative h-48 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl flex flex-col items-center justify-center transition hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                    {file ? (
+                                        <div className="w-full h-full p-4 flex flex-col items-center justify-center relative">
+                                            <button
+                                                onClick={() => removeFile(index)}
+                                                className="absolute top-2 right-2 p-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                            <div className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 font-semibold px-3 py-1 rounded text-sm mb-3">
+                                                Devis {index + 1}
+                                            </div>
+                                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate w-full text-center px-2" title={file.name}>
+                                                {file.name}
+                                            </p>
+                                            <p className="text-xs text-gray-500 mt-1">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full h-full p-4 flex flex-col items-center justify-center text-center">
+                                            <Upload className="h-8 w-8 text-gray-400 mb-3" />
+                                            <div className="bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 font-medium px-3 py-1 rounded text-xs mb-3">
+                                                Devis {index + 1}
+                                            </div>
+                                            <label className="cursor-pointer text-sm font-medium text-orange-600 hover:text-orange-500">
+                                                <span>Sélectionner le fichier</span>
+                                                <input type="file" className="sr-only" onChange={(e) => handleFileChange(index, e)} accept=".pdf,image/*" />
+                                            </label>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {(loading || progress > 0) && (
+                            <ProgressPanel progress={progress} elapsed={elapsed} estimated={estimated} />
+                        )}
+
+                        {hasFiles && (
+                            <div className="mt-8 flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                                <button
+                                    onClick={handleAnalyze}
+                                    disabled={loading}
+                                    className="inline-flex items-center gap-2 px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {loading
+                                        ? <><Loader2 className="w-5 h-5 animate-spin" /> Analyse IA en cours...</>
+                                        : <><FileSearch className="w-5 h-5" /> Lancer l'analyse comparative</>
+                                    }
+                                </button>
+                            </div>
+                        )}
+
+                        {result && (
+                            <>
+                                {/* Bandeau sauvegarde */}
+                                {saveState !== 'saved' && (
+                                    <div className="mt-6 p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                                        <Save className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5 sm:mt-0" />
+                                        <div className="flex-1">
+                                            <p className="text-sm font-semibold text-orange-800 dark:text-orange-300 mb-1">Sauvegarder cette analyse</p>
+                                            <input
+                                                type="text"
+                                                value={nomProjet}
+                                                onChange={e => setNomProjet(e.target.value)}
+                                                placeholder="Nom du projet / chantier (facultatif)"
+                                                className="w-full text-sm px-3 py-1.5 rounded-lg border border-orange-200 dark:border-orange-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                                            />
+                                        </div>
+                                        <button
+                                            onClick={handleSave}
+                                            disabled={saveState === 'saving'}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-600 text-white text-sm font-medium hover:bg-orange-700 disabled:opacity-50 transition-colors flex-shrink-0"
+                                        >
+                                            {saveState === 'saving'
+                                                ? <><Loader2 className="w-4 h-4 animate-spin" /> Sauvegarde…</>
+                                                : saveState === 'error'
+                                                    ? <><AlertCircle className="w-4 h-4" /> Réessayer</>
+                                                    : <><Save className="w-4 h-4" /> Sauvegarder</>
+                                            }
+                                        </button>
+                                    </div>
+                                )}
+                                {saveState === 'saved' && (
+                                    <div className="mt-6 p-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-400">
+                                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                                        Analyse sauvegardée{nomProjet ? ` — « ${nomProjet} »` : ''}.
+                                        <button onClick={handleViewHistory} className="ml-auto underline text-xs hover:no-underline">
+                                            Voir l'historique
+                                        </button>
+                                    </div>
+                                )}
+
+                                <AnalysisResults data={result} />
+                            </>
+                        )}
+                    </>
+                )}
             </div>
         </div>
     );
