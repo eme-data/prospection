@@ -100,6 +100,11 @@ cd "$INSTALL_DIR"
 git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
 sudo -u "$APP_USER" git config --global --add safe.directory "$INSTALL_DIR" 2>/dev/null || true
 
+# Fix permissions : s'assurer que l'utilisateur $APP_USER peut écrire dans tout le repo
+# Docker et root peuvent changer les propriétaires des fichiers, on remet tout en ordre
+log_info "Correction des permissions du répertoire..."
+chown -R "$APP_USER":"$APP_USER" "$INSTALL_DIR" 2>/dev/null || true
+
 echo ""
 echo "=============================================="
 echo "  Mise à Jour Prospection Foncière"
@@ -166,6 +171,10 @@ fi
 NEW_COMMIT=$(sudo -u "$APP_USER" git rev-parse --short HEAD)
 log_success "Code mis à jour: $CURRENT_COMMIT -> $NEW_COMMIT"
 
+# Fix permissions après pull (git pull crée des fichiers en tant que $APP_USER via sudo,
+# mais certains fichiers peuvent rester root si le pull échoue partiellement)
+chown -R "$APP_USER":"$APP_USER" "$INSTALL_DIR" 2>/dev/null || true
+
 # Vérifier s'il y a des changements
 if [[ "$CURRENT_COMMIT" == "$NEW_COMMIT" ]] && [[ "$FORCE_REBUILD" == false ]]; then
     log_warn "Aucun changement détecté. Utilisez --force pour reconstruire quand même."
@@ -209,6 +218,12 @@ if [[ -f "docker-compose.prod.yml" ]]; then
     log_info "Utilisation du fichier de production: $COMPOSE_FILE"
 fi
 
+# Nettoyage des conteneurs orphelins et réseaux stale avant redémarrage
+# Évite les erreurs "container is not connected to network" et "network has active endpoints"
+log_info "Nettoyage des conteneurs orphelins..."
+sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
+docker network prune -f > /dev/null 2>&1 || true
+
 log_info "Mise à jour des images externes (Ollama, Open WebUI, Redis)..."
 sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" pull --ignore-pull-failures || true
 
@@ -229,7 +244,7 @@ if [[ "$NO_DOWNTIME" == true ]]; then
     # Mettre à jour un par un
     if [[ "$BACKEND_CHANGED" == true ]] || [[ "$CONFIG_CHANGED" == true ]]; then
         log_info "Mise à jour du backend..."
-        sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d --no-deps backend
+        sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d --no-deps --remove-orphans backend
         sleep 5
 
         # Vérifier que le backend répond
@@ -244,7 +259,7 @@ if [[ "$NO_DOWNTIME" == true ]]; then
 
     if [[ "$FRONTEND_CHANGED" == true ]] || [[ "$CONFIG_CHANGED" == true ]]; then
         log_info "Mise à jour du frontend..."
-        sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d --no-deps frontend
+        sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d --no-deps --remove-orphans frontend
         sleep 3
     fi
 else
@@ -261,7 +276,20 @@ else
     fi
 
     # Lancement/Update
-    sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d
+    sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+
+    # Attendre que le backend soit opérationnel
+    log_info "Attente du backend..."
+    for i in {1..15}; do
+        if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+            log_success "Backend opérationnel"
+            break
+        fi
+        if [[ $i -eq 15 ]]; then
+            log_warn "Backend lent à démarrer — vérifiez les logs: docker compose -f $COMPOSE_FILE logs backend"
+        fi
+        sleep 2
+    done
 fi
 
 #===============================================================================
