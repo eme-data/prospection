@@ -3,7 +3,8 @@ import {
     Loader2, AlertCircle, FileSearch, Upload, X, Clock,
     CheckCircle2, Award, AlertTriangle, ChevronDown, ChevronUp,
     Building2, Hash, Euro, Timer, Star, Phone, Mail, MapPin,
-    Shield, ShieldCheck, ShieldAlert, CreditCard, Calendar, Info
+    Shield, ShieldCheck, ShieldAlert, CreditCard, Calendar, Info,
+    FileDown
 } from 'lucide-react';
 import { analyzeQuotes } from '../../../api/commerce';
 
@@ -365,6 +366,173 @@ const DevisCard: React.FC<{ devis: Devis; isRecommended: boolean; isBestValue: b
     );
 };
 
+// ── Export PDF ────────────────────────────────────────────────────────────────
+
+function exportToPDF(data: AnalysisData) {
+    const today = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const recommendedId = String(data.recommandation?.devis_recommande ?? '');
+
+    const devisHtml = (data.devis ?? []).map((devis, i) => {
+        const hasSiret = devis.siret && devis.siret !== 'null';
+        const hasDecennale = devis.assurance_decennale &&
+            (devis.assurance_decennale.assureur || devis.assurance_decennale.numero_police);
+        const isRecommended = String(devis.id) === recommendedId;
+        const postes = devis.postes_travaux ?? [];
+
+        const postesRows = postes.map((p, pi) => `
+            <tr style="background:${pi % 2 === 0 ? '#fff' : '#f9fafb'}">
+                <td style="padding:4px 8px;color:#9ca3af;border-bottom:1px solid #f3f4f6">${p.numero ?? pi + 1}</td>
+                <td style="padding:4px 8px;font-weight:500;border-bottom:1px solid #f3f4f6">${p.corps_etat}</td>
+                <td style="padding:4px 8px;color:#4b5563;border-bottom:1px solid #f3f4f6">${p.description}</td>
+                <td style="padding:4px 8px;text-align:right;border-bottom:1px solid #f3f4f6">${p.quantite}</td>
+                <td style="padding:4px 8px;text-align:right;color:#6b7280;border-bottom:1px solid #f3f4f6">${p.unite ?? '—'}</td>
+                <td style="padding:4px 8px;text-align:right;color:#6b7280;border-bottom:1px solid #f3f4f6">${p.prix_unitaire_ht ?? '—'}</td>
+                <td style="padding:4px 8px;text-align:right;font-weight:600;border-bottom:1px solid #f3f4f6">${p.prix_total_ht ?? p.prix_total ?? '—'}</td>
+            </tr>`).join('');
+
+        return `
+        <div style="border:2px solid ${isRecommended ? '#4ade80' : '#e5e7eb'};border-radius:12px;overflow:hidden;margin-bottom:20px;page-break-inside:avoid">
+            <div style="background:${isRecommended ? '#f0fdf4' : '#f9fafb'};padding:16px 20px">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                    <div>
+                        <p style="font-size:11px;color:#6b7280;margin:0 0 2px">Devis ${i + 1}</p>
+                        <h3 style="font-size:16px;font-weight:700;color:#111827;margin:0">${devis.nom_fournisseur || 'Fournisseur inconnu'}</h3>
+                    </div>
+                    <div style="text-align:right">
+                        ${isRecommended ? '<span style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:600">✓ Recommandé</span>' : ''}
+                        <div style="margin-top:4px;font-size:11px;font-weight:600;color:${hasDecennale ? '#166534' : '#dc2626'}">
+                            ${hasDecennale ? '✓ Décennale OK' : '✗ Décennale absente'}
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:11px;color:#6b7280">
+                    ${hasSiret ? `<span><strong>SIRET :</strong> ${devis.siret}</span>` : '<span style="color:#d97706">⚠ SIRET non renseigné</span>'}
+                    ${devis.adresse ? `<span>📍 ${devis.adresse}</span>` : ''}
+                    ${devis.telephone ? `<span>📞 ${devis.telephone}</span>` : ''}
+                    ${devis.email ? `<span>✉ ${devis.email}</span>` : ''}
+                </div>
+            </div>
+            <div style="padding:16px 20px;background:#fff">
+                ${hasDecennale ? `
+                <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:11px">
+                    <strong style="color:#166534">Assurance Décennale</strong><br/>
+                    ${devis.assurance_decennale!.assureur ? `Assureur : ${devis.assurance_decennale!.assureur}` : ''}
+                    ${devis.assurance_decennale!.numero_police ? ` | Police : ${devis.assurance_decennale!.numero_police}` : ''}
+                    ${devis.assurance_decennale!.validite ? ` | Validité : ${devis.assurance_decennale!.validite}` : ''}
+                </div>` : ''}
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+                    <div style="background:#f9fafb;border-radius:8px;padding:10px 14px">
+                        <p style="font-size:11px;color:#6b7280;margin:0 0 2px">Total HT</p>
+                        <p style="font-size:18px;font-weight:700;color:#111827;margin:0">${devis.prix_total_ht}</p>
+                    </div>
+                    <div style="background:#f9fafb;border-radius:8px;padding:10px 14px">
+                        <p style="font-size:11px;color:#6b7280;margin:0 0 2px">Total TTC</p>
+                        <p style="font-size:18px;font-weight:700;color:#111827;margin:0">${devis.prix_total_ttc}</p>
+                    </div>
+                </div>
+                <div style="font-size:12px;color:#4b5563;margin-bottom:12px">
+                    TVA : ${devis.tva} &nbsp;|&nbsp; Délai : ${devis.delais_execution}
+                    ${devis.conditions_paiement ? ` &nbsp;|&nbsp; ${devis.conditions_paiement}` : ''}
+                    ${devis.validite_offre ? ` &nbsp;|&nbsp; Validité offre : ${devis.validite_offre}` : ''}
+                </div>
+                ${postes.length > 0 ? `
+                <table style="width:100%;border-collapse:collapse;font-size:11px">
+                    <thead>
+                        <tr style="background:#f3f4f6;color:#374151">
+                            <th style="padding:6px 8px;text-align:left;font-weight:600">#</th>
+                            <th style="padding:6px 8px;text-align:left;font-weight:600">Corps d'état</th>
+                            <th style="padding:6px 8px;text-align:left;font-weight:600">Description</th>
+                            <th style="padding:6px 8px;text-align:right;font-weight:600">Qté</th>
+                            <th style="padding:6px 8px;text-align:right;font-weight:600">Unité</th>
+                            <th style="padding:6px 8px;text-align:right;font-weight:600">P.U. HT</th>
+                            <th style="padding:6px 8px;text-align:right;font-weight:600">Total HT</th>
+                        </tr>
+                    </thead>
+                    <tbody>${postesRows}</tbody>
+                </table>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    const alertesHtml = (data.comparaison?.alertes_conformite ?? []).map(a =>
+        `<li style="margin-bottom:4px;color:#92400e">⚠ ${a}</li>`
+    ).join('');
+
+    const pointsHtml = (data.comparaison?.points_attention_communs ?? []).map(p =>
+        `<li style="margin-bottom:4px;color:#4b5563">• ${p}</li>`
+    ).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<title>Analyse des Devis — ${today}</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #111827; margin: 0; padding: 32px; background: #fff; }
+  @media print {
+    body { padding: 16px; }
+    @page { margin: 1.5cm; size: A4; }
+  }
+</style>
+</head>
+<body>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid #e5e7eb">
+        <div>
+            <h1 style="font-size:22px;font-weight:800;color:#ea580c;margin:0 0 4px">Analyse des Devis Prestataires</h1>
+            <p style="font-size:13px;color:#6b7280;margin:0">Généré le ${today} · Analysé par Claude IA</p>
+        </div>
+        <div style="text-align:right;font-size:12px;color:#9ca3af">
+            ${data.devis?.length ?? 0} devis comparé${(data.devis?.length ?? 0) > 1 ? 's' : ''}
+        </div>
+    </div>
+
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:16px 20px;margin-bottom:24px">
+        <h2 style="font-size:14px;font-weight:700;color:#1e40af;margin:0 0 8px">📋 Résumé exécutif</h2>
+        <p style="font-size:13px;color:#1e3a8a;margin:0 0 6px;line-height:1.6">${data.resume_executif}</p>
+        ${data.comparaison?.ecart_prix ? `<p style="font-size:12px;font-weight:600;color:#1d4ed8;margin:0">Écart de prix : ${data.comparaison.ecart_prix}</p>` : ''}
+    </div>
+
+    <h2 style="font-size:16px;font-weight:700;color:#111827;margin:0 0 16px">Devis analysés</h2>
+    ${devisHtml}
+
+    ${(alertesHtml || pointsHtml) ? `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px">
+        ${alertesHtml ? `
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px">
+            <h4 style="font-size:13px;font-weight:700;color:#92400e;margin:0 0 8px">⚠ Alertes de conformité</h4>
+            <ul style="margin:0;padding-left:0;list-style:none;font-size:12px">${alertesHtml}</ul>
+        </div>` : ''}
+        ${pointsHtml ? `
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px">
+            <h4 style="font-size:13px;font-weight:700;color:#374151;margin:0 0 8px">Points d'attention communs</h4>
+            <ul style="margin:0;padding-left:0;list-style:none;font-size:12px">${pointsHtml}</ul>
+        </div>` : ''}
+    </div>` : ''}
+
+    ${data.recommandation ? `
+    <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:10px;padding:16px 20px;page-break-inside:avoid">
+        <h3 style="font-size:14px;font-weight:700;color:#166534;margin:0 0 6px">🏆 Recommandation de l'IA</h3>
+        <p style="font-size:12px;color:#15803d;margin:0 0 8px">
+            Devis recommandé : <strong>n°${data.recommandation.devis_recommande}</strong>
+            ${data.devis?.find(d => String(d.id) === String(data.recommandation.devis_recommande))
+                ? ` — ${data.devis.find(d => String(d.id) === String(data.recommandation.devis_recommande))!.nom_fournisseur}`
+                : ''}
+        </p>
+        <p style="font-size:13px;color:#166534;margin:0;line-height:1.6">${data.recommandation.justification}</p>
+    </div>` : ''}
+</body>
+</html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        setTimeout(() => win.print(), 400);
+    }
+}
+
 // ── Résultats complets ────────────────────────────────────────────────────────
 
 const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
@@ -376,6 +544,18 @@ const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
 
     return (
         <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700 space-y-8">
+
+            {/* Bouton export PDF */}
+            <div className="flex justify-end">
+                <button
+                    onClick={() => exportToPDF(data)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/40 text-sm font-medium transition-colors"
+                    title="Exporter l'analyse en PDF"
+                >
+                    <FileDown className="w-4 h-4" />
+                    Exporter en PDF
+                </button>
+            </div>
 
             {/* Résumé exécutif */}
             <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-5">
