@@ -408,7 +408,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                                     Télécharger SVG
                                 </button>
                                 <button
-                                    onClick={() => { setShowGallery(true); loadGallery(); }}
+                                    onClick={() => setShowGallery(true)}
                                     className="flex-1 flex justify-center items-center py-2 px-4 border border-emerald-300 dark:border-emerald-700 shadow-sm text-sm font-medium rounded-md text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
                                 >
                                     <Image className="mr-2 h-4 w-4" />
