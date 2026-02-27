@@ -148,6 +148,9 @@ async def analyze_quotes(
             temp_files.append(temp_path)
             file_infos.append((temp_path, ext, mime_type, file.filename))
 
+        # Accumuler les erreurs de chaque provider pour diagnostic
+        provider_errors = []
+
         # ── 1. Claude (Anthropic) ────────────────────────────────────────────
         anthropic_key = _get_api_key(db, "anthropic_api_key", "ANTHROPIC_API_KEY")
         if anthropic_key:
@@ -184,7 +187,7 @@ async def analyze_quotes(
                 message = await asyncio.to_thread(
                     claude_client.messages.create,
                     model="claude-sonnet-4-6",
-                    max_tokens=4096,
+                    max_tokens=8192,
                     messages=[{"role": "user", "content": content_parts}],
                 )
                 analysis_data = _parse_json_response(message.content[0].text)
@@ -196,7 +199,9 @@ async def analyze_quotes(
                 }
 
             except Exception as e:
-                print(f"DEBUG: Claude error: {e}, switching to Gemini...")
+                err_msg = f"Claude: {type(e).__name__}: {e}"
+                print(f"DEBUG: {err_msg}")
+                provider_errors.append(err_msg)
 
         # ── 2. Gemini (Google) ───────────────────────────────────────────────
         gemini_key = _get_api_key(db, "gemini_api_key", "GEMINI_API_KEY")
@@ -242,7 +247,9 @@ async def analyze_quotes(
                             continue
                         break
 
-                print(f"DEBUG: Gemini failed ({last_gemini_error}), switching to Ollama...")
+                gemini_err_msg = f"Gemini: {type(last_gemini_error).__name__}: {last_gemini_error}"
+                print(f"DEBUG: {gemini_err_msg}")
+                provider_errors.append(gemini_err_msg)
 
             finally:
                 for gemini_file in uploaded_gemini_files:
@@ -251,7 +258,7 @@ async def analyze_quotes(
                     except Exception:
                         pass
 
-        # ── 3. Ollama (local) — dernier recours ──────────────────────────────
+        # ── 3. Ollama (local) — dernier recours (timeout court) ──────────────
         try:
             print("DEBUG: Attempting analysis with Local Ollama (llama3.2)...")
             import httpx
@@ -262,7 +269,7 @@ async def analyze_quotes(
 
             text_prompt = prompt + "\nNote: Analyse les données issues des fichiers transmis."
 
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(
                     f"{ollama_url}/api/generate",
                     json={
@@ -283,14 +290,18 @@ async def analyze_quotes(
                 }
 
         except Exception as ollama_err:
+            provider_errors.append(f"Ollama: {type(ollama_err).__name__}: {ollama_err}")
             print(f"ERROR: Ollama fallback failed: {ollama_err}")
-            raise HTTPException(
-                status_code=500,
-                detail=(
-                    "Analyse impossible : aucun modèle IA disponible. "
-                    "Vérifiez vos clés API (Claude / Gemini) dans Administration > Clés API."
-                ),
-            )
+
+        # Aucun provider n'a réussi — retourner le détail des erreurs
+        errors_detail = " | ".join(provider_errors) if provider_errors else "Aucune clé API configurée"
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"Analyse impossible : aucun modèle IA disponible. "
+                f"Détail : {errors_detail}"
+            ),
+        )
 
     except HTTPException:
         raise
