@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Paintbrush, Download, RefreshCw, Images, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
+import { Paintbrush, Download, RefreshCw, Image, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
 import { saveLogo, getLogos, deleteLogo, type SavedLogo } from '../../api/communication';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
@@ -167,7 +167,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                             : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                 >
-                    <Images className="w-4 h-4" />
+                    <Image className="w-4 h-4" />
                     Galerie
                     {gallery.length > 0 && (
                         <span className={`text-xs px-1.5 py-0.5 rounded-full ${showGallery ? 'bg-white/20' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
@@ -182,7 +182,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                 <div className="mb-8 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Images className="w-5 h-5 text-emerald-500" /> Logos sauvegardés
+                            <Image className="w-5 h-5 text-emerald-500" /> Logos sauvegardés
                         </h2>
                         <button onClick={() => setShowGallery(false)} className="p-1 rounded text-gray-400 hover:text-gray-600">
                             <X className="w-4 h-4" />
@@ -383,7 +383,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                                     onClick={() => { setShowGallery(true); loadGallery(); }}
                                     className="flex-1 flex justify-center items-center py-2 px-4 border border-emerald-300 dark:border-emerald-700 shadow-sm text-sm font-medium rounded-md text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
                                 >
-                                    <Images className="mr-2 h-4 w-4" />
+                                    <Image className="mr-2 h-4 w-4" />
                                     Voir la galerie
                                 </button>
                             </div>
