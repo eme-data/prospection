@@ -1,14 +1,15 @@
 import React from 'react';
-import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { MyLeaves } from './MyLeaves';
 import { TeamLeaves } from './TeamLeaves';
 import { Planning } from './Planning';
-import { Calendar, Users, LogOut, CalendarDays } from 'lucide-react';
+import { Calendar, Users, LogOut, CalendarDays, Home } from 'lucide-react';
 
 export const CongesApp: React.FC = () => {
     const { logout, user } = useAuth();
     const location = useLocation();
+    const navigate = useNavigate();
 
     // Vérifie si l'utilisateur est admin ou a des subordonnés (géré en backend, pour l'UI, on va laisser TeamLeaves accessible s'ils sont admin, ou s'ils cliquent)
     // Pour l'UX, on affiche l'onglet Validation Equipe si c'est un manager ou un admin (par simplicité on la montre car le backend filtrera de toute facon)
@@ -21,6 +22,13 @@ export const CongesApp: React.FC = () => {
                     <div className="flex justify-between h-16">
                         <div className="flex">
                             <div className="flex-shrink-0 flex items-center">
+                                <button
+                                    onClick={() => navigate('/')}
+                                    className="p-2 mr-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors"
+                                    title="Retour au portail"
+                                >
+                                    <Home size={20} />
+                                </button>
                                 <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                                     Congés & Absences
                                 </span>

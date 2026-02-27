@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { MessageSquare, Layout, Paintbrush, ArrowLeft } from 'lucide-react';
+import { MessageSquare, Layout, Paintbrush, ArrowLeft, Home } from 'lucide-react';
 import { LogoCreator } from './LogoCreator';
 
 const CommunicationDashboard: React.FC = () => {
@@ -133,6 +133,13 @@ export const CommunicationApp: React.FC = () => {
                 <div className="px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
+                            <button
+                                onClick={() => navigate('/')}
+                                className="p-2 mr-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors"
+                                title="Retour au portail"
+                            >
+                                <Home size={20} />
+                            </button>
                             {!isRoot ? (
                                 <button
                                     onClick={() => navigate('/communication')}

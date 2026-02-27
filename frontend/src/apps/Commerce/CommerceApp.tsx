@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingBag, ArrowLeft, FileSearch, Database } from 'lucide-react';
+import { ShoppingBag, ArrowLeft, FileSearch, Database, Home } from 'lucide-react';
 
 // Placeholder imports for submodules (will be implemented next)
 import { AnalyseDevis } from './Analyse/AnalyseDevis';
@@ -72,6 +72,13 @@ export const CommerceApp: React.FC = () => {
                 <div className="px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
+                            <button
+                                onClick={() => navigate('/')}
+                                className="p-2 mr-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors"
+                                title="Retour au portail"
+                            >
+                                <Home size={20} />
+                            </button>
                             {!isRoot && (
                                 <button
                                     onClick={() => navigate('/commerce')}
