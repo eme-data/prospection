@@ -369,7 +369,7 @@ export const AnalyseDevis: React.FC = () => {
         const stepTo85 = 85 / ticksToReach85;
 
         progressRef.current = setInterval(() => {
-            setProgress(prev => {
+            setProgress(() => {
                 const current = currentProgressRef.current;
                 const next = current < 85
                     ? Math.min(current + stepTo85, 85)
