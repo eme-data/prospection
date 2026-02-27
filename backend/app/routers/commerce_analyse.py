@@ -96,15 +96,54 @@ Fournis une analyse COMPLÈTE au format JSON suivant EXACTEMENT:
   }}
 }}
 
-Fournis UNIQUEMENT le JSON valide, sans markdown ```json ni texte avant/après.
+RÈGLES ABSOLUES pour le JSON :
+- Commence DIRECTEMENT par {{ sans aucun texte avant
+- Termine DIRECTEMENT par }} sans aucun texte après
+- Utilise UNIQUEMENT des guillemets doubles " (jamais de guillemets simples)
+- Échappe les guillemets dans les valeurs texte : \"
+- Pas de virgule après le dernier élément d'un tableau ou objet
+- Pas de commentaires dans le JSON
+- null pour toute valeur absente du document (jamais une chaîne vide ou "N/A")
 """
 
 
 def _parse_json_response(text: str) -> dict:
+    # Nettoyer les balises markdown
     text = text.replace('```json', '').replace('```', '').strip()
     if text.startswith('json'):
         text = text[4:].strip()
-    return json.loads(text)
+
+    # Tentative 1 : JSON standard
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Tentative 2 : json-repair (guillemets manquants, virgules en trop, JSON tronqué…)
+    try:
+        from json_repair import repair_json
+        repaired = repair_json(text, return_objects=True)
+        if isinstance(repaired, dict) and repaired:
+            print(f"DEBUG: JSON repaired by json-repair (original length={len(text)})")
+            return repaired
+    except Exception:
+        pass
+
+    # Tentative 3 : extraire le premier objet JSON complet par accolades
+    try:
+        start = text.index('{')
+        depth = 0
+        for i, ch in enumerate(text[start:], start):
+            if ch == '{':
+                depth += 1
+            elif ch == '}':
+                depth -= 1
+                if depth == 0:
+                    return json.loads(text[start:i + 1])
+    except Exception:
+        pass
+
+    raise ValueError(f"Impossible de parser la réponse JSON (longueur={len(text)})")
 
 
 @router.post("/")

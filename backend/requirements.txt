@@ -48,6 +48,7 @@ email-validator>=2.0.0
 google-generativeai
 groq
 anthropic>=0.40.0
+json-repair>=0.28.0
 
 # Excel Manipulation (Module Commerce)
 pandas>=2.0.0
