@@ -1,6 +1,6 @@
 """
 Routes API pour l'analyse de devis par IA
-Priorité : Claude (Anthropic) → Gemini → Ollama (local)
+Priorité : Claude (Anthropic) → Ollama (local, optionnel)
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -16,7 +16,6 @@ from app.models.settings import SystemSettings
 from app.database import get_db
 from sqlalchemy.orm import Session
 import anthropic
-import google.generativeai as genai
 
 router = APIRouter(prefix="/commerce/analyse-devis", tags=["commerce"])
 
@@ -81,8 +80,8 @@ Fournis une analyse COMPLÈTE au format JSON suivant EXACTEMENT:
     "tableau_comparatif": [
       {{
         "poste": "Corps d'état ou catégorie",
-        "devis_1": "Prix devis 1 ou N/A",
-        "devis_2": "Prix devis 2 ou N/A"
+        "devis_1": "Prix devis 1 ou null",
+        "devis_2": "Prix devis 2 ou null"
       }}
     ]
   }},
@@ -103,7 +102,7 @@ RÈGLES ABSOLUES pour le JSON :
 - Échappe les guillemets dans les valeurs texte : \"
 - Pas de virgule après le dernier élément d'un tableau ou objet
 - Pas de commentaires dans le JSON
-- null pour toute valeur absente du document (jamais une chaîne vide ou "N/A")
+- null pour toute valeur absente du document
 """
 
 
@@ -153,8 +152,8 @@ async def analyze_quotes(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Analyse 1 à N devis (PDF/Images).
-    Essaie Claude en premier, puis Gemini, puis Ollama en dernier recours.
+    Analyse 1 à N devis (PDF/Images) avec Claude Sonnet.
+    Fallback Ollama local si Claude n'est pas disponible.
     """
     if len(files) < 1:
         raise HTTPException(status_code=400, detail="Au moins un fichier est requis.")
@@ -163,7 +162,6 @@ async def analyze_quotes(
 
     prompt = PROMPT_ANALYSE.format(n=len(files))
 
-    # Sauvegarder les fichiers en local (nécessaire pour Gemini File API et lecture base64)
     temp_files = []
     file_infos = []  # (temp_path, ext, mime_type, original_filename)
 
@@ -187,14 +185,13 @@ async def analyze_quotes(
             temp_files.append(temp_path)
             file_infos.append((temp_path, ext, mime_type, file.filename))
 
-        # Accumuler les erreurs de chaque provider pour diagnostic
         provider_errors = []
 
-        # ── 1. Claude (Anthropic) ────────────────────────────────────────────
+        # ── 1. Claude (Anthropic) ─────────────────────────────────────────────
         anthropic_key = _get_api_key(db, "anthropic_api_key", "ANTHROPIC_API_KEY")
         if anthropic_key:
             try:
-                print("DEBUG: Attempting analysis with Claude (Anthropic)...")
+                print("DEBUG: Attempting analysis with Claude Sonnet...")
                 content_parts = []
 
                 for temp_path, ext, mime_type, filename in file_infos:
@@ -241,65 +238,12 @@ async def analyze_quotes(
                 err_msg = f"Claude: {type(e).__name__}: {e}"
                 print(f"DEBUG: {err_msg}")
                 provider_errors.append(err_msg)
+        else:
+            provider_errors.append("Claude: clé API ANTHROPIC_API_KEY non configurée")
 
-        # ── 2. Gemini (Google) ───────────────────────────────────────────────
-        gemini_key = _get_api_key(db, "gemini_api_key", "GEMINI_API_KEY")
-        if gemini_key:
-            uploaded_gemini_files = []
-            try:
-                print("DEBUG: Attempting analysis with Gemini...")
-                genai.configure(api_key=gemini_key)
-
-                for temp_path, ext, mime_type, filename in file_infos:
-                    gemini_file = genai.upload_file(
-                        path=temp_path, mime_type=mime_type, display_name=filename
-                    )
-                    uploaded_gemini_files.append(gemini_file)
-
-                models_to_try = [
-                    "models/gemini-1.5-flash",
-                    "models/gemini-2.0-flash",
-                    "models/gemini-1.5-flash-8b",
-                ]
-                last_gemini_error = None
-
-                for model_name in models_to_try:
-                    try:
-                        print(f"DEBUG: Trying Gemini model: {model_name}")
-                        model = genai.GenerativeModel(model_name)
-                        prompt_parts = [prompt] + uploaded_gemini_files
-                        response = await asyncio.to_thread(model.generate_content, prompt_parts)
-                        analysis_data = _parse_json_response(response.text)
-                        return {
-                            "success": True,
-                            "analysis": analysis_data,
-                            "files_analyzed": [f.filename for f in files],
-                            "model_used": f"Gemini ({model_name})",
-                        }
-                    except Exception as e:
-                        last_gemini_error = e
-                        err_str = str(e).lower()
-                        print(f"DEBUG: Gemini error with {model_name}: {e}")
-                        if "429" in err_str or "quota" in err_str:
-                            break
-                        if "not found" in err_str or "404" in err_str:
-                            continue
-                        break
-
-                gemini_err_msg = f"Gemini: {type(last_gemini_error).__name__}: {last_gemini_error}"
-                print(f"DEBUG: {gemini_err_msg}")
-                provider_errors.append(gemini_err_msg)
-
-            finally:
-                for gemini_file in uploaded_gemini_files:
-                    try:
-                        genai.delete_file(gemini_file.name)
-                    except Exception:
-                        pass
-
-        # ── 3. Ollama (local) — dernier recours (timeout court) ──────────────
+        # ── 2. Ollama (local) — fallback optionnel ────────────────────────────
         try:
-            print("DEBUG: Attempting analysis with Local Ollama (llama3.2)...")
+            print("DEBUG: Attempting analysis with local Ollama (llama3.2)...")
             import httpx
 
             ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
@@ -330,16 +274,13 @@ async def analyze_quotes(
 
         except Exception as ollama_err:
             provider_errors.append(f"Ollama: {type(ollama_err).__name__}: {ollama_err}")
-            print(f"ERROR: Ollama fallback failed: {ollama_err}")
+            print(f"DEBUG: Ollama fallback failed: {ollama_err}")
 
-        # Aucun provider n'a réussi — retourner le détail des erreurs
-        errors_detail = " | ".join(provider_errors) if provider_errors else "Aucune clé API configurée"
+        # Aucun provider n'a réussi
+        errors_detail = " | ".join(provider_errors)
         raise HTTPException(
             status_code=500,
-            detail=(
-                f"Analyse impossible : aucun modèle IA disponible. "
-                f"Détail : {errors_detail}"
-            ),
+            detail=f"Analyse impossible. Détail : {errors_detail}",
         )
 
     except HTTPException:
