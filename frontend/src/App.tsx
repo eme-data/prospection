@@ -15,10 +15,15 @@ import { CongesApp } from './apps/Conges/CongesApp';
 import { CommunicationApp } from './apps/Communication/CommunicationApp';
 import { CommerceApp } from './apps/Commerce/CommerceApp';
 import { AutobotApp } from './apps/Autobot/AutobotApp';
-
 import { SecondaryBrainApp } from './apps/SecondaryBrain/SecondaryBrainApp';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { ToastContainer } from './components/ToastContainer';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+    defaultOptions: {
+        queries: { staleTime: 5 * 60 * 1000, retry: 1 },
+    },
+});
 const msalInstance = new PublicClientApplication(msalConfig);
 
 // Composant pour protéger les routes
@@ -68,6 +73,7 @@ function App() {
                 <MsalProvider instance={msalInstance}>
                     <AuthProvider>
                         <BrowserRouter>
+                            <ToastContainer />
                             <Routes>
                                 {/* Route publique */}
                                 <Route path="/login" element={<LoginPage />} />
@@ -77,7 +83,9 @@ function App() {
                                     path="/"
                                     element={
                                         <ProtectedRoute>
-                                            <PortalPage />
+                                            <ErrorBoundary module="Portail">
+                                                <PortalPage />
+                                            </ErrorBoundary>
                                         </ProtectedRoute>
                                     }
                                 />
@@ -85,7 +93,9 @@ function App() {
                                     path="/faisabilite"
                                     element={
                                         <ProtectedRoute>
-                                            <FaisabiliteApp />
+                                            <ErrorBoundary module="Faisabilité">
+                                                <FaisabiliteApp />
+                                            </ErrorBoundary>
                                         </ProtectedRoute>
                                     }
                                 />
@@ -94,7 +104,9 @@ function App() {
                                     path="/admin/users"
                                     element={
                                         <AdminRoute>
-                                            <AdminUsersPage />
+                                            <ErrorBoundary module="Administration">
+                                                <AdminUsersPage />
+                                            </ErrorBoundary>
                                         </AdminRoute>
                                     }
                                 />
@@ -102,7 +114,9 @@ function App() {
                                     path="/admin/settings"
                                     element={
                                         <AdminRoute>
-                                            <AdminSettings />
+                                            <ErrorBoundary module="Paramètres">
+                                                <AdminSettings />
+                                            </ErrorBoundary>
                                         </AdminRoute>
                                     }
                                 />
@@ -111,7 +125,9 @@ function App() {
                                     path="/conges/*"
                                     element={
                                         <ProtectedRoute requiredModule="conges">
-                                            <CongesApp />
+                                            <ErrorBoundary module="Congés">
+                                                <CongesApp />
+                                            </ErrorBoundary>
                                         </ProtectedRoute>
                                     }
                                 />
@@ -120,7 +136,9 @@ function App() {
                                     path="/communication/*"
                                     element={
                                         <ProtectedRoute requiredModule="communication">
-                                            <CommunicationApp />
+                                            <ErrorBoundary module="Communication">
+                                                <CommunicationApp />
+                                            </ErrorBoundary>
                                         </ProtectedRoute>
                                     }
                                 />
@@ -129,7 +147,9 @@ function App() {
                                     path="/commerce/*"
                                     element={
                                         <ProtectedRoute requiredModule="commerce">
-                                            <CommerceApp />
+                                            <ErrorBoundary module="Commerce">
+                                                <CommerceApp />
+                                            </ErrorBoundary>
                                         </ProtectedRoute>
                                     }
                                 />
@@ -138,7 +158,9 @@ function App() {
                                     path="/autobot/*"
                                     element={
                                         <ProtectedRoute requiredModule="autobot">
-                                            <AutobotApp />
+                                            <ErrorBoundary module="Autobot">
+                                                <AutobotApp />
+                                            </ErrorBoundary>
                                         </ProtectedRoute>
                                     }
                                 />
@@ -147,7 +169,9 @@ function App() {
                                     path="/secondary-brain/*"
                                     element={
                                         <ProtectedRoute requiredModule="secondaryBrain">
-                                            <SecondaryBrainApp />
+                                            <ErrorBoundary module="Second Cerveau">
+                                                <SecondaryBrainApp />
+                                            </ErrorBoundary>
                                         </ProtectedRoute>
                                     }
                                 />

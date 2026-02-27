@@ -4,7 +4,7 @@ import {
     CheckCircle2, Award, AlertTriangle, ChevronDown, ChevronUp,
     Building2, Hash, Euro, Timer, Star, Phone, Mail, MapPin,
     Shield, ShieldCheck, ShieldAlert, CreditCard, Calendar, Info,
-    FileDown, History, Save, Trash2, FolderOpen, RotateCcw
+    FileDown, History, Save, Trash2, FolderOpen, RotateCcw, Search
 } from 'lucide-react';
 import {
     analyzeQuotes,
@@ -950,9 +950,13 @@ export const AnalyseDevis: React.FC = () => {
     const [currentFiles, setCurrentFiles] = useState<FichierInfo[]>([]);
 
     // Historique
+    const HISTORY_LIMIT = 10;
     const [historyItems, setHistoryItems] = useState<SavedAnalysisSummary[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
     const [historyTotal, setHistoryTotal] = useState(0);
+    const [historyOffset, setHistoryOffset] = useState(0);
+    const [historySearch, setHistorySearch] = useState('');
     const [historyDeleteId, setHistoryDeleteId] = useState<string | null>(null);
     const [historyViewLoading, setHistoryViewLoading] = useState<string | null>(null);
 
@@ -965,20 +969,40 @@ export const AnalyseDevis: React.FC = () => {
         if (elapsedRef.current)  clearInterval(elapsedRef.current);
     };
 
-    const loadHistory = async () => {
-        setHistoryLoading(true);
+    const loadHistory = async (reset = true) => {
+        if (reset) {
+            setHistoryLoading(true);
+            setHistoryOffset(0);
+        } else {
+            setHistoryLoadingMore(true);
+        }
+        const offset = reset ? 0 : historyOffset + HISTORY_LIMIT;
         try {
-            const data = await getAnalyses();
-            setHistoryItems(data.items);
+            const data = await getAnalyses(HISTORY_LIMIT, offset);
+            if (reset) {
+                setHistoryItems(data.items);
+            } else {
+                setHistoryItems(prev => [...prev, ...data.items]);
+                setHistoryOffset(offset);
+            }
             setHistoryTotal(data.total);
         } catch { /* silencieux */ }
-        setHistoryLoading(false);
+        if (reset) setHistoryLoading(false);
+        else setHistoryLoadingMore(false);
     };
 
     const handleViewHistory = () => {
         setView('historique');
-        loadHistory();
+        setHistorySearch('');
+        loadHistory(true);
     };
+
+    const filteredHistoryItems = historySearch.trim()
+        ? historyItems.filter(item =>
+            (item.nom_projet ?? '').toLowerCase().includes(historySearch.toLowerCase()) ||
+            item.fichiers_info.some(f => f.name.toLowerCase().includes(historySearch.toLowerCase()))
+          )
+        : historyItems;
 
     const handleSave = async () => {
         if (!result) return;
@@ -1131,25 +1155,48 @@ export const AnalyseDevis: React.FC = () => {
                 {/* ── VUE HISTORIQUE ── */}
                 {view === 'historique' && (
                     <div>
+                        {/* Barre de recherche */}
+                        <div className="relative mb-4">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                            <input
+                                type="text"
+                                value={historySearch}
+                                onChange={e => setHistorySearch(e.target.value)}
+                                placeholder="Rechercher par nom de projet ou fichier…"
+                                className="w-full pl-9 pr-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                            />
+                            {historySearch && (
+                                <button onClick={() => setHistorySearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+
                         {historyLoading ? (
                             <div className="flex items-center justify-center py-16 text-gray-400">
                                 <Loader2 className="w-6 h-6 animate-spin mr-2" /> Chargement de l'historique…
                             </div>
-                        ) : historyItems.length === 0 ? (
+                        ) : filteredHistoryItems.length === 0 ? (
                             <div className="text-center py-16">
                                 <FolderOpen className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-                                <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">Aucune analyse sauvegardée</p>
-                                <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Lancez une analyse puis cliquez sur "Sauvegarder"</p>
-                                <button
-                                    onClick={() => setView('nouvelle')}
-                                    className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-orange-600 hover:text-orange-700"
-                                >
-                                    <FileSearch className="w-4 h-4" /> Lancer une nouvelle analyse
-                                </button>
+                                <p className="text-gray-500 dark:text-gray-400 text-lg font-medium">
+                                    {historySearch ? 'Aucun résultat pour cette recherche' : 'Aucune analyse sauvegardée'}
+                                </p>
+                                {!historySearch && (
+                                    <>
+                                        <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">Lancez une analyse puis cliquez sur "Sauvegarder"</p>
+                                        <button
+                                            onClick={() => setView('nouvelle')}
+                                            className="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-orange-600 hover:text-orange-700"
+                                        >
+                                            <FileSearch className="w-4 h-4" /> Lancer une nouvelle analyse
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {historyItems.map((item) => (
+                                {filteredHistoryItems.map((item) => (
                                     <div key={item.id} className="flex items-center gap-4 p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/30 hover:border-orange-300 dark:hover:border-orange-700 transition-colors group">
                                         <div className="flex-1 min-w-0">
                                             <p className="font-semibold text-gray-900 dark:text-white truncate">
@@ -1197,12 +1244,35 @@ export const AnalyseDevis: React.FC = () => {
                                         </div>
                                     </div>
                                 ))}
-                                <button
-                                    onClick={loadHistory}
-                                    className="w-full py-2 text-xs text-gray-400 hover:text-gray-600 flex items-center justify-center gap-1.5"
-                                >
-                                    <RotateCcw className="w-3 h-3" /> Rafraîchir
-                                </button>
+
+                                {/* Charger plus / Rafraîchir */}
+                                <div className="flex items-center justify-between pt-1">
+                                    {!historySearch && historyItems.length < historyTotal ? (
+                                        <button
+                                            onClick={() => loadHistory(false)}
+                                            disabled={historyLoadingMore}
+                                            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+                                        >
+                                            {historyLoadingMore
+                                                ? <><Loader2 className="w-3 h-3 animate-spin" /> Chargement…</>
+                                                : <>Charger plus ({historyItems.length}/{historyTotal})</>
+                                            }
+                                        </button>
+                                    ) : (
+                                        <span className="text-xs text-gray-400">
+                                            {historySearch
+                                                ? `${filteredHistoryItems.length} résultat${filteredHistoryItems.length > 1 ? 's' : ''}`
+                                                : `${historyTotal} analyse${historyTotal > 1 ? 's' : ''} au total`
+                                            }
+                                        </span>
+                                    )}
+                                    <button
+                                        onClick={() => loadHistory(true)}
+                                        className="py-2 text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1.5"
+                                    >
+                                        <RotateCcw className="w-3 h-3" /> Rafraîchir
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

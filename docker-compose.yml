@@ -1,9 +1,30 @@
 # Docker Compose pour Prospection Fonciere - Production
 # Usage: docker-compose up -d
+# Copier .env.example en .env et renseigner les valeurs avant de démarrer
 
 version: '3.8'
 
 services:
+  # PostgreSQL — base de données principale
+  postgres:
+    image: postgres:16-alpine
+    container_name: prospection-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-prospection}
+      POSTGRES_USER: ${POSTGRES_USER:-prospection}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?La variable POSTGRES_PASSWORD est obligatoire dans .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-prospection} -d ${POSTGRES_DB:-prospection}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - prospection-internal
+
   # Redis pour le cache
   redis:
     image: redis:7-alpine
@@ -27,22 +48,32 @@ services:
       dockerfile: Dockerfile.backend
     container_name: prospection-backend
     environment:
-      - MSAL_CLIENT_ID=67ae828e-a871-46c9-9606-925672c43c4e
-      - MSAL_TENANT_ID=11d55f60-e3b1-48e4-a5cd-911c091fc1a7
+      # Identifiants Microsoft Azure AD (depuis .env)
+      - MSAL_CLIENT_ID=${MSAL_CLIENT_ID}
+      - MSAL_TENANT_ID=${MSAL_TENANT_ID}
+      # Base de données PostgreSQL
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-prospection}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-prospection}
+      # Application
       - ENVIRONMENT=production
       - DEBUG=false
+      - SECRET_KEY=${SECRET_KEY:?La variable SECRET_KEY est obligatoire dans .env}
       - CORS_ORIGINS=["http://localhost:5173","http://localhost:80","http://localhost","https://app.loftwood.fr","https://loftwood.fr"]
+      # Redis
       - REDIS_URL=redis://redis:6379/0
-      - RATE_LIMIT_REQUESTS=100
-      - RATE_LIMIT_WINDOW=60
       - CACHE_ENABLED=true
       - CACHE_TTL=300
+      # AI
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Limites & logs
+      - RATE_LIMIT_REQUESTS=100
+      - RATE_LIMIT_WINDOW=60
       - LOG_LEVEL=INFO
       - LOG_FORMAT=json
       - API_TIMEOUT=30.0
       - API_MAX_RETRIES=3
-      - DATA_DIR=/data
     depends_on:
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
@@ -50,12 +81,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 30s
     restart: unless-stopped
     networks:
       - prospection-internal
-    volumes:
-      - ./data:/data
     expose:
       - "8000"
 
@@ -66,8 +95,8 @@ services:
       dockerfile: Dockerfile.frontend
       args:
         VITE_API_URL: ${VITE_API_URL:-""}
-        VITE_MSAL_CLIENT_ID: 67ae828e-a871-46c9-9606-925672c43c4e
-        VITE_MSAL_TENANT_ID: 11d55f60-e3b1-48e4-a5cd-911c091fc1a7
+        VITE_MSAL_CLIENT_ID: ${MSAL_CLIENT_ID}
+        VITE_MSAL_TENANT_ID: ${MSAL_TENANT_ID}
     container_name: prospection-frontend
     ports:
       - "80:80"
@@ -92,7 +121,7 @@ services:
     restart: unless-stopped
     networks:
       - prospection-internal
-    # Décommenter la section suivante si le serveur dispose d'un GPU Nvidia
+    # Décommenter si GPU Nvidia disponible :
     # deploy:
     #   resources:
     #     reservations:
@@ -101,18 +130,18 @@ services:
     #           count: 1
     #           capabilities: [gpu]
 
-    # Open WebUI - Interface Chatbot Locale (Autobot)
+  # Open WebUI - Interface Chatbot Locale (Autobot)
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: prospection-open-webui
     volumes:
       - open-webui_data:/app/backend/data
     ports:
-      - "3000:8080" # Accessible sur le port 3000
+      - "3000:8080"
     environment:
-      - 'OLLAMA_BASE_URL=http://ollama:11434'
-      - 'WEBUI_SECRET_KEY=prospection-secret-key-change-me'
-      - 'WEBUI_URL_PREFIX=/webui'
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=${WEBUI_SECRET_KEY:-prospection-secret-key-change-me}
+      - WEBUI_URL_PREFIX=/webui
     depends_on:
       - ollama
     restart: unless-stopped
@@ -120,6 +149,8 @@ services:
       - prospection-internal
 
 volumes:
+  postgres_data:
+    driver: local
   redis_data:
     driver: local
   ollama_data:

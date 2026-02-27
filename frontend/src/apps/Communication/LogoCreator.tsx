@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Paintbrush, Download, RefreshCw, Image, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
-import { saveLogo, getLogos, deleteLogo, type SavedLogo } from '../../api/communication';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { saveLogo, getLogos, deleteLogo } from '../../api/communication';
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
+const GALLERY_PAGE_SIZE = 12;
 
 export const LogoCreator: React.FC = () => {
     const [provider, setProvider] = useState('claude');
@@ -18,22 +20,17 @@ export const LogoCreator: React.FC = () => {
 
     // Galerie
     const [showGallery, setShowGallery] = useState(false);
-    const [gallery, setGallery] = useState<SavedLogo[]>([]);
-    const [galleryLoading, setGalleryLoading] = useState(false);
+    const [galleryLimit, setGalleryLimit] = useState(GALLERY_PAGE_SIZE);
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
-    const loadGallery = async () => {
-        setGalleryLoading(true);
-        try {
-            const items = await getLogos();
-            setGallery(items);
-        } catch { /* silencieux */ }
-        setGalleryLoading(false);
-    };
+    const queryClient = useQueryClient();
 
-    useEffect(() => {
-        if (showGallery) loadGallery();
-    }, [showGallery]);
+    const { data: gallery = [], isLoading: galleryLoading, refetch: refetchGallery } = useQuery({
+        queryKey: ['logos'],
+        queryFn: getLogos,
+        enabled: showGallery,
+        staleTime: 30_000,
+    });
 
     const buildPrompt = () => {
         let prompt = `Tu es un designer de logos professionnel expert en création SVG. Génère un logo DÉTAILLÉ et ÉLABORÉ au format SVG pour l'entreprise suivante:\n\nNom de l'entreprise: ${companyName}`;
@@ -115,7 +112,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                     colors: colors || undefined,
                     svg_content: svg,
                 }).then(() => {
-                    if (showGallery) loadGallery();
+                    queryClient.invalidateQueries({ queryKey: ['logos'] });
                 }).catch(() => { /* silencieux */ });
             } else {
                 throw new Error('Format de réponse invalide');
@@ -142,10 +139,14 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
         setDeleteId(id);
         try {
             await deleteLogo(id);
-            setGallery(prev => prev.filter(l => l.id !== id));
+            queryClient.setQueryData(['logos'], (prev: typeof gallery) =>
+                prev.filter(l => l.id !== id)
+            );
         } catch { /* silencieux */ }
         setDeleteId(null);
     };
+
+    const visibleLogos = gallery.slice(0, galleryLimit);
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -184,19 +185,30 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                             <Image className="w-5 h-5 text-emerald-500" /> Logos sauvegardés
                         </h2>
-                        <button onClick={() => setShowGallery(false)} className="p-1 rounded text-gray-400 hover:text-gray-600">
-                            <X className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => refetchGallery()}
+                                disabled={galleryLoading}
+                                className="p-1 rounded text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                                title="Rafraîchir"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${galleryLoading ? 'animate-spin' : ''}`} />
+                            </button>
+                            <button onClick={() => setShowGallery(false)} className="p-1 rounded text-gray-400 hover:text-gray-600">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
-                    {galleryLoading ? (
+                    {galleryLoading && gallery.length === 0 ? (
                         <div className="flex items-center justify-center py-10 text-gray-400">
                             <Loader2 className="w-5 h-5 animate-spin mr-2" /> Chargement…
                         </div>
                     ) : gallery.length === 0 ? (
                         <p className="text-center text-gray-400 py-8">Aucun logo sauvegardé. Générez votre premier logo !</p>
                     ) : (
+                        <>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                            {gallery.map((logo) => (
+                            {visibleLogos.map((logo) => (
                                 <div key={logo.id} className="group relative bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors">
                                     {/* Miniature SVG */}
                                     <button
@@ -235,6 +247,22 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                                 </div>
                             ))}
                         </div>
+                        {gallery.length > galleryLimit && (
+                            <div className="mt-4 text-center">
+                                <button
+                                    onClick={() => setGalleryLimit(l => l + GALLERY_PAGE_SIZE)}
+                                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                    Charger plus ({galleryLimit}/{gallery.length})
+                                </button>
+                            </div>
+                        )}
+                        {gallery.length > 0 && (
+                            <p className="mt-3 text-xs text-gray-400 text-center">
+                                Affichage de {Math.min(galleryLimit, gallery.length)} sur {gallery.length} logo{gallery.length > 1 ? 's' : ''}
+                            </p>
+                        )}
+                        </>
                     )}
                 </div>
             )}

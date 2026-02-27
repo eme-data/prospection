@@ -11,29 +11,73 @@ import type {
   FaisabiliteReport,
   Top10Result,
 } from '../types'
+import { toast } from '../utils/toast'
 
 const API_BASE = '/api'
 
-export async function fetchJSON<T>(url: string, options: RequestInit = {}): Promise<T> {
+/** Messages HTTP lisibles pour les codes d'erreur courants */
+function httpErrorMessage(status: number): string {
+  switch (status) {
+    case 400: return 'Requête invalide (400)'
+    case 401: return 'Session expirée, veuillez vous reconnecter (401)'
+    case 403: return 'Accès interdit (403)'
+    case 404: return 'Ressource introuvable (404)'
+    case 409: return 'Conflit de données (409)'
+    case 422: return 'Données invalides envoyées au serveur (422)'
+    case 429: return 'Trop de requêtes, veuillez patienter (429)'
+    case 500: return 'Erreur serveur interne (500)'
+    case 502: return 'Serveur temporairement indisponible (502)'
+    case 503: return 'Service indisponible (503)'
+    default:  return `Erreur réseau (${status})`
+  }
+}
+
+export interface FetchOptions extends RequestInit {
+  /** Si true, supprime le toast d'erreur automatique (le composant gère lui-même l'erreur) */
+  silent?: boolean
+}
+
+export async function fetchJSON<T>(url: string, options: FetchOptions = {}): Promise<T> {
+  const { silent, ...fetchOptions } = options
   const token = localStorage.getItem('prospection_token')
 
-  const headers = new Headers(options.headers || {})
+  const headers = new Headers(fetchOptions.headers || {})
   if (token) {
     headers.set('Authorization', `Bearer ${token}`)
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers
-  })
+  let response: Response
+  try {
+    response = await fetch(url, { ...fetchOptions, headers })
+  } catch {
+    if (!silent) {
+      toast.error('Impossible de joindre le serveur. Vérifiez votre connexion.')
+    }
+    throw new Error('Network error')
+  }
 
   if (!response.ok) {
     if (response.status === 401) {
-      // Pourrait déclencher un événement global de déconnexion ici
       console.warn('Non autorisé, token expiré ou invalide')
+      // Laisse AuthContext gérer la déconnexion via le prochain appel protégé
     }
-    throw new Error(`HTTP error! status: ${response.status}`)
+
+    // Tente de récupérer le message d'erreur du backend (detail FastAPI)
+    let serverMessage: string | null = null
+    try {
+      const errData = await response.clone().json()
+      serverMessage = errData?.detail ?? null
+    } catch { /* pas de JSON */ }
+
+    const message = serverMessage ?? httpErrorMessage(response.status)
+
+    if (!silent) {
+      toast.error(message)
+    }
+
+    throw new Error(message)
   }
+
   return response.json()
 }
 

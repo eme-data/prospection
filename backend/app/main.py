@@ -77,42 +77,11 @@ async def lifespan(app: FastAPI):
         version=settings.app_version,
     )
 
-    Base.metadata.create_all(bind=engine)
-
-    # Auto-migration SQLite pour les nouvelles colonnes
-    try:
-        from sqlalchemy import text
-        with engine.connect() as conn:
-            result = conn.execute(text("PRAGMA table_info(users)"))
-            columns = [row[1] for row in result.fetchall()]
-
-            migrations = [
-                ("module_faisabilite", [
-                    "ALTER TABLE users ADD COLUMN module_faisabilite BOOLEAN DEFAULT 1",
-                    "ALTER TABLE users ADD COLUMN module_sav BOOLEAN DEFAULT 0",
-                    "ALTER TABLE users ADD COLUMN module_conges BOOLEAN DEFAULT 0",
-                ]),
-                ("solde_conges", [
-                    "ALTER TABLE users ADD COLUMN solde_conges FLOAT DEFAULT 25.0",
-                    "ALTER TABLE users ADD COLUMN manager_id VARCHAR REFERENCES users(id)",
-                ]),
-                ("module_communication", [
-                    "ALTER TABLE users ADD COLUMN module_communication BOOLEAN DEFAULT 0",
-                ]),
-                ("module_commerce", [
-                    "ALTER TABLE users ADD COLUMN module_commerce BOOLEAN DEFAULT 0",
-                ]),
-            ]
-
-            for column_check, statements in migrations:
-                if column_check not in columns:
-                    for stmt in statements:
-                        conn.execute(text(stmt))
-                    conn.commit()
-                    logger.info(f"Migration OK: {column_check}")
-
-    except Exception as e:
-        logger.error(f"Migration error: {e}")
+    # Les migrations de schéma sont gérées par Alembic (entrypoint.sh : alembic upgrade head).
+    # Base.metadata.create_all est conservé comme filet de sécurité pour SQLite (dev local / tests).
+    if "sqlite" in settings.database_url:
+        Base.metadata.create_all(bind=engine)
+        logger.info("sqlite_tables_created_via_metadata")
 
     yield
     logger.info("application_stopping")
