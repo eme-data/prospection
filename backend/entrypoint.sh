@@ -29,6 +29,23 @@ except Exception as e:
 done
 
 echo "[entrypoint] Application des migrations Alembic..."
+# Si la DB existe déjà (créée par metadata.create_all) mais qu'Alembic
+# n'a jamais tourné, on stampe la version actuelle pour éviter l'erreur
+# "table already exists".
+ALEMBIC_CURRENT=$(alembic current 2>/dev/null || echo "")
+if [ -z "$ALEMBIC_CURRENT" ]; then
+    # Vérifier si des tables existent déjà (DB pré-Alembic)
+    HAS_TABLES=$(python -c "
+from app.database import engine
+from sqlalchemy import inspect
+tables = inspect(engine).get_table_names()
+print('yes' if 'users' in tables else 'no')
+" 2>/dev/null || echo "no")
+    if [ "$HAS_TABLES" = "yes" ]; then
+        echo "[entrypoint] DB existante détectée sans historique Alembic — stamp head"
+        alembic stamp head
+    fi
+fi
 alembic upgrade head
 echo "[entrypoint] Migrations OK"
 
