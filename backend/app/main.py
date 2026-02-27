@@ -140,12 +140,19 @@ async def api_error_handler(request: Request, exc: APIError):
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception("unhandled_exception", path=request.url.path, error=str(exc))
+    logger.exception(
+        "unhandled_exception",
+        path=request.url.path,
+        method=request.method,
+        error=str(exc),
+        error_type=type(exc).__name__,
+    )
+    detail = str(exc) if not settings.is_production else "Une erreur inattendue s'est produite"
     return JSONResponse(
         status_code=500,
         content={
             "error": "Erreur interne du serveur",
-            "detail": "Une erreur inattendue s'est produite" if settings.is_production else str(exc),
+            "detail": detail,
         },
     )
 
@@ -182,6 +189,10 @@ app.include_router(risks.router, dependencies=protected)
 app.include_router(urbanism.router, dependencies=protected)
 app.include_router(export.router, dependencies=protected)
 app.include_router(search.router, dependencies=protected)
+# IMPORTANT : faisabilite_data_router DOIT être inclus AVANT faisabilite.router
+# car faisabilite.router a une route /{parcelle_id} (catch-all) qui intercepterait
+# /favorites, /projects, /history si elle est enregistrée en premier.
+app.include_router(faisabilite_data_router, prefix="/api", dependencies=protected)
 app.include_router(faisabilite.router, dependencies=protected)
 app.include_router(activities.router, dependencies=protected)
 app.include_router(app_settings_router.router, prefix="/api", dependencies=protected)
@@ -190,7 +201,6 @@ app.include_router(communication.router, prefix="/api", dependencies=protected)
 app.include_router(commerce_crm.router, prefix="/api", dependencies=protected)
 app.include_router(commerce_analyse.router, prefix="/api", dependencies=protected)
 app.include_router(logos_router, prefix="/api", dependencies=protected)
-app.include_router(faisabilite_data_router, prefix="/api", dependencies=protected)
 app.include_router(economic_router, dependencies=protected)
 app.include_router(isochrone_router, dependencies=protected)
 app.include_router(enrichissement_router, dependencies=protected)

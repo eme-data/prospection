@@ -19,7 +19,7 @@ export interface AddFavoritePayload {
 }
 
 export const getFavorites = (): Promise<ApiFavorite[]> =>
-    fetchJSON('/api/faisabilite/favorites');
+    fetchJSON('/api/faisabilite/favorites', { silent: true });
 
 export const addFavorite = (data: AddFavoritePayload): Promise<{ id: string; added_at: string; already_exists?: boolean }> =>
     fetchJSON('/api/faisabilite/favorites', {
@@ -69,7 +69,7 @@ export interface UpdateProjectPayload {
 }
 
 export const getProjects = (): Promise<ApiProject[]> =>
-    fetchJSON('/api/faisabilite/projects');
+    fetchJSON('/api/faisabilite/projects', { silent: true });
 
 export const createProject = (data: CreateProjectPayload): Promise<ApiProject> =>
     fetchJSON('/api/faisabilite/projects', {
@@ -106,7 +106,7 @@ export interface AddHistoryPayload {
 }
 
 export const getSearchHistory = (): Promise<ApiSearchHistory[]> =>
-    fetchJSON('/api/faisabilite/history');
+    fetchJSON('/api/faisabilite/history', { silent: true });
 
 export const addSearchHistory = (data: AddHistoryPayload): Promise<{ id: string; searched_at: string }> =>
     fetchJSON('/api/faisabilite/history', {
