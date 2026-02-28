@@ -27,7 +27,7 @@ export const SecondaryBrainApp: React.FC = () => {
 
             <main className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
                 <iframe
-                    src="/webui/"
+                    src="https://brain.mdoservices.fr"
                     className="w-full h-full border-none"
                     title="Secondary Brain Chat"
                     allow="clipboard-write; clipboard-read; microphone; camera"

@@ -81,7 +81,6 @@ services:
     environment:
       - 'OLLAMA_BASE_URL=http://ollama:11434'
       - 'WEBUI_SECRET_KEY=prospection-secret-key-change-me'
-      - 'WEBUI_URL_PREFIX=/webui'
       - 'WEBUI_AUTH_TRUSTED_EMAIL_HEADER=X-User-Email'
       - 'WEBUI_AUTH_TRUSTED_NAME_HEADER=X-User-Name'
       - 'ENABLE_SIGNUP=true'

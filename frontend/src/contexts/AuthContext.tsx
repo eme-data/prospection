@@ -42,11 +42,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const isAuthenticated = !!token;
 
+    // Domaine cookie partagé entre sous-domaines (ex: .mdoservices.fr)
+    const getCookieDomain = (): string => {
+        const parts = window.location.hostname.split('.');
+        if (parts.length >= 2 && !window.location.hostname.includes('localhost')) {
+            return `; domain=.${parts.slice(-2).join('.')}`;
+        }
+        return '';
+    };
+
     const login = (newToken: string, userData?: User) => {
         setToken(newToken);
         localStorage.setItem('prospection_token', newToken);
-        // Cookie pour Nginx auth_request (proxy Open WebUI)
-        document.cookie = `prospection_token=${newToken}; path=/; secure; samesite=lax; max-age=86400`;
+        // Cookie pour Nginx auth_request (proxy Open WebUI) — partagé entre sous-domaines
+        document.cookie = `prospection_token=${newToken}; path=/${getCookieDomain()}; secure; samesite=lax; max-age=86400`;
         if (userData) {
             setUser(userData);
             localStorage.setItem('prospection_user', JSON.stringify(userData));
@@ -58,7 +67,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         localStorage.removeItem('prospection_token');
         localStorage.removeItem('prospection_user');
-        document.cookie = 'prospection_token=; path=/; max-age=0';
+        document.cookie = `prospection_token=; path=/${getCookieDomain()}; max-age=0`;
 
         // Logout from MSAL if active account exists
         if (instance.getActiveAccount() || instance.getAllAccounts().length > 0) {
@@ -70,10 +79,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (token) {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
             // Sync cookie pour Nginx auth_request (proxy Open WebUI)
-            document.cookie = `prospection_token=${token}; path=/; secure; samesite=lax; max-age=86400`;
+            document.cookie = `prospection_token=${token}; path=/${getCookieDomain()}; secure; samesite=lax; max-age=86400`;
         } else {
             delete axios.defaults.headers.common['Authorization'];
-            document.cookie = 'prospection_token=; path=/; max-age=0';
+            document.cookie = `prospection_token=; path=/${getCookieDomain()}; max-age=0`;
         }
     }, [token]);
 
