@@ -188,6 +188,59 @@ if [[ "$CURRENT_COMMIT" == "$NEW_COMMIT" ]] && [[ "$FORCE_REBUILD" == false ]]; 
 fi
 
 #===============================================================================
+# VALIDATION DU .env
+#===============================================================================
+log_info "Vérification du fichier .env..."
+
+ENV_FILE="$INSTALL_DIR/.env"
+if [[ ! -f "$ENV_FILE" ]]; then
+    # Chercher aussi dans backend/
+    ENV_FILE="$INSTALL_DIR/backend/.env"
+fi
+
+ENV_OK=true
+
+check_env_var() {
+    local var_name="$1"
+    local required="$2"  # "required" ou "recommended"
+    local hint="$3"
+
+    # Chercher dans le .env ou dans l'environnement
+    local value=""
+    if [[ -f "$ENV_FILE" ]]; then
+        value=$(grep -E "^${var_name}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d'=' -f2-)
+    fi
+
+    if [[ -z "$value" ]]; then
+        if [[ "$required" == "required" ]]; then
+            log_error "Variable manquante dans .env : ${var_name} — ${hint}"
+            ENV_OK=false
+        else
+            log_warn "Variable recommandée absente : ${var_name} — ${hint}"
+        fi
+    fi
+}
+
+check_env_var "SECRET_KEY" "required" "Générer avec: openssl rand -hex 32"
+check_env_var "POSTGRES_PASSWORD" "required" "Mot de passe PostgreSQL"
+check_env_var "WEBUI_SECRET_KEY" "required" "Générer avec: openssl rand -hex 32"
+check_env_var "CORS_ORIGINS" "recommended" "Ex: [\"https://mon-domaine.fr\"]"
+
+# Vérifier que WEBUI_SECRET_KEY n'est pas la valeur par défaut
+if [[ -f "$ENV_FILE" ]]; then
+    WEBUI_KEY=$(grep -E "^WEBUI_SECRET_KEY=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
+    if [[ "$WEBUI_KEY" == "prospection-secret-key-change-me" ]]; then
+        log_warn "WEBUI_SECRET_KEY utilise la valeur par défaut — à changer en production !"
+    fi
+fi
+
+if [[ "$ENV_OK" == false ]]; then
+    log_error "Des variables obligatoires sont manquantes dans .env. Corrigez avant de continuer."
+fi
+
+log_success "Fichier .env validé"
+
+#===============================================================================
 # DÉTECTION DES CHANGEMENTS
 #===============================================================================
 log_info "Analyse des changements..."
@@ -314,13 +367,34 @@ else
 fi
 
 #===============================================================================
-# MIGRATIONS DE DONNÉES
+# MIGRATIONS DE BASE DE DONNÉES
 #===============================================================================
 log_info "Exécution des migrations de base de données..."
-# On attend que le conteneur backend soit prêt
-sleep 5
+
+# Attendre que le conteneur backend et la DB soient prêts
+for i in {1..20}; do
+    if sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" exec -T backend python -c "from app.database import engine; engine.connect()" 2>/dev/null; then
+        log_success "Connexion base de données OK"
+        break
+    fi
+    if [[ $i -eq 20 ]]; then
+        log_warn "Impossible de se connecter à la base de données après 40s"
+    fi
+    sleep 2
+done
+
+# 1. Migrations Alembic (schéma)
+log_info "Exécution des migrations Alembic..."
+if sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" exec -T backend alembic upgrade head 2>&1; then
+    log_success "Migrations Alembic appliquées"
+else
+    log_warn "Alembic a retourné une erreur — vérifiez les logs (peut être normal si pas de nouvelle migration)"
+fi
+
+# 2. Script de migration de données (legacy)
 if [[ -f "backend/update_db_modules.py" ]]; then
-    sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" exec -T backend python update_db_modules.py >/dev/null 2>&1 || log_warn "Le script de migration a retourné une erreur (peut-être a-t-il été déjà appliqué)."
+    log_info "Exécution du script de migration de données..."
+    sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" exec -T backend python update_db_modules.py >/dev/null 2>&1 || log_warn "Le script de migration de données a retourné une erreur (peut-être déjà appliqué)."
 fi
 
 #===============================================================================
@@ -336,11 +410,22 @@ log_info "Vérification du déploiement..."
 
 sleep 5
 
-# Health check
+DEPLOY_OK=true
+
+# Health check principal
 if curl -sf http://localhost/health > /dev/null 2>&1 || curl -sf -k https://localhost/health > /dev/null 2>&1; then
     log_success "✓ Health check OK"
 else
-    log_warn "Health check échoué - vérifiez les logs"
+    log_warn "✗ Health check échoué"
+    DEPLOY_OK=false
+fi
+
+# Vérification de l'endpoint d'authentification
+if curl -sf http://localhost:8000/api/auth/users/me -o /dev/null -w "%{http_code}" 2>/dev/null | grep -q "401"; then
+    log_success "✓ API auth opérationnelle (401 attendu sans token)"
+else
+    log_warn "✗ API auth ne répond pas correctement"
+    DEPLOY_OK=false
 fi
 
 # État des conteneurs
@@ -350,7 +435,23 @@ TOTAL_CONTAINERS=$(docker compose -f "$COMPOSE_FILE" ps --services | wc -l)
 if [[ "$RUNNING_CONTAINERS" -eq "$TOTAL_CONTAINERS" ]]; then
     log_success "✓ Tous les conteneurs sont démarrés ($RUNNING_CONTAINERS/$TOTAL_CONTAINERS)"
 else
-    log_warn "Certains conteneurs ne sont pas démarrés ($RUNNING_CONTAINERS/$TOTAL_CONTAINERS)"
+    log_warn "✗ Certains conteneurs ne sont pas démarrés ($RUNNING_CONTAINERS/$TOTAL_CONTAINERS)"
+    DEPLOY_OK=false
+fi
+
+# Vérification des logs d'erreur récents (dernières 30 secondes)
+RECENT_ERRORS=$(sudo -u "$APP_USER" docker compose -f "$COMPOSE_FILE" logs --since 30s backend 2>&1 | grep -ci "error\|traceback\|critical" || true)
+if [[ "$RECENT_ERRORS" -gt 0 ]]; then
+    log_warn "✗ $RECENT_ERRORS erreurs détectées dans les logs récents du backend"
+    log_warn "  → docker compose -f $COMPOSE_FILE logs --tail 50 backend"
+    DEPLOY_OK=false
+else
+    log_success "✓ Aucune erreur dans les logs récents"
+fi
+
+if [[ "$DEPLOY_OK" == false ]]; then
+    echo ""
+    log_warn "⚠ Des problèmes ont été détectés. Rollback possible avec: sudo ./update.sh --rollback"
 fi
 
 #===============================================================================

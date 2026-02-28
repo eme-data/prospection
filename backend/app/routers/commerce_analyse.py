@@ -11,8 +11,11 @@ import base64
 import tempfile
 import json
 import asyncio
+import logging
 from app.auth import get_current_active_user
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 from app.models.settings import SystemSettings
 from app.models.analyse_devis import DevisAnalyse
 from app.database import get_db
@@ -126,7 +129,7 @@ def _parse_json_response(text: str) -> dict:
         from json_repair import repair_json
         repaired = repair_json(text, return_objects=True)
         if isinstance(repaired, dict) and repaired:
-            print(f"DEBUG: JSON repaired by json-repair (original length={len(text)})")
+            logger.debug("JSON repaired by json-repair (original length=%d)", len(text))
             return repaired
     except Exception:
         pass
@@ -194,7 +197,7 @@ async def analyze_quotes(
         anthropic_key = _get_api_key(db, "anthropic_api_key", "ANTHROPIC_API_KEY")
         if anthropic_key:
             try:
-                print("DEBUG: Attempting analysis with Claude Sonnet...")
+                logger.info("Attempting analysis with Claude Sonnet")
                 content_parts = []
 
                 for temp_path, ext, mime_type, filename in file_infos:
@@ -239,14 +242,14 @@ async def analyze_quotes(
 
             except Exception as e:
                 err_msg = f"Claude: {type(e).__name__}: {e}"
-                print(f"DEBUG: {err_msg}")
+                logger.warning(err_msg)
                 provider_errors.append(err_msg)
         else:
             provider_errors.append("Claude: clé API ANTHROPIC_API_KEY non configurée")
 
         # ── 2. Ollama (local) — fallback optionnel ────────────────────────────
         try:
-            print("DEBUG: Attempting analysis with local Ollama (llama3.2)...")
+            logger.info("Attempting analysis with local Ollama (llama3.2)")
             import httpx
 
             ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
@@ -277,7 +280,7 @@ async def analyze_quotes(
 
         except Exception as ollama_err:
             provider_errors.append(f"Ollama: {type(ollama_err).__name__}: {ollama_err}")
-            print(f"DEBUG: Ollama fallback failed: {ollama_err}")
+            logger.warning("Ollama fallback failed: %s", ollama_err)
 
         # Aucun provider n'a réussi
         errors_detail = " | ".join(provider_errors)
@@ -289,7 +292,7 @@ async def analyze_quotes(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Global error during analysis: {e}")
+        logger.error("Global error during analysis: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
     finally:
@@ -349,12 +352,12 @@ def list_analyses(
     for r in records:
         try:
             fichiers = json.loads(r.fichiers_info or "[]")
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             fichiers = []
         try:
             result = json.loads(r.result_json or "{}")
             nb_devis = len(result.get("devis", []))
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             nb_devis = 0
         items.append({
             "id": r.id,
@@ -380,11 +383,11 @@ def get_analyse(
         raise HTTPException(status_code=403, detail="Accès interdit.")
     try:
         result = json.loads(record.result_json)
-    except Exception:
+    except (json.JSONDecodeError, TypeError):
         result = {}
     try:
         fichiers = json.loads(record.fichiers_info or "[]")
-    except Exception:
+    except (json.JSONDecodeError, TypeError):
         fichiers = []
     return {
         "id": record.id,

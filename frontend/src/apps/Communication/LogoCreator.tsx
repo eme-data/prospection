@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
 import { Paintbrush, Download, RefreshCw, Image, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import DOMPurify from 'dompurify';
 import { saveLogo, getLogos, deleteLogo } from '../../api/communication';
+
+/** Sanitise un SVG pour supprimer tout script/event handler malveillant */
+function sanitizeSVG(raw: string): string {
+    return DOMPurify.sanitize(raw, {
+        USE_PROFILES: { svg: true, svgFilters: true },
+        ADD_TAGS: ['use'],
+    });
+}
 
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 const GALLERY_PAGE_SIZE = 12;
@@ -218,7 +227,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                                     >
                                         <div
                                             className="w-full h-full [&>svg]:w-full [&>svg]:h-full"
-                                            dangerouslySetInnerHTML={{ __html: logo.svg_content }}
+                                            dangerouslySetInnerHTML={{ __html: sanitizeSVG(logo.svg_content) }}
                                         />
                                     </button>
                                     {/* Infos */}
@@ -384,7 +393,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                         {currentSVG ? (
                             <div
                                 className="w-full h-full flex items-center justify-center [&>svg]:w-full [&>svg]:h-auto [&>svg]:max-h-[400px]"
-                                dangerouslySetInnerHTML={{ __html: currentSVG }}
+                                dangerouslySetInnerHTML={{ __html: sanitizeSVG(currentSVG) }}
                             />
                         ) : (
                             <div className="text-center text-gray-400 flex flex-col items-center">

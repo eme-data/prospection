@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Query
 from app.services.faisabilite import faisabilite_service
 from app.security import limiter
 from app.logging_config import get_logger
@@ -27,7 +27,6 @@ async def get_faisabilite_report(request: Request, parcelle_id: str):
         logger.error(f"Erreur rapport faisabilité {parcelle_id}: {e}")
         raise HTTPException(status_code=500, detail="Erreur lors de la génération du rapport")
 
-from fastapi import APIRouter, HTTPException, Request, Query
 
 @router.get("/top10/{code_insee}")
 @limiter.limit("5/minute")

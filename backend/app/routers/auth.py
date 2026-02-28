@@ -1,16 +1,34 @@
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
+import re
 
 from app.database import get_db
 from app.config import settings
-from app.auth import create_access_token, get_password_hash, get_user_by_email, get_current_active_user
+from app.auth import create_access_token, get_password_hash, get_user_by_email, get_current_active_user, get_current_user
 from app.models.user import User
+from app.security import limiter
+
+
+async def get_optional_current_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """Tente d'extraire l'utilisateur courant sans lever d'erreur si absent."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    try:
+        token = auth_header[7:]
+        return await get_current_user(token=token, db=db)
+    except HTTPException:
+        return None
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -27,6 +45,20 @@ class UserCreate(BaseModel):
     manager_id: Optional[str] = None
     solde_conges: float = 25.0
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Le mot de passe doit contenir au moins 8 caractères.")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Le mot de passe doit contenir au moins une majuscule.")
+        if not re.search(r"[a-z]", v):
+            raise ValueError("Le mot de passe doit contenir au moins une minuscule.")
+        if not re.search(r"\d", v):
+            raise ValueError("Le mot de passe doit contenir au moins un chiffre.")
+        return v
+
+
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     full_name: Optional[str] = None
@@ -42,6 +74,7 @@ class UserUpdate(BaseModel):
     manager_id: Optional[str] = None
     solde_conges: Optional[float] = None
 
+
 def authenticate_user_db(db: Session, email: str, password: str):
     from app.auth import get_user_by_email, verify_password
     user = get_user_by_email(db, email)
@@ -51,8 +84,10 @@ def authenticate_user_db(db: Session, email: str, password: str):
         return False
     return user
 
+
 @router.post("/token")
-async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = authenticate_user_db(db, form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -70,7 +105,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.email, "role": user.role}, expires_delta=access_token_expires
     )
     return {
-        "access_token": access_token, 
+        "access_token": access_token,
         "token_type": "bearer",
         "user": {
             "id": user.id,
@@ -91,19 +126,36 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         }
     }
 
+
 @router.post("/users", status_code=status.HTTP_201_CREATED)
-def create_user(user: UserCreate, db: Session = Depends(get_db)):
-    # Simple check if any user exists so the first user created is an admin automatically without needing login
-    # In production, this route should be protected except for the first hit
+def create_user(
+    user: UserCreate,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
     is_first_user = db.query(User).count() == 0
-    
+
+    # Seul le premier utilisateur peut être créé sans authentification.
+    # Ensuite, seul un admin peut créer de nouveaux comptes.
+    if not is_first_user:
+        if current_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentification requise pour créer un utilisateur.",
+            )
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Seuls les administrateurs peuvent créer des utilisateurs.",
+            )
+
     db_user = get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Cet email est déjà enregistré")
-    
+
     hashed_password = get_password_hash(user.password)
     db_user = User(
-        email=user.email, 
+        email=user.email,
         hashed_password=hashed_password,
         full_name=user.full_name,
         role="admin" if is_first_user else user.role,
@@ -138,6 +190,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
         "solde_conges": db_user.solde_conges
     }
 
+
 @router.get("/users/me")
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return {
@@ -158,11 +211,12 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
         "solde_conges": current_user.solde_conges
     }
 
+
 @router.get("/users")
 async def get_all_users(current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Accès refusé. Réservé aux administrateurs.")
-    
+
     users = db.query(User).all()
     return [
         {
@@ -187,41 +241,43 @@ async def get_all_users(current_user: User = Depends(get_current_active_user), d
         } for u in users
     ]
 
+
 @router.put("/users/{user_id}")
 async def update_user(user_id: str, payload: UserUpdate, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Accès refusé.")
-    
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
-        
+
     update_data = payload.dict(exclude_unset=True)
     if "password" in update_data and update_data["password"]:
         update_data["hashed_password"] = get_password_hash(update_data["password"])
         del update_data["password"]
     elif "password" in update_data:
         del update_data["password"]
-        
+
     for key, value in update_data.items():
         setattr(user, key, value)
-        
+
     db.commit()
     db.refresh(user)
     return {"message": "Utilisateur mis à jour avec succès"}
+
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Accès refusé.")
-        
+
     if current_user.id == user_id:
         raise HTTPException(status_code=400, detail="Vous ne pouvez pas supprimer votre propre compte.")
-        
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
-        
+
     db.delete(user)
     db.commit()
     return {"message": "Utilisateur supprimé"}

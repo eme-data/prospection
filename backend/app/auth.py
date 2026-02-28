@@ -1,4 +1,5 @@
 import time as _time
+from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
@@ -21,10 +22,7 @@ def get_password_hash(password: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm="HS256")
     return encoded_jwt
@@ -57,8 +55,10 @@ async def get_current_active_user(current_user: User = Depends(get_current_user)
 
 
 # Throttle in-memory : {user_id: last_db_write_epoch}
-_activity_last_write: dict[str, float] = {}
+# Borné à 500 entrées pour éviter les fuites mémoire sur les serveurs long-running
+_activity_last_write: OrderedDict[str, float] = OrderedDict()
 _ACTIVITY_THROTTLE_SECONDS = 60
+_ACTIVITY_MAX_ENTRIES = 500
 
 
 async def get_current_active_user_with_activity(
@@ -73,5 +73,8 @@ async def get_current_active_user_with_activity(
         current_user.last_activity_at = datetime.now(timezone.utc)
         db.commit()
         _activity_last_write[current_user.id] = now_epoch
+        # Élaguer les entrées les plus anciennes si le dict dépasse la limite
+        while len(_activity_last_write) > _ACTIVITY_MAX_ENTRIES:
+            _activity_last_write.popitem(last=False)
 
     return current_user

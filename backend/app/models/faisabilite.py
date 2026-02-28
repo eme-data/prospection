@@ -3,8 +3,7 @@ Modèles SQLAlchemy pour la persistance des données du module Faisabilité
 (favoris, projets, historique de recherche)
 """
 
-from sqlalchemy import Column, String, Text, ForeignKey, Index
-from datetime import datetime
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Index, func
 import uuid
 
 from app.database import Base
@@ -25,7 +24,7 @@ class FaisabiliteFavorite(Base):
     note = Column(Text, nullable=True)
     transactions_json = Column(Text, nullable=True)    # JSON array de DVFTransaction
 
-    added_at = Column(String, default=lambda: datetime.utcnow().isoformat(), index=True)
+    added_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     __table_args__ = (
         Index("ix_fav_user_parcelle", "user_id", "parcelle_id"),
@@ -44,12 +43,8 @@ class FaisabiliteProject(Base):
     status = Column(String, default="active")          # active | archived | completed
     parcelles_json = Column(Text, nullable=False, default="[]")  # JSON array of parcelle IDs
 
-    created_at = Column(String, default=lambda: datetime.utcnow().isoformat())
-    updated_at = Column(
-        String,
-        default=lambda: datetime.utcnow().isoformat(),
-        onupdate=lambda: datetime.utcnow().isoformat(),
-    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     __table_args__ = (
         Index("ix_projects_user", "user_id"),
@@ -66,7 +61,7 @@ class FaisabiliteSearchHistory(Base):
     address_json = Column(Text, nullable=False)        # AddressResult JSON
     filters_json = Column(Text, nullable=True)         # DVFFilters JSON
 
-    searched_at = Column(String, default=lambda: datetime.utcnow().isoformat(), index=True)
+    searched_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
     __table_args__ = (
         Index("ix_history_user_searched", "user_id", "searched_at"),

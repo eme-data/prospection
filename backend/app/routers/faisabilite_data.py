@@ -4,7 +4,7 @@ Routes API pour la persistance des données Faisabilité
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional, Any
@@ -80,11 +80,11 @@ def get_favorites(
     for r in records:
         try:
             parcelle = json.loads(r.parcelle_json)
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             parcelle = {}
         try:
             transactions = json.loads(r.transactions_json) if r.transactions_json else None
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             transactions = None
         result.append({
             "id": r.id,
@@ -174,7 +174,7 @@ def get_projects(
     for r in records:
         try:
             parcelles = json.loads(r.parcelles_json or "[]")
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             parcelles = []
         result.append({
             "id": r.id,
@@ -240,7 +240,7 @@ def update_project(
         record.status = body.status
     if body.parcelles_json is not None:
         record.parcelles_json = _json_or_none(body.parcelles_json) or "[]"
-    record.updated_at = datetime.utcnow().isoformat()
+    record.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(record)
     return {
@@ -290,11 +290,11 @@ def get_history(
     for r in records:
         try:
             address = json.loads(r.address_json)
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             address = {}
         try:
             filters = json.loads(r.filters_json) if r.filters_json else None
-        except Exception:
+        except (json.JSONDecodeError, TypeError):
             filters = None
         result.append({
             "id": r.id,
