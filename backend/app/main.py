@@ -61,6 +61,7 @@ from app.routers.reports import router as reports_router
 from app.routers.scoring import router as scoring_router
 from app.routers.prospection_routes import router as prospection_router
 from app.routers.fiches_routes import router as fiches_router
+from app.routers.secondary_brain import router as secondary_brain_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -173,6 +174,9 @@ async def root():
 
 # Santé (public — Docker healthcheck)
 app.include_router(health_router)
+
+# Vérification proxy pour auth unifiée Open WebUI (public — Nginx auth_request)
+app.include_router(secondary_brain_router)
 
 # Authentification (public)
 app.include_router(auth.router, prefix="/api")

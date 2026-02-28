@@ -26,12 +26,8 @@ export const SecondaryBrainApp: React.FC = () => {
             </header>
 
             <main className="flex-1 overflow-hidden bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-                {/* 
-                  On charge directement l'interface d'Open WebUI ici via l'iFrame.
-                  Il sera accessible via le port 3000 tel que configuré dans Docker.
-                */}
                 <iframe
-                    src="https://brain.mdoservices.fr"
+                    src="/webui/"
                     className="w-full h-full border-none"
                     title="Secondary Brain Chat"
                     allow="clipboard-write; clipboard-read; microphone; camera"

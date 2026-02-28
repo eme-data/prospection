@@ -43,6 +43,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const login = (newToken: string, userData?: User) => {
         setToken(newToken);
         localStorage.setItem('prospection_token', newToken);
+        // Cookie pour Nginx auth_request (proxy Open WebUI)
+        document.cookie = `prospection_token=${newToken}; path=/; secure; samesite=lax; max-age=86400`;
         if (userData) {
             setUser(userData);
             localStorage.setItem('prospection_user', JSON.stringify(userData));
@@ -54,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         localStorage.removeItem('prospection_token');
         localStorage.removeItem('prospection_user');
+        document.cookie = 'prospection_token=; path=/; max-age=0';
 
         // Logout from MSAL if active account exists
         if (instance.getActiveAccount() || instance.getAllAccounts().length > 0) {
@@ -64,8 +67,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         if (token) {
             axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            // Sync cookie pour Nginx auth_request (proxy Open WebUI)
+            document.cookie = `prospection_token=${token}; path=/; secure; samesite=lax; max-age=86400`;
         } else {
             delete axios.defaults.headers.common['Authorization'];
+            document.cookie = 'prospection_token=; path=/; max-age=0';
         }
     }, [token]);
 
