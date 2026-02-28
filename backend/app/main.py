@@ -26,7 +26,7 @@ from app.fiches import fiches_manager
 from app.search import create_search_engine
 from app.economic_layers import router as economic_router
 from app.isochrones import router as isochrone_router
-from app.auth import get_current_active_user
+from app.auth import get_current_active_user_with_activity
 from app.database import engine
 from app.models.user import Base
 
@@ -183,7 +183,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(auth_microsoft.router, prefix="/api")
 
 # Routes métier protégées par JWT
-protected = [Depends(get_current_active_user)]
+protected = [Depends(get_current_active_user_with_activity)]
 
 app.include_router(address.router, dependencies=protected)
 app.include_router(cadastre.router, dependencies=protected)

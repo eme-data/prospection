@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -60,6 +60,11 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Email ou mot de passe incorrect",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    now = datetime.now(timezone.utc)
+    user.last_login_at = now
+    user.last_activity_at = now
+    db.commit()
+
     access_token_expires = timedelta(minutes=settings.access_token_expire_minutes)
     access_token = create_access_token(
         data={"sub": user.email, "role": user.role}, expires_delta=access_token_expires
@@ -176,7 +181,9 @@ async def get_all_users(current_user: User = Depends(get_current_active_user), d
                 "secondaryBrain": u.module_secondaryBrain
             },
             "manager_id": u.manager_id,
-            "solde_conges": u.solde_conges
+            "solde_conges": u.solde_conges,
+            "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
+            "last_activity_at": u.last_activity_at.isoformat() if u.last_activity_at else None,
         } for u in users
     ]
 

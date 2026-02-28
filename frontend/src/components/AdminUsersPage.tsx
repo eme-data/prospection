@@ -5,6 +5,32 @@ import { User as AuthUser } from '../contexts/AuthContext';
 import { Settings, Plus, Edit, Trash2, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+type UserStatus = 'online' | 'idle' | 'offline';
+
+function getUserStatus(lastActivityAt: string | null | undefined): UserStatus {
+    if (!lastActivityAt) return 'offline';
+    const diffMinutes = (Date.now() - new Date(lastActivityAt).getTime()) / (1000 * 60);
+    if (diffMinutes < 2) return 'online';
+    if (diffMinutes < 10) return 'idle';
+    return 'offline';
+}
+
+const statusConfig: Record<UserStatus, { color: string; label: string }> = {
+    online: { color: 'bg-green-500', label: 'En ligne' },
+    idle: { color: 'bg-yellow-400', label: 'Inactif' },
+    offline: { color: 'bg-gray-400', label: 'Hors ligne' },
+};
+
+function formatRelativeTime(iso: string | null | undefined): string {
+    if (!iso) return 'Jamais';
+    const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60_000);
+    if (mins < 1) return "A l'instant";
+    if (mins < 60) return `Il y a ${mins} min`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `Il y a ${hours}h`;
+    return `Il y a ${Math.floor(hours / 24)}j`;
+}
+
 interface UserFormData extends UserCreatePayload {
     id?: string;
 }
@@ -35,6 +61,7 @@ export const AdminUsersPage: React.FC = () => {
     const { data: users, isLoading } = useQuery({
         queryKey: ['users'],
         queryFn: getUsers,
+        refetchInterval: 30_000,
     });
 
     const createMutation = useMutation({
@@ -175,6 +202,7 @@ export const AdminUsersPage: React.FC = () => {
                                     <thead className="bg-gray-50 dark:bg-gray-800">
                                         <tr>
                                             <th scope="col" className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 sm:pl-6">Nom</th>
+                                            <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Statut</th>
                                             <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Email</th>
                                             <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Rôle</th>
                                             <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900 dark:text-gray-100 text-center">Modules Actifs</th>
@@ -186,6 +214,21 @@ export const AdminUsersPage: React.FC = () => {
                                             <tr key={user.id}>
                                                 <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 dark:text-white sm:pl-6">
                                                     {user.full_name}
+                                                </td>
+                                                <td className="whitespace-nowrap px-3 py-4 text-sm">
+                                                    {(() => {
+                                                        const s = getUserStatus(user.last_activity_at);
+                                                        const cfg = statusConfig[s];
+                                                        return (
+                                                            <div className="flex items-center gap-2" title={`Connexion: ${user.last_login_at ? new Date(user.last_login_at).toLocaleString('fr-FR') : 'Jamais'}`}>
+                                                                <span className={`inline-block w-2.5 h-2.5 rounded-full ${cfg.color}`} />
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-gray-900 dark:text-white text-xs font-medium">{cfg.label}</span>
+                                                                    <span className="text-gray-400 dark:text-gray-500 text-xs">{formatRelativeTime(user.last_activity_at)}</span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
                                                     {user.email}

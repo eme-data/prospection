@@ -18,6 +18,8 @@ export interface User {
     };
     solde_conges?: number;
     manager_id?: string;
+    last_login_at?: string | null;
+    last_activity_at?: string | null;
 }
 
 interface AuthContextType {

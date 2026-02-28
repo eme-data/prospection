@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+import time as _time
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 import bcrypt
@@ -52,4 +53,25 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
 async def get_current_active_user(current_user: User = Depends(get_current_user)):
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Utilisateur inactif")
+    return current_user
+
+
+# Throttle in-memory : {user_id: last_db_write_epoch}
+_activity_last_write: dict[str, float] = {}
+_ACTIVITY_THROTTLE_SECONDS = 60
+
+
+async def get_current_active_user_with_activity(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Comme get_current_active_user, mais met à jour last_activity_at (throttlé à 1/min)."""
+    now_epoch = _time.time()
+    last_write = _activity_last_write.get(current_user.id, 0)
+
+    if now_epoch - last_write > _ACTIVITY_THROTTLE_SECONDS:
+        current_user.last_activity_at = datetime.now(timezone.utc)
+        db.commit()
+        _activity_last_write[current_user.id] = now_epoch
+
     return current_user

@@ -34,5 +34,9 @@ class User(Base):
     posts = relationship("app.models.communication.Post", back_populates="user", cascade="all, delete-orphan")
     social_accounts = relationship("app.models.communication.SocialAccount", back_populates="user", cascade="all, delete-orphan")
     
+    # Tracking d'activité
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+    last_activity_at = Column(DateTime(timezone=True), nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
