@@ -12,6 +12,20 @@ function sanitizeSVG(raw: string): string {
     });
 }
 
+/** Extrait le SVG pur depuis une réponse IA (retire markdown, texte, etc.) */
+function extractSVG(raw: string): string | null {
+    // Tente d'extraire depuis un bloc markdown ```svg ... ``` ou ``` ... ```
+    const mdMatch = raw.match(/```(?:svg|xml)?\s*\n?([\s\S]*?)```/);
+    if (mdMatch) {
+        const inner = mdMatch[1].trim();
+        if (inner.startsWith('<svg')) return inner;
+    }
+    // Tente d'extraire directement <svg ...>...</svg>
+    const svgMatch = raw.match(/<svg[\s\S]*<\/svg>/i);
+    if (svgMatch) return svgMatch[0];
+    return null;
+}
+
 const API_URL = import.meta.env.VITE_API_URL ?? '';
 const GALLERY_PAGE_SIZE = 12;
 
@@ -79,44 +93,38 @@ export const LogoCreator: React.FC = () => {
     });
 
     const buildPrompt = () => {
-        let prompt = `Tu es un designer de logos professionnel expert en création SVG. Génère un logo DÉTAILLÉ et ÉLABORÉ au format SVG pour l'entreprise suivante:\n\nNom de l'entreprise: ${companyName}`;
-        if (industry) prompt += `\nSecteur: ${industry}`;
-        prompt += `\nStyle: ${style}`;
+        const colorDirective = colors
+            ? `Palette imposée : ${colors}.`
+            : 'Choisis une palette harmonieuse de 2-4 couleurs adaptée au secteur.';
 
-        if (colors) {
-            prompt += `\nCouleurs souhaitées: ${colors}`;
-        } else {
-            prompt += `\nChoisis une palette de couleurs harmonieuse et moderne (3-5 couleurs)`;
-        }
+        const sectorDirective = industry
+            ? `Secteur : ${industry}. Intègre un symbole/icône évocateur de ce secteur.`
+            : '';
 
-        if (description) prompt += `\nDescription additionnelle: ${description}`;
+        const extraDirective = description
+            ? `Instructions supplémentaires : ${description}`
+            : '';
 
-        prompt += `\n\nCRÉE UN LOGO PROFESSIONNEL ET DÉTAILLÉ en suivant ces directives OBLIGATOIRES:
-NIVEAU DE DÉTAIL REQUIS:
-- Le logo DOIT être visuellement riche et élaboré, PAS simpliste
-- Utilise des formes complexes et détaillées, PAS de simples cercles ou traits
-- Ajoute de la profondeur, des textures visuelles et des détails subtils
+        return `Génère un logo professionnel SVG pour "${companyName}".
+${sectorDirective}
+Style : ${style}.
+${colorDirective}
+${extraDirective}
 
-TECHNIQUES SVG À UTILISER:
-- <path> avec courbes de Bézier pour des formes organiques et sophistiquées
-- <linearGradient> ou <radialGradient> pour ajouter de la profondeur
-- <g> pour grouper et organiser les éléments complexes
-- Utilise opacity, stroke, fill avec variations pour créer du relief
+STRUCTURE OBLIGATOIRE DU LOGO :
+1. ICÔNE/SYMBOLE (partie haute ou gauche) — un pictogramme reconnaissable lié à l'activité, construit avec des <path> et des formes géométriques propres. Utilise des dégradés (<linearGradient> ou <radialGradient>) pour donner du relief.
+2. NOM "${companyName}" (partie basse ou droite) — écrit en TOUTES LETTRES avec un élément <text>. Police : font-family="Arial, Helvetica, sans-serif", taille lisible (40-60px), font-weight="bold". Le texte DOIT être visible et centré.
 
-COMPOSITION:
-- Design équilibré et professionnel digne d'une grande marque
-- Plusieurs éléments visuels qui se complètent
+RÈGLES SVG :
+- viewBox="0 0 500 500", xmlns="http://www.w3.org/2000/svg"
+- Définis les dégradés dans un bloc <defs> en haut
+- Groupe icône et texte dans des <g> séparés
+- Pas de <image>, pas de xlink:href externe, pas de CSS externe
+- Le logo doit être lisible sur fond blanc ET fond sombre (pas de blanc pur pour les formes)
 
-STYLE VISUEL:
-- Adapté au secteur d'activité avec des références visuelles pertinentes
-- Évolutif (scalable) mais RICHE en détails à toutes les tailles
-
-IMPORTANT - FORMAT DE RÉPONSE:
-Réponds UNIQUEMENT avec le code SVG complet. Pas de markdown, pas de texte.
-Commence directement par <svg et termine par </svg>.
-Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
-
-        return prompt;
+FORMAT DE RÉPONSE :
+Réponds UNIQUEMENT avec le code SVG. Aucun texte avant ou après, aucun markdown, aucun commentaire.
+Commence par <svg et termine par </svg>.`;
     };
 
     const handleGenerate = async () => {
@@ -149,7 +157,11 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
             const data = await response.json();
 
             if (data.content && data.content[0] && data.content[0].text) {
-                const svg = data.content[0].text;
+                const raw = data.content[0].text;
+                const svg = extractSVG(raw);
+                if (!svg) {
+                    throw new Error('Le modèle n\'a pas retourné de SVG valide. Réessayez.');
+                }
                 stopProgress();
                 setProgress(100);
                 setProgressLabel('Logo généré !');
