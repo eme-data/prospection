@@ -101,10 +101,6 @@ export const LogoCreator: React.FC = () => {
             ? `Secteur : ${industry}. Intègre un symbole/icône évocateur de ce secteur.`
             : '';
 
-        const extraDirective = description
-            ? `Instructions supplémentaires : ${description}`
-            : '';
-
         const parts = [
 `Génère un logo professionnel SVG pour "${companyName}".`,
 sectorDirective,
