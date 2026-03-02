@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Paintbrush, Download, RefreshCw, Image, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
@@ -26,6 +26,43 @@ export const LogoCreator: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [currentSVG, setCurrentSVG] = useState<string | null>(null);
+
+    // Barre de progression
+    const [progress, setProgress] = useState(0);
+    const [progressLabel, setProgressLabel] = useState('');
+    const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const stopProgress = useCallback(() => {
+        if (progressTimer.current) {
+            clearInterval(progressTimer.current);
+            progressTimer.current = null;
+        }
+    }, []);
+
+    const startProgress = useCallback(() => {
+        stopProgress();
+        setProgress(0);
+        setProgressLabel('Envoi de la requête...');
+        const steps = [
+            { at: 5, label: 'Connexion au modèle IA...' },
+            { at: 15, label: 'Analyse du brief créatif...' },
+            { at: 30, label: 'Conception des formes...' },
+            { at: 50, label: 'Construction du SVG...' },
+            { at: 70, label: 'Ajout des dégradés et détails...' },
+            { at: 85, label: 'Finalisation du logo...' },
+            { at: 92, label: 'Presque terminé...' },
+        ];
+        let current = 0;
+        progressTimer.current = setInterval(() => {
+            current += 1;
+            if (current > 95) current = 95;
+            const step = [...steps].reverse().find(s => current >= s.at);
+            if (step) setProgressLabel(step.label);
+            setProgress(current);
+        }, 600);
+    }, [stopProgress]);
+
+    useEffect(() => stopProgress, [stopProgress]);
 
     // Galerie
     const [showGallery, setShowGallery] = useState(false);
@@ -90,6 +127,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
 
         setError(null);
         setIsLoading(true);
+        startProgress();
 
         try {
             const prompt = buildPrompt();
@@ -112,6 +150,9 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
 
             if (data.content && data.content[0] && data.content[0].text) {
                 const svg = data.content[0].text;
+                stopProgress();
+                setProgress(100);
+                setProgressLabel('Logo généré !');
                 setCurrentSVG(svg);
                 // Auto-save silencieux en arrière-plan
                 saveLogo({
@@ -130,6 +171,7 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
         } catch (err: any) {
             setError(err.message || 'Une erreur est survenue');
         } finally {
+            stopProgress();
             setIsLoading(false);
         }
     };
@@ -363,6 +405,26 @@ Le SVG doit avoir un viewBox="0 0 500 500" et être complet et auto-suffisant.`;
                         {error && (
                             <div className="p-3 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-md text-sm">
                                 {error}
+                            </div>
+                        )}
+
+                        {isLoading && (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-600 dark:text-gray-400 flex items-center gap-2">
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-500" />
+                                        {progressLabel}
+                                    </span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium tabular-nums">
+                                        {progress}%
+                                    </span>
+                                </div>
+                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                                    <div
+                                        className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500 ease-out"
+                                        style={{ width: `${progress}%` }}
+                                    />
+                                </div>
                             </div>
                         )}
 
