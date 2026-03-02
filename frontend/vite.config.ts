@@ -11,8 +11,4 @@ export default defineConfig({
       }
     }
   },
-  define: {
-    'import.meta.env.VITE_MSAL_CLIENT_ID': JSON.stringify(process.env.VITE_MSAL_CLIENT_ID || ''),
-    'import.meta.env.VITE_MSAL_TENANT_ID': JSON.stringify(process.env.VITE_MSAL_TENANT_ID || '')
-  }
 })
