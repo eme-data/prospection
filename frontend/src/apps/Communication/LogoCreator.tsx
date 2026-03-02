@@ -111,14 +111,15 @@ Style : ${style}.
 ${colorDirective}
 ${extraDirective}
 
-STRUCTURE OBLIGATOIRE DU LOGO :
-1. ICÔNE/SYMBOLE (partie haute ou gauche) — un pictogramme reconnaissable lié à l'activité, construit avec des <path> et des formes géométriques propres. Utilise des dégradés (<linearGradient> ou <radialGradient>) pour donner du relief.
-2. NOM "${companyName}" (partie basse ou droite) — écrit en TOUTES LETTRES avec un élément <text>. Police : font-family="Arial, Helvetica, sans-serif", taille lisible (40-60px), font-weight="bold". Le texte DOIT être visible et centré.
+COMPOSITION DU LOGO :
+- Crée un pictogramme/icône reconnaissable et en lien avec l'activité ou le nom, construit avec des <path> et des formes géométriques soignées.
+- Utilise des dégradés (<linearGradient> ou <radialGradient>) pour donner du relief et de la profondeur.
+- Le logo doit être un SYMBOLE graphique fort, pas une simple illustration.
+- N'ajoute PAS le nom en texte dans le SVG sauf si les instructions supplémentaires le demandent explicitement. Si du texte est demandé, utilise un élément <text> avec font-family="Arial, Helvetica, sans-serif" et font-weight="bold".
 
 RÈGLES SVG :
 - viewBox="0 0 500 500", xmlns="http://www.w3.org/2000/svg"
 - Définis les dégradés dans un bloc <defs> en haut
-- Groupe icône et texte dans des <g> séparés
 - Pas de <image>, pas de xlink:href externe, pas de CSS externe
 - Le logo doit être lisible sur fond blanc ET fond sombre (pas de blanc pur pour les formes)
 
