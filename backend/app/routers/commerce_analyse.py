@@ -35,12 +35,14 @@ def _get_api_key(db: Session, db_key: str, env_key: str) -> str | None:
 
 PROMPT_ANALYSE = """Tu es un expert en analyse de devis de CONSTRUCTION (BTP). Analyse et compare ces {n} devis joints.
 
-IMPORTANT : Il y a exactement {n} documents/devis distincts. Tu DOIS créer {n} entrées dans le tableau "devis", une par document.
+IMPORTANT : Il y a exactement {n} documents/devis distincts. Tu DOIS créer {n} entrées dans "devis".
+NE PAS extraire les postes individuels — mettre "postes_travaux": [] pour chaque devis.
+L'extraction détaillée des postes sera faite séparément.
 
-Fournis l'analyse au format JSON suivant EXACTEMENT :
+JSON EXACT :
 
 {{
-  "resume_executif": "Résumé de 2-3 phrases comparant les devis",
+  "resume_executif": "Résumé 2-3 phrases",
   "devis": [
     {{
       "id": 1,
@@ -60,14 +62,7 @@ Fournis l'analyse au format JSON suivant EXACTEMENT :
       "delais_execution": "Délai ou null",
       "conditions_paiement": "Conditions ou null",
       "validite_offre": "Validité ou null",
-      "postes_travaux": [
-        {{
-          "corps_etat": "GROS OEUVRE",
-          "description": "Fondations, maçonnerie, structure béton...",
-          "nb_lignes": 12,
-          "prix_total_ht": 145000.00
-        }}
-      ]
+      "postes_travaux": []
     }}
   ],
   "comparaison": {{
@@ -83,7 +78,7 @@ Fournis l'analyse au format JSON suivant EXACTEMENT :
   }},
   "comparaison_postes": [
     {{
-      "libelle": "Nom du corps d'état / lot",
+      "libelle": "Nom du lot",
       "corps_etat": "Corps d'état",
       "par_devis": [{{"id": 1, "qte": null, "pu": null, "total": 45000.00}}, {{"id": 2, "qte": null, "pu": null, "total": 42000.00}}],
       "best_qte_id": null,
@@ -108,16 +103,47 @@ Fournis l'analyse au format JSON suivant EXACTEMENT :
   ]
 }}
 
-RÈGLES ABSOLUES :
-- Commence DIRECTEMENT par {{ — aucun texte avant ni après le JSON
-- Guillemets doubles uniquement, pas de commentaires
-- null pour toute valeur absente
-- TOUS les montants en NOMBRES (pas de chaînes) : 45000.00 et non "45 000,00 €"
-- postes_travaux : REGROUPER par corps d'état / lot. Chaque entrée = un corps d'état avec : corps_etat, description (résumé des travaux), nb_lignes (nombre de lignes dans ce lot), prix_total_ht (somme HT de ce lot). NE PAS lister chaque ligne individuellement.
-- comparaison_postes : regrouper par CORPS D'ÉTAT / LOT (un par entrée), PAS ligne par ligne. Le total par_devis = somme HT de ce lot pour ce devis. Trier par total décroissant. negocier=true si écart >5%
-- corps_etat : normaliser les noms identiquement entre tous les devis (ex: "GROS OEUVRE" partout, pas "Gros œuvre" vs "GO")
-- verification_totaux : somme de tous les postes_travaux.prix_total_ht vs prix_total_ht déclaré. concordance=true si écart < 1%
-- PRIORITÉ DE PRODUCTION : d'abord les {n} devis complets (avec postes groupés), puis comparaison_postes, puis verification_totaux. ASSURE-TOI de produire les {n} devis AVANT de passer à comparaison_postes.
+RÈGLES :
+- Commence DIRECTEMENT par {{ — aucun texte avant ni après
+- Guillemets doubles, pas de commentaires, null si absent
+- Montants en NOMBRES : 45000.00 pas "45 000,00 €"
+- postes_travaux : TOUJOURS [] (tableau vide)
+- comparaison_postes : grouper par CORPS D'ÉTAT / LOT. total par_devis = somme HT du lot. Trier par total décroissant. negocier=true si écart >5%
+- corps_etat : normaliser les noms entre devis
+- verification_totaux : total déclaré vs somme des lots du devis. concordance=true si écart < 1%
+"""
+
+
+PROMPT_EXTRACT_POSTES = """Tu es un expert en lecture de devis BTP. Extrais TOUTES les lignes/postes de ce devis, sans exception.
+
+Retourne UNIQUEMENT un JSON :
+
+{{
+  "postes_travaux": [
+    {{
+      "numero": "1.1",
+      "corps_etat": "GROS OEUVRE",
+      "description": "Fondations superficielles",
+      "unite": "m3",
+      "quantite": 25,
+      "prix_unitaire_ht": 180.00,
+      "prix_total_ht": 4500.00
+    }}
+  ]
+}}
+
+RÈGLES :
+- Commence DIRECTEMENT par {{ — aucun texte avant ni après
+- TOUTES les lignes du devis, y compris sous-postes et détails
+- Montants en NOMBRES : 4500.00 pas "4 500,00 €"
+- numero : numéro du poste tel qu'il apparaît dans le devis (ou null)
+- corps_etat : nom du lot/corps d'état auquel appartient la ligne
+- description : intitulé exact de la ligne
+- unite : unité de mesure (m², ml, U, forfait, etc.) ou null
+- quantite : quantité ou null
+- prix_unitaire_ht : prix unitaire HT ou null
+- prix_total_ht : prix total HT de la ligne
+- Guillemets doubles, null si absent
 """
 
 
@@ -260,53 +286,102 @@ async def analyze_quotes(
 
         provider_errors = []
 
-        # ── 1. Claude (Anthropic) ─────────────────────────────────────────────
+        # ── 1. Claude (Anthropic) — Architecture multi-appels ─────────────────
         anthropic_key = _get_api_key(db, "anthropic_api_key", "ANTHROPIC_API_KEY")
         if anthropic_key:
             try:
-                logger.info("Attempting analysis with Claude Sonnet")
-                content_parts = []
+                logger.info("Attempting analysis with Claude Sonnet (multi-call)")
+
+                # Préparer les content_parts par fichier
+                per_file_parts: list[list[dict]] = []
+                all_file_parts: list[dict] = []
 
                 for temp_path, ext, mime_type, filename in file_infos:
                     with open(temp_path, "rb") as f:
                         file_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
                     if ext == ".pdf":
-                        content_parts.append({
+                        part = {
                             "type": "document",
                             "source": {
                                 "type": "base64",
                                 "media_type": "application/pdf",
                                 "data": file_data,
                             },
-                        })
+                        }
                     elif mime_type.startswith("image/"):
-                        content_parts.append({
+                        part = {
                             "type": "image",
                             "source": {
                                 "type": "base64",
                                 "media_type": mime_type,
                                 "data": file_data,
                             },
-                        })
+                        }
+                    else:
+                        continue
 
-                content_parts.append({"type": "text", "text": prompt})
+                    all_file_parts.append(part)
+                    per_file_parts.append([part])
 
                 claude_client = anthropic.Anthropic(
                     api_key=anthropic_key,
                     timeout=httpx.Timeout(900.0, connect=10.0),
                 )
 
-                def _stream_analysis():
+                # ── Phase 1 : Analyse comparative (tous fichiers, pas de postes) ──
+                logger.info("Phase 1: Comparative analysis (%d files)", len(file_infos))
+                phase1_parts = all_file_parts + [{"type": "text", "text": prompt}]
+
+                def _stream_phase1():
                     with claude_client.messages.stream(
                         model="claude-sonnet-4-6",
-                        max_tokens=32768,
-                        messages=[{"role": "user", "content": content_parts}],
+                        max_tokens=16384,
+                        messages=[{"role": "user", "content": phase1_parts}],
                     ) as stream:
                         return stream.get_final_text()
 
-                raw_text = await asyncio.to_thread(_stream_analysis)
-                analysis_data = _parse_json_response(raw_text)
+                raw_phase1 = await asyncio.to_thread(_stream_phase1)
+                analysis_data = _parse_json_response(raw_phase1)
+                logger.info("Phase 1 complete: %d devis found", len(analysis_data.get("devis", [])))
+
+                # ── Phase 2 : Extraction postes par devis (en parallèle) ──────────
+                extract_prompt = PROMPT_EXTRACT_POSTES
+                n_files = len(per_file_parts)
+                logger.info("Phase 2: Extracting postes for %d files in parallel", n_files)
+
+                async def _extract_postes(file_parts: list[dict], idx: int):
+                    """Extrait les postes d'un seul devis via un appel Claude dédié."""
+                    parts = file_parts + [{"type": "text", "text": extract_prompt}]
+
+                    def _stream_extract():
+                        with claude_client.messages.stream(
+                            model="claude-sonnet-4-6",
+                            max_tokens=32768,
+                            messages=[{"role": "user", "content": parts}],
+                        ) as stream:
+                            return stream.get_final_text()
+
+                    raw = await asyncio.to_thread(_stream_extract)
+                    data = _parse_json_response(raw)
+                    postes = data.get("postes_travaux", [])
+                    logger.info("Phase 2 file %d: extracted %d postes", idx + 1, len(postes))
+                    return idx, postes
+
+                tasks = [_extract_postes(per_file_parts[i], i) for i in range(n_files)]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                # ── Phase 3 : Fusion ──────────────────────────────────────────────
+                devis_list = analysis_data.get("devis", [])
+                for result in results:
+                    if isinstance(result, Exception):
+                        logger.warning("Phase 2 extraction failed: %s", result)
+                        continue
+                    idx, postes = result
+                    if idx < len(devis_list):
+                        devis_list[idx]["postes_travaux"] = postes
+
+                logger.info("Phase 3: Merge complete")
                 return {
                     "success": True,
                     "analysis": analysis_data,

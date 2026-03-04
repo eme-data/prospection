@@ -375,60 +375,109 @@ const DevisCard: React.FC<{
                     )}
                 </div>
 
-                {/* Tableau des postes (groupés par corps d'état) */}
-                {postes.length > 0 && (
-                    <div>
-                        <button
-                            onClick={() => setExpanded(v => !v)}
-                            className="w-full flex items-center justify-between text-sm font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 py-1 border-t border-gray-100 dark:border-gray-700 pt-3"
-                        >
-                            <span>{postes.length} lot{postes.length > 1 ? 's' : ''} de travaux</span>
-                            {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                        </button>
+                {/* Tableau des postes — adaptatif (groupé ou ligne par ligne) */}
+                {postes.length > 0 && (() => {
+                    const isGrouped = postes.length > 0 && postes[0].nb_lignes != null;
+                    return (
+                        <div>
+                            <button
+                                onClick={() => setExpanded(v => !v)}
+                                className="w-full flex items-center justify-between text-sm font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 py-1 border-t border-gray-100 dark:border-gray-700 pt-3"
+                            >
+                                <span>
+                                    {isGrouped
+                                        ? `${postes.length} lot${postes.length > 1 ? 's' : ''} de travaux`
+                                        : `${postes.length} poste${postes.length > 1 ? 's' : ''} de travaux`
+                                    }
+                                </span>
+                                {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                            </button>
 
-                        {expanded && (
-                            <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                                <table className="w-full text-xs">
-                                    <thead>
-                                        <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-left">
-                                            <th className="px-3 py-2 font-semibold">Corps d'état / Lot</th>
-                                            <th className="px-3 py-2 font-semibold">Description</th>
-                                            <th className="px-3 py-2 font-semibold text-right">Lignes</th>
-                                            <th className="px-3 py-2 font-semibold text-right">Total HT</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                        {postes.map((p, i) => (
-                                            <tr key={i} className={`bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/10 ${
-                                                i % 2 === 0 ? '' : 'bg-gray-50/50 dark:bg-gray-800/50'
-                                            }`}>
-                                                <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-200 whitespace-nowrap">{p.corps_etat}</td>
-                                                <td className="px-3 py-2 text-gray-600 dark:text-gray-400 max-w-[280px]">
-                                                    <span title={p.description} className="line-clamp-2">{p.description}</span>
-                                                </td>
-                                                <td className="px-3 py-2 text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">{p.nb_lignes ?? '—'}</td>
-                                                <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-                                                    {fmtAmt(p.prix_total_ht ?? p.prix_total)}
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                    <tfoot>
-                                        <tr className="bg-gray-100 dark:bg-gray-700">
-                                            <td colSpan={2} className="px-3 py-2 font-bold text-gray-800 dark:text-gray-200 text-right">Total</td>
-                                            <td className="px-3 py-2 text-right text-gray-500 font-medium">
-                                                {postes.reduce((s, p) => s + (p.nb_lignes ?? 0), 0) || '—'}
-                                            </td>
-                                            <td className="px-3 py-2 text-right font-bold text-gray-900 dark:text-white whitespace-nowrap">
-                                                {formatEuro(postes.reduce((s, p) => s + parseEuro(p.prix_total_ht ?? p.prix_total), 0))}
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
+                            {expanded && (
+                                <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                                    {isGrouped ? (
+                                        /* Format groupé (ancien) */
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-left">
+                                                    <th className="px-3 py-2 font-semibold">Corps d'état / Lot</th>
+                                                    <th className="px-3 py-2 font-semibold">Description</th>
+                                                    <th className="px-3 py-2 font-semibold text-right">Lignes</th>
+                                                    <th className="px-3 py-2 font-semibold text-right">Total HT</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                                {postes.map((p, i) => (
+                                                    <tr key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-800/50'}>
+                                                        <td className="px-3 py-2 font-medium text-gray-800 dark:text-gray-200 whitespace-nowrap">{p.corps_etat}</td>
+                                                        <td className="px-3 py-2 text-gray-600 dark:text-gray-400 max-w-[280px]">
+                                                            <span title={p.description} className="line-clamp-2">{p.description}</span>
+                                                        </td>
+                                                        <td className="px-3 py-2 text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">{p.nb_lignes ?? '—'}</td>
+                                                        <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                                                            {fmtAmt(p.prix_total_ht ?? p.prix_total)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot>
+                                                <tr className="bg-gray-100 dark:bg-gray-700">
+                                                    <td colSpan={2} className="px-3 py-2 font-bold text-gray-800 dark:text-gray-200 text-right">Total</td>
+                                                    <td className="px-3 py-2 text-right text-gray-500 font-medium">
+                                                        {postes.reduce((s, p) => s + (p.nb_lignes ?? 0), 0) || '—'}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                                                        {formatEuro(postes.reduce((s, p) => s + parseEuro(p.prix_total_ht ?? p.prix_total), 0))}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    ) : (
+                                        /* Format ligne par ligne (nouveau) */
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-left">
+                                                    <th className="px-2 py-2 font-semibold w-12">#</th>
+                                                    <th className="px-2 py-2 font-semibold">Corps d'état</th>
+                                                    <th className="px-2 py-2 font-semibold">Description</th>
+                                                    <th className="px-2 py-2 font-semibold text-right">Qté</th>
+                                                    <th className="px-2 py-2 font-semibold text-center">Unité</th>
+                                                    <th className="px-2 py-2 font-semibold text-right">P.U. HT</th>
+                                                    <th className="px-2 py-2 font-semibold text-right">Total HT</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                                {postes.map((p, i) => (
+                                                    <tr key={i} className={i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/50 dark:bg-gray-800/50'}>
+                                                        <td className="px-2 py-1.5 text-gray-400 whitespace-nowrap">{p.numero ?? ''}</td>
+                                                        <td className="px-2 py-1.5 font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap text-[11px]">{p.corps_etat}</td>
+                                                        <td className="px-2 py-1.5 text-gray-600 dark:text-gray-400 max-w-[260px]">
+                                                            <span title={p.description} className="line-clamp-2">{p.description}</span>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">{fmtAmt(p.quantite)}</td>
+                                                        <td className="px-2 py-1.5 text-center text-gray-500 dark:text-gray-400 whitespace-nowrap">{p.unite ?? ''}</td>
+                                                        <td className="px-2 py-1.5 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">{fmtAmt(p.prix_unitaire_ht)}</td>
+                                                        <td className="px-2 py-1.5 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                                                            {fmtAmt(p.prix_total_ht ?? p.prix_total)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                            <tfoot>
+                                                <tr className="bg-gray-100 dark:bg-gray-700">
+                                                    <td colSpan={6} className="px-2 py-2 font-bold text-gray-800 dark:text-gray-200 text-right">Total</td>
+                                                    <td className="px-2 py-2 text-right font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                                                        {formatEuro(postes.reduce((s, p) => s + parseEuro(p.prix_total_ht ?? p.prix_total), 0))}
+                                                    </td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 {/* Bouton sélection négociation */}
                 {onSelectForNegociation && (
@@ -894,13 +943,23 @@ function exportToPDF(data: AnalysisData) {
             (devis.assurance_decennale.assureur || devis.assurance_decennale.numero_police);
         const isRecommended = String(devis.id) === recommendedId;
         const postes = devis.postes_travaux ?? [];
+        const isGrouped = postes.length > 0 && postes[0].nb_lignes != null;
 
-        const postesRows = postes.map((p, pi) => `
+        const postesRows = postes.map((p, pi) => isGrouped ? `
             <tr style="background:${pi % 2 === 0 ? '#fff' : '#f9fafb'}">
                 <td style="padding:4px 8px;font-weight:500;border-bottom:1px solid #f3f4f6">${p.corps_etat}</td>
                 <td style="padding:4px 8px;color:#4b5563;border-bottom:1px solid #f3f4f6">${p.description}</td>
                 <td style="padding:4px 8px;text-align:right;color:#6b7280;border-bottom:1px solid #f3f4f6">${p.nb_lignes ?? '—'}</td>
                 <td style="padding:4px 8px;text-align:right;font-weight:600;border-bottom:1px solid #f3f4f6">${fmtAmt(p.prix_total_ht ?? p.prix_total)}</td>
+            </tr>` : `
+            <tr style="background:${pi % 2 === 0 ? '#fff' : '#f9fafb'}">
+                <td style="padding:3px 6px;color:#9ca3af;border-bottom:1px solid #f3f4f6;font-size:10px">${p.numero ?? ''}</td>
+                <td style="padding:3px 6px;font-weight:500;border-bottom:1px solid #f3f4f6;font-size:10px">${p.corps_etat}</td>
+                <td style="padding:3px 6px;color:#4b5563;border-bottom:1px solid #f3f4f6">${p.description}</td>
+                <td style="padding:3px 6px;text-align:right;color:#6b7280;border-bottom:1px solid #f3f4f6">${fmtAmt(p.quantite)}</td>
+                <td style="padding:3px 6px;text-align:center;color:#6b7280;border-bottom:1px solid #f3f4f6">${p.unite ?? ''}</td>
+                <td style="padding:3px 6px;text-align:right;color:#6b7280;border-bottom:1px solid #f3f4f6">${fmtAmt(p.prix_unitaire_ht)}</td>
+                <td style="padding:3px 6px;text-align:right;font-weight:600;border-bottom:1px solid #f3f4f6">${fmtAmt(p.prix_total_ht ?? p.prix_total)}</td>
             </tr>`).join('');
 
         return `
@@ -952,10 +1011,20 @@ function exportToPDF(data: AnalysisData) {
                 <table style="width:100%;border-collapse:collapse;font-size:11px">
                     <thead>
                         <tr style="background:#f3f4f6;color:#374151">
+                            ${isGrouped ? `
                             <th style="padding:6px 8px;text-align:left;font-weight:600">Corps d'état / Lot</th>
                             <th style="padding:6px 8px;text-align:left;font-weight:600">Description</th>
                             <th style="padding:6px 8px;text-align:right;font-weight:600">Lignes</th>
                             <th style="padding:6px 8px;text-align:right;font-weight:600">Total HT</th>
+                            ` : `
+                            <th style="padding:4px 6px;text-align:left;font-weight:600;width:40px">#</th>
+                            <th style="padding:4px 6px;text-align:left;font-weight:600">Corps d'état</th>
+                            <th style="padding:4px 6px;text-align:left;font-weight:600">Description</th>
+                            <th style="padding:4px 6px;text-align:right;font-weight:600">Qté</th>
+                            <th style="padding:4px 6px;text-align:center;font-weight:600">Unité</th>
+                            <th style="padding:4px 6px;text-align:right;font-weight:600">P.U. HT</th>
+                            <th style="padding:4px 6px;text-align:right;font-weight:600">Total HT</th>
+                            `}
                         </tr>
                     </thead>
                     <tbody>${postesRows}</tbody>
