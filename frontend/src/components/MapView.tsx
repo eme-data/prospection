@@ -52,6 +52,7 @@ interface MapViewProps {
   onSelectParcelle: (parcelle: Parcelle | null) => void
   onSelectTransaction: (transaction: DVFTransaction | null) => void
   inseeLayerConfig?: InseeLayerConfig
+  highlightedParcelleIds?: string[]
 }
 
 export function MapView({
@@ -64,6 +65,7 @@ export function MapView({
   onSelectParcelle,
   onSelectTransaction,
   inseeLayerConfig,
+  highlightedParcelleIds = [],
 }: MapViewProps) {
   const mapRef = useRef<MapRef>(null)
   const [hoveredParcelleId, setHoveredParcelleId] = useState<string | null>(null)
@@ -159,17 +161,28 @@ export function MapView({
   }, [])
 
   // Couche des parcelles cadastrales
+  const highlightFilter = highlightedParcelleIds.length > 0
+    ? ['in', ['get', 'id'], ['literal', highlightedParcelleIds]]
+    : ['==', 1, 0] // toujours faux
+
   const parcellesFillLayer = {
     id: 'parcelles-fill',
     type: 'fill' as const,
     paint: {
       'fill-color': [
         'case',
+        highlightFilter,
+        '#f97316', // orange pour remembrement
         ['==', ['get', 'id'], hoveredParcelleId || ''],
         '#3b82f6',
         '#93c5fd',
       ] as unknown as string,
-      'fill-opacity': 0.3,
+      'fill-opacity': [
+        'case',
+        highlightFilter,
+        0.55,
+        0.3,
+      ] as unknown as number,
     },
   }
 
@@ -177,8 +190,18 @@ export function MapView({
     id: 'parcelles-line',
     type: 'line' as const,
     paint: {
-      'line-color': '#2563eb',
-      'line-width': 1,
+      'line-color': [
+        'case',
+        highlightFilter,
+        '#ea580c', // orange foncé pour contour remembrement
+        '#2563eb',
+      ] as unknown as string,
+      'line-width': [
+        'case',
+        highlightFilter,
+        3,
+        1,
+      ] as unknown as number,
     },
   }
 

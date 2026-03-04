@@ -98,6 +98,7 @@ export function FaisabiliteApp() {
   const [showRappels, setShowRappels] = useState(false)
   const [feasibilityReport, setFeasibilityReport] = useState<FaisabiliteReportType | null>(null)
   const [showProspection, setShowProspection] = useState(false)
+  const [highlightedParcelleIds, setHighlightedParcelleIds] = useState<string[]>([])
 
   const [projects, setProjects] = useState<Project[]>(() => {
     try {
@@ -698,6 +699,7 @@ export function FaisabiliteApp() {
           pluZones={pluZonesData ?? null}
           onSelectParcelle={setSelectedParcelle}
           onSelectTransaction={setSelectedTransaction}
+          highlightedParcelleIds={highlightedParcelleIds}
         />
 
         {/* Layer control */}
@@ -822,6 +824,7 @@ export function FaisabiliteApp() {
                 onClose={handleCloseInfoPanel}
                 onShowFeasibility={handleShowFeasibility}
                 onShowProspection={() => setShowProspection(true)}
+                onHighlightParcelles={setHighlightedParcelleIds}
               />
               {selectedParcelle && (
                 <button

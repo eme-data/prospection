@@ -12,9 +12,10 @@ interface InfoPanelProps {
   onClose: () => void
   onShowFeasibility: () => void
   onShowProspection: () => void
+  onHighlightParcelles?: (ids: string[]) => void
 }
 
-export function InfoPanel({ parcelle, transaction, allParcelles, onClose, onShowFeasibility, onShowProspection }: InfoPanelProps) {
+export function InfoPanel({ parcelle, transaction, allParcelles, onClose, onShowFeasibility, onShowProspection, onHighlightParcelles }: InfoPanelProps) {
   if (!parcelle && !transaction) return null
 
   const [pois, setPois] = useState<POI[]>([])
@@ -159,7 +160,11 @@ export function InfoPanel({ parcelle, transaction, allParcelles, onClose, onShow
 
             {/* Suggestions de Remembrement */}
             {adjacentParcelles.length > 0 && (
-              <div className="pt-3 border-t border-gray-200">
+              <div
+                className="pt-3 border-t border-gray-200"
+                onMouseEnter={() => onHighlightParcelles?.(adjacentParcelles.map(a => a.properties.id))}
+                onMouseLeave={() => onHighlightParcelles?.([])}
+              >
                 <h4 className="flex items-center gap-1.5 text-sm font-semibold text-gray-800 mb-2">
                   <Blocks className="w-4 h-4 text-blue-600" />
                   Suggestions de remembrement
@@ -168,7 +173,10 @@ export function InfoPanel({ parcelle, transaction, allParcelles, onClose, onShow
                   {adjacentParcelles.map(adj => {
                     const combinedArea = parcelle.properties.contenance + adj.properties.contenance
                     return (
-                      <div key={adj.properties.id} className="text-xs bg-blue-50/50 p-2 rounded border border-blue-100 flex justify-between items-center">
+                      <div key={adj.properties.id} className="text-xs bg-blue-50/50 p-2 rounded border border-blue-100 flex justify-between items-center cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition-colors"
+                        onMouseEnter={() => onHighlightParcelles?.([adj.properties.id])}
+                        onMouseLeave={() => onHighlightParcelles?.(adjacentParcelles.map(a => a.properties.id))}
+                      >
                         <div>
                           <span className="font-semibold text-blue-900">Parcelle {adj.properties.numero}</span>
                           <span className="text-gray-500 block">+{formatArea(adj.properties.contenance)}</span>
