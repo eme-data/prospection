@@ -46,6 +46,19 @@ function formatSeconds(s: number): string {
     return `${Math.floor(s / 60)}m ${(s % 60).toString().padStart(2, '0')}s`;
 }
 
+// ── Helpers montants ─────────────────────────────────────────────────────────
+
+function parseEuro(s: string | null | undefined): number {
+    if (!s) return 0;
+    const cleaned = s.replace(/[€\s\u00a0]/g, '').replace(/\./g, '').replace(',', '.');
+    const n = parseFloat(cleaned);
+    return isNaN(n) ? 0 : n;
+}
+
+function formatEuro(n: number): string {
+    return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
 // ── Barre de progression ──────────────────────────────────────────────────────
 
 const ProgressPanel: React.FC<{ progress: number; elapsed: number; estimated: number }> = ({
@@ -166,6 +179,15 @@ interface PosteComparaison {
     motif?: string;
 }
 
+interface VerificationTotal {
+    devis_id: number | string;
+    nom_fournisseur: string;
+    total_declare_ht: string;
+    somme_postes_ht: string;
+    ecart: string;
+    concordance: boolean;
+}
+
 interface AnalysisData {
     resume_executif: string;
     devis: Devis[];
@@ -183,6 +205,7 @@ interface AnalysisData {
     };
     comparaison_postes?: PosteComparaison[];
     prix_cible_ht?: string;
+    verification_totaux?: VerificationTotal[];
 }
 
 // ── Carte devis ───────────────────────────────────────────────────────────────
@@ -426,10 +449,10 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
 
     // Couleurs par devis (max 4)
     const devisTheme = [
-        { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-700 dark:text-orange-300', badge: 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-100', border: 'border-orange-300 dark:border-orange-700' },
-        { bg: 'bg-blue-50 dark:bg-blue-900/20',   text: 'text-blue-700 dark:text-blue-300',   badge: 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100',   border: 'border-blue-300 dark:border-blue-700'   },
-        { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-700 dark:text-purple-300', badge: 'bg-purple-100 text-purple-800', border: 'border-purple-300' },
-        { bg: 'bg-teal-50 dark:bg-teal-900/20',   text: 'text-teal-700 dark:text-teal-300',   badge: 'bg-teal-100 text-teal-800',   border: 'border-teal-300'   },
+        { text: 'text-orange-700 dark:text-orange-300', badge: 'bg-orange-100 text-orange-800 dark:bg-orange-800 dark:text-orange-100' },
+        { text: 'text-blue-700 dark:text-blue-300',     badge: 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100' },
+        { text: 'text-purple-700 dark:text-purple-300', badge: 'bg-purple-100 text-purple-800' },
+        { text: 'text-teal-700 dark:text-teal-300',     badge: 'bg-teal-100 text-teal-800' },
     ];
 
     const getDevisName = (id: number | string) => {
@@ -437,12 +460,42 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
         return d ? (d.nom_fournisseur || `Devis ${id}`) : `Devis ${id}`;
     };
 
+    // Grouper par corps_etat
+    const groups: Map<string, PosteComparaison[]> = new Map();
+    for (const p of postes) {
+        const key = p.corps_etat || 'Divers';
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key)!.push(p);
+    }
+
+    // Sous-total d'un groupe pour un devis
+    const subtotalForDevis = (items: PosteComparaison[], devisId: number | string) =>
+        items.reduce((sum, p) => {
+            const entry = p.par_devis?.find(e => String(e.id) === String(devisId));
+            return sum + parseEuro(entry?.total);
+        }, 0);
+
+    const subtotalTarget = (items: PosteComparaison[]) =>
+        items.reduce((sum, p) => sum + parseEuro(p.target_ht), 0);
+
+    // Totaux globaux
+    const grandTotalTarget = subtotalTarget(postes);
+    const grandTotalByDevis = devis.map(d => ({
+        id: d.id,
+        total: postes.reduce((sum, p) => {
+            const entry = p.par_devis?.find(e => String(e.id) === String(d.id));
+            return sum + parseEuro(entry?.total);
+        }, 0),
+    }));
+
+    const totalCols = 2 + devis.length * 3 + 3;
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                     <Euro className="w-5 h-5 text-orange-500" />
-                    Analyse comparative poste par poste
+                    Comparaison face-à-face — poste par poste
                 </h3>
                 {data.prix_cible_ht && (
                     <div className="text-right">
@@ -457,115 +510,166 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
                 {devis.map((d, i) => (
                     <span key={d.id} className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${devisTheme[i % 4].badge}`}>
                         <Building2 className="w-3 h-3" />
-                        Devis {i + 1} — {d.nom_fournisseur || 'Inconnu'}
+                        D{i + 1} — {d.nom_fournisseur || 'Inconnu'}
                     </span>
                 ))}
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-800 dark:text-emerald-100">
-                    <Star className="w-3 h-3" /> Prix cible = meilleur de chaque
+                    <Star className="w-3 h-3" /> Cible = meilleur de chaque
                 </span>
             </div>
 
-            {/* Tableau */}
-            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+            {/* Tableau avec scroll */}
+            <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 max-h-[600px] overflow-y-auto">
                 <table className="w-full text-xs">
-                    <thead>
+                    <thead className="sticky top-0 z-10">
                         <tr className="bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                            <th className="px-3 py-2.5 text-left font-semibold sticky left-0 bg-gray-100 dark:bg-gray-700 min-w-[160px]">Poste</th>
-                            <th className="px-3 py-2.5 text-left font-semibold whitespace-nowrap">Corps d'état</th>
+                            <th className="px-3 py-2.5 text-left font-semibold sticky left-0 bg-gray-100 dark:bg-gray-700 min-w-[160px] z-20">Poste</th>
                             {devis.map((d, i) => (
                                 <React.Fragment key={d.id}>
-                                    <th className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${devisTheme[i % 4].text}`}>
-                                        Qté D{i + 1}
-                                    </th>
-                                    <th className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${devisTheme[i % 4].text}`}>
-                                        PU HT D{i + 1}
-                                    </th>
+                                    <th className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${devisTheme[i % 4].text}`}>Qté D{i + 1}</th>
+                                    <th className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${devisTheme[i % 4].text}`}>PU D{i + 1}</th>
+                                    <th className={`px-3 py-2.5 text-right font-semibold whitespace-nowrap ${devisTheme[i % 4].text}`}>Total D{i + 1}</th>
                                 </React.Fragment>
                             ))}
-                            <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap text-amber-600 dark:text-amber-400">Écart Qté</th>
-                            <th className="px-3 py-2.5 text-center font-semibold whitespace-nowrap text-amber-600 dark:text-amber-400">Écart PU</th>
-                            <th className="px-3 py-2.5 text-right font-semibold whitespace-nowrap text-emerald-600 dark:text-emerald-400">Prix cible</th>
-                            <th className="px-3 py-2.5 text-center font-semibold">Action</th>
+                            <th className="px-3 py-2.5 text-right font-semibold whitespace-nowrap text-emerald-600 dark:text-emerald-400">Cible HT</th>
+                            <th className="px-3 py-2.5 text-center font-semibold">Écart</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                        {postes.map((poste, idx) => (
-                            <tr key={idx} className={`${poste.negocier ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'bg-white dark:bg-gray-800'} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors`}>
-                                {/* Libellé */}
-                                <td className={`px-3 py-2 font-medium text-gray-800 dark:text-gray-200 sticky left-0 ${poste.negocier ? 'bg-amber-50/80 dark:bg-amber-900/20' : 'bg-white dark:bg-gray-800'}`}>
-                                    <span title={poste.libelle} className="line-clamp-2">{poste.libelle}</span>
-                                </td>
-                                {/* Corps d'état */}
-                                <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap">{poste.corps_etat}</td>
-                                {/* Colonnes par devis */}
-                                {devis.map((d) => {
-                                    const entry = poste.par_devis.find(e => String(e.id) === String(d.id));
-                                    const isBestQte = String(poste.best_qte_id) === String(d.id);
-                                    const isBestPu  = String(poste.best_pu_id) === String(d.id);
-                                    return (
-                                        <React.Fragment key={d.id}>
-                                            <td className={`px-3 py-2 text-right whitespace-nowrap font-medium ${isBestQte ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
-                                                {isBestQte && <span className="mr-1 text-emerald-500">✓</span>}
-                                                {entry?.qte ?? '—'}
-                                            </td>
-                                            <td className={`px-3 py-2 text-right whitespace-nowrap font-medium ${isBestPu ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-700 dark:text-gray-300'}`}>
-                                                {isBestPu && <span className="mr-1 text-emerald-500">✓</span>}
-                                                {entry?.pu ?? '—'}
-                                            </td>
-                                        </React.Fragment>
-                                    );
-                                })}
-                                {/* Écart Qté */}
-                                <td className="px-3 py-2 text-center">
-                                    <span className={`inline-block px-2 py-0.5 rounded font-semibold ${
-                                        poste.ecart_qte?.startsWith('+')
-                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                    }`}>
-                                        {poste.ecart_qte}
-                                    </span>
-                                </td>
-                                {/* Écart PU */}
-                                <td className="px-3 py-2 text-center">
-                                    <span className={`inline-block px-2 py-0.5 rounded font-semibold ${
-                                        poste.ecart_pu?.startsWith('+')
-                                            ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                                            : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                    }`}>
-                                        {poste.ecart_pu}
-                                    </span>
-                                </td>
-                                {/* Prix cible */}
-                                <td className="px-3 py-2 text-right font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
-                                    {poste.target_ht}
-                                </td>
-                                {/* Action */}
-                                <td className="px-3 py-2 text-center">
-                                    {poste.negocier && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 whitespace-nowrap">
-                                            <AlertTriangle className="w-2.5 h-2.5" /> Négocier
-                                        </span>
-                                    )}
-                                </td>
-                            </tr>
+                    <tbody>
+                        {Array.from(groups.entries()).map(([corpsEtat, items]) => (
+                            <React.Fragment key={corpsEtat}>
+                                {/* En-tête groupe */}
+                                <tr className="bg-gray-200 dark:bg-gray-600">
+                                    <td colSpan={totalCols} className="px-3 py-2 font-bold text-sm text-gray-800 dark:text-gray-200">
+                                        {corpsEtat}
+                                    </td>
+                                </tr>
+                                {/* Lignes du groupe */}
+                                {items.map((poste, idx) => (
+                                    <tr key={idx} className={`${poste.negocier ? 'bg-amber-50/50 dark:bg-amber-900/10' : 'bg-white dark:bg-gray-800'} hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border-b border-gray-100 dark:border-gray-700`}>
+                                        <td className={`px-3 py-2 font-medium text-gray-800 dark:text-gray-200 sticky left-0 z-10 ${poste.negocier ? 'bg-amber-50/80 dark:bg-amber-900/20' : 'bg-white dark:bg-gray-800'}`}>
+                                            <span title={poste.libelle} className="line-clamp-2">{poste.libelle}</span>
+                                        </td>
+                                        {devis.map((d) => {
+                                            const entry = poste.par_devis?.find(e => e && String(e.id) === String(d.id));
+                                            const isBestQte = String(poste.best_qte_id) === String(d.id);
+                                            const isBestPu  = String(poste.best_pu_id) === String(d.id);
+                                            return (
+                                                <React.Fragment key={d.id}>
+                                                    <td className={`px-3 py-2 text-right whitespace-nowrap ${isBestQte ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>
+                                                        {entry?.qte ?? '—'}
+                                                    </td>
+                                                    <td className={`px-3 py-2 text-right whitespace-nowrap ${isBestPu ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>
+                                                        {entry?.pu ?? '—'}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-gray-700 dark:text-gray-300">
+                                                        {entry?.total ?? '—'}
+                                                    </td>
+                                                </React.Fragment>
+                                            );
+                                        })}
+                                        <td className="px-3 py-2 text-right font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                            {poste.target_ht}
+                                        </td>
+                                        <td className="px-3 py-2 text-center">
+                                            {poste.negocier && (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300 whitespace-nowrap">
+                                                    <AlertTriangle className="w-2.5 h-2.5" /> Négo
+                                                </span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                                {/* Sous-total groupe */}
+                                <tr className="bg-gray-100 dark:bg-gray-700/60 border-b-2 border-gray-300 dark:border-gray-600">
+                                    <td className="px-3 py-2 text-right font-semibold text-gray-600 dark:text-gray-300 sticky left-0 bg-gray-100 dark:bg-gray-700/60 z-10">
+                                        Sous-total
+                                    </td>
+                                    {devis.map((d) => {
+                                        const st = subtotalForDevis(items, d.id);
+                                        return (
+                                            <React.Fragment key={d.id}>
+                                                <td className="px-3 py-2" />
+                                                <td className="px-3 py-2" />
+                                                <td className="px-3 py-2 text-right font-bold text-gray-800 dark:text-gray-200 whitespace-nowrap">
+                                                    {formatEuro(st)}
+                                                </td>
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                    <td className="px-3 py-2 text-right font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
+                                        {formatEuro(subtotalTarget(items))}
+                                    </td>
+                                    <td />
+                                </tr>
+                            </React.Fragment>
                         ))}
                     </tbody>
-                    {/* Ligne récap prix cible */}
-                    {data.prix_cible_ht && (
-                        <tfoot>
-                            <tr className="bg-emerald-50 dark:bg-emerald-900/20 border-t-2 border-emerald-300 dark:border-emerald-700">
-                                <td colSpan={2 + devis.length * 2 + 2} className="px-3 py-2.5 text-sm font-bold text-emerald-800 dark:text-emerald-200">
-                                    Prix cible total (meilleure qté × meilleur PU sur chaque poste)
-                                </td>
-                                <td className="px-3 py-2.5 text-right text-lg font-extrabold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
-                                    {data.prix_cible_ht}
-                                </td>
-                                <td />
-                            </tr>
-                        </tfoot>
-                    )}
+                    {/* Grand total */}
+                    <tfoot className="sticky bottom-0 z-10">
+                        <tr className="bg-emerald-50 dark:bg-emerald-900/20 border-t-2 border-emerald-300 dark:border-emerald-700">
+                            <td className="px-3 py-2.5 font-bold text-sm text-emerald-800 dark:text-emerald-200 sticky left-0 bg-emerald-50 dark:bg-emerald-900/20 z-20">
+                                TOTAL GÉNÉRAL
+                            </td>
+                            {grandTotalByDevis.map((gt) => (
+                                <React.Fragment key={String(gt.id)}>
+                                    <td className="px-3 py-2.5" />
+                                    <td className="px-3 py-2.5" />
+                                    <td className="px-3 py-2.5 text-right text-sm font-extrabold text-gray-900 dark:text-white whitespace-nowrap">
+                                        {formatEuro(gt.total)}
+                                    </td>
+                                </React.Fragment>
+                            ))}
+                            <td className="px-3 py-2.5 text-right text-sm font-extrabold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
+                                {data.prix_cible_ht ?? formatEuro(grandTotalTarget)}
+                            </td>
+                            <td />
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
+
+            {/* Vérification des totaux */}
+            {data.verification_totaux && data.verification_totaux.length > 0 && (
+                <div className="bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+                    <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2 mb-3">
+                        <CheckCircle2 className="w-4 h-4" /> Vérification des totaux
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {data.verification_totaux.map((v, i) => (
+                            <div key={i} className={`rounded-lg border p-3 ${
+                                v.concordance
+                                    ? 'border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20'
+                                    : 'border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20'
+                            }`}>
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{v.nom_fournisseur}</span>
+                                    {v.concordance
+                                        ? <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                        : <AlertTriangle className="w-4 h-4 text-red-600" />
+                                    }
+                                </div>
+                                <div className="text-xs space-y-1">
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500 dark:text-gray-400">Total déclaré HT :</span>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300">{v.total_declare_ht}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500 dark:text-gray-400">Somme postes extraits :</span>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300">{v.somme_postes_ht}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-gray-500 dark:text-gray-400">Écart :</span>
+                                        <span className={`font-bold ${v.concordance ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                                            {v.ecart}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Postes à négocier */}
             {postesANegocier.length > 0 && (
@@ -590,20 +694,6 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
                             </div>
                         ))}
                     </div>
-                    {data.prix_cible_ht && (() => {
-                        const recommId = String(data.recommandation?.devis_recommande ?? '');
-                        const recommDevis = data.devis?.find(d => String(d.id) === recommId);
-                        return recommDevis ? (
-                            <div className="mt-4 pt-3 border-t border-amber-200 dark:border-amber-700 flex items-center justify-between text-sm">
-                                <span className="text-amber-700 dark:text-amber-400">
-                                    Devis recommandé actuel ({recommDevis.nom_fournisseur}) : <strong>{recommDevis.prix_total_ht}</strong>
-                                </span>
-                                <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                                    → Prix cible : {data.prix_cible_ht}
-                                </span>
-                            </div>
-                        ) : null;
-                    })()}
                 </div>
             )}
         </div>
@@ -871,31 +961,91 @@ function exportToPDF(data: AnalysisData) {
         const devisArr = data.devis ?? [];
         const devisHeaders = devisArr.map((_d, i) =>
             `<th style="padding:5px 8px;text-align:right;font-weight:600;color:#ea580c">Qté D${i+1}</th>
-             <th style="padding:5px 8px;text-align:right;font-weight:600;color:#ea580c">PU D${i+1}</th>`
+             <th style="padding:5px 8px;text-align:right;font-weight:600;color:#ea580c">PU D${i+1}</th>
+             <th style="padding:5px 8px;text-align:right;font-weight:600;color:#ea580c">Total D${i+1}</th>`
         ).join('');
 
-        const rows = comparaisonPostes.map(poste => {
-            const cellsDevis = devisArr.map(d => {
-                const entry = poste.par_devis?.find((e: any) => String(e.id) === String(d.id));
-                const isBestQte = String(poste.best_qte_id) === String(d.id);
-                const isBestPu  = String(poste.best_pu_id)  === String(d.id);
-                return `
-                    <td style="padding:4px 8px;text-align:right;font-weight:${isBestQte?'700':'400'};color:${isBestQte?'#166534':'#374151'}">${isBestQte?'✓ ':''}${entry?.qte??'—'}</td>
-                    <td style="padding:4px 8px;text-align:right;font-weight:${isBestPu?'700':'400'};color:${isBestPu?'#166534':'#374151'}">${isBestPu?'✓ ':''}${entry?.pu??'—'}</td>`;
-            }).join('');
+        // Grouper par corps_etat
+        const pdfGroups: Map<string, typeof comparaisonPostes> = new Map();
+        for (const p of comparaisonPostes) {
+            const key = p.corps_etat || 'Divers';
+            if (!pdfGroups.has(key)) pdfGroups.set(key, []);
+            pdfGroups.get(key)!.push(p);
+        }
+        const totalCols = 1 + devisArr.length * 3 + 2;
 
-            const ecartQteColor = poste.ecart_qte?.startsWith('+') ? '#dc2626' : '#166534';
-            const ecartPuColor  = poste.ecart_pu?.startsWith('+')  ? '#dc2626' : '#166534';
-            return `<tr style="background:${poste.negocier?'#fffbeb':'#fff'};border-bottom:1px solid #f3f4f6">
-                <td style="padding:4px 8px;font-weight:500">${poste.libelle}</td>
-                <td style="padding:4px 8px;color:#6b7280">${poste.corps_etat}</td>
-                ${cellsDevis}
-                <td style="padding:4px 8px;text-align:center;font-weight:600;color:${ecartQteColor}">${poste.ecart_qte}</td>
-                <td style="padding:4px 8px;text-align:center;font-weight:600;color:${ecartPuColor}">${poste.ecart_pu}</td>
-                <td style="padding:4px 8px;text-align:right;font-weight:700;color:#166534">${poste.target_ht}</td>
-                <td style="padding:4px 8px;text-align:center">${poste.negocier?'<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:600">À négocier</span>':''}</td>
+        let bodyRows = '';
+        for (const [corpsEtat, items] of pdfGroups.entries()) {
+            // En-tête groupe
+            bodyRows += `<tr style="background:#e5e7eb"><td colspan="${totalCols}" style="padding:6px 8px;font-weight:700;font-size:12px;color:#1f2937">${corpsEtat}</td></tr>`;
+            // Lignes
+            for (const poste of items) {
+                const cellsDevis = devisArr.map(d => {
+                    const entry = poste.par_devis?.find((e: any) => e && String(e.id) === String(d.id));
+                    const isBestQte = String(poste.best_qte_id) === String(d.id);
+                    const isBestPu  = String(poste.best_pu_id)  === String(d.id);
+                    return `
+                        <td style="padding:4px 8px;text-align:right;font-weight:${isBestQte?'700':'400'};color:${isBestQte?'#166534':'#374151'}">${entry?.qte??'—'}</td>
+                        <td style="padding:4px 8px;text-align:right;font-weight:${isBestPu?'700':'400'};color:${isBestPu?'#166534':'#374151'}">${entry?.pu??'—'}</td>
+                        <td style="padding:4px 8px;text-align:right;font-weight:500;color:#374151">${entry?.total??'—'}</td>`;
+                }).join('');
+                bodyRows += `<tr style="background:${poste.negocier?'#fffbeb':'#fff'};border-bottom:1px solid #f3f4f6">
+                    <td style="padding:4px 8px;font-weight:500">${poste.libelle}</td>
+                    ${cellsDevis}
+                    <td style="padding:4px 8px;text-align:right;font-weight:700;color:#166534">${poste.target_ht}</td>
+                    <td style="padding:4px 8px;text-align:center">${poste.negocier?'<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:600">À négo.</span>':''}</td>
+                </tr>`;
+            }
+            // Sous-total
+            const stCells = devisArr.map(d => {
+                const st = items.reduce((sum, p) => {
+                    const entry = p.par_devis?.find((e: any) => e && String(e.id) === String(d.id));
+                    return sum + parseEuro(entry?.total);
+                }, 0);
+                return `<td></td><td></td><td style="padding:4px 8px;text-align:right;font-weight:700;color:#374151">${formatEuro(st)}</td>`;
+            }).join('');
+            const stTarget = items.reduce((sum, p) => sum + parseEuro(p.target_ht), 0);
+            bodyRows += `<tr style="background:#f3f4f6;border-bottom:2px solid #d1d5db">
+                <td style="padding:4px 8px;text-align:right;font-weight:600;color:#6b7280;font-size:10px">Sous-total</td>
+                ${stCells}
+                <td style="padding:4px 8px;text-align:right;font-weight:700;color:#166534">${formatEuro(stTarget)}</td>
+                <td></td>
             </tr>`;
+        }
+
+        // Grand total
+        const grandCells = devisArr.map(d => {
+            const gt = comparaisonPostes.reduce((sum, p) => {
+                const entry = p.par_devis?.find((e: any) => e && String(e.id) === String(d.id));
+                return sum + parseEuro(entry?.total);
+            }, 0);
+            return `<td></td><td></td><td style="padding:6px 8px;text-align:right;font-weight:800;font-size:12px;color:#111827">${formatEuro(gt)}</td>`;
         }).join('');
+        const grandTarget = comparaisonPostes.reduce((sum, p) => sum + parseEuro(p.target_ht), 0);
+
+        // Vérification totaux
+        const verificationHtml = (data.verification_totaux ?? []).length > 0 ? `
+        <div style="margin-top:16px;border:1px solid #e5e7eb;border-radius:10px;padding:14px 16px;background:#f9fafb">
+            <h4 style="font-size:13px;font-weight:700;color:#374151;margin:0 0 10px">✓ Vérification des totaux</h4>
+            <table style="width:100%;border-collapse:collapse;font-size:11px">
+                <thead><tr style="background:#f3f4f6">
+                    <th style="padding:5px 8px;text-align:left;font-weight:600">Fournisseur</th>
+                    <th style="padding:5px 8px;text-align:right;font-weight:600">Total déclaré HT</th>
+                    <th style="padding:5px 8px;text-align:right;font-weight:600">Somme extraite</th>
+                    <th style="padding:5px 8px;text-align:right;font-weight:600">Écart</th>
+                    <th style="padding:5px 8px;text-align:center;font-weight:600">OK</th>
+                </tr></thead>
+                <tbody>${data.verification_totaux!.map(v => `
+                    <tr style="border-bottom:1px solid #f3f4f6">
+                        <td style="padding:4px 8px;font-weight:500">${v.nom_fournisseur}</td>
+                        <td style="padding:4px 8px;text-align:right">${v.total_declare_ht}</td>
+                        <td style="padding:4px 8px;text-align:right">${v.somme_postes_ht}</td>
+                        <td style="padding:4px 8px;text-align:right;color:${v.concordance?'#166534':'#dc2626'};font-weight:600">${v.ecart}</td>
+                        <td style="padding:4px 8px;text-align:center;font-size:14px;color:${v.concordance?'#166534':'#dc2626'}">${v.concordance?'✓':'✗'}</td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>` : '';
 
         const postesNeg = comparaisonPostes.filter((p: any) => p.negocier);
         const negList = postesNeg.map((p: any) =>
@@ -904,25 +1054,24 @@ function exportToPDF(data: AnalysisData) {
         ).join('');
 
         return `
-        <h2 style="font-size:16px;font-weight:700;color:#111827;margin:24px 0 12px">Analyse comparative poste par poste</h2>
+        <h2 style="font-size:16px;font-weight:700;color:#111827;margin:24px 0 12px">Comparaison face-à-face — poste par poste</h2>
         <div style="overflow-x:auto">
         <table style="width:100%;border-collapse:collapse;font-size:11px">
             <thead><tr style="background:#f3f4f6;color:#374151">
                 <th style="padding:5px 8px;text-align:left;font-weight:600">Poste</th>
-                <th style="padding:5px 8px;text-align:left;font-weight:600">Corps d'état</th>
                 ${devisHeaders}
-                <th style="padding:5px 8px;text-align:center;font-weight:600;color:#d97706">Écart Qté</th>
-                <th style="padding:5px 8px;text-align:center;font-weight:600;color:#d97706">Écart PU</th>
-                <th style="padding:5px 8px;text-align:right;font-weight:600;color:#166534">Prix cible</th>
-                <th style="padding:5px 8px;text-align:center;font-weight:600">Action</th>
+                <th style="padding:5px 8px;text-align:right;font-weight:600;color:#166534">Cible HT</th>
+                <th style="padding:5px 8px;text-align:center;font-weight:600">Écart</th>
             </tr></thead>
-            <tbody>${rows}</tbody>
-            ${data.prix_cible_ht ? `<tfoot><tr style="background:#f0fdf4;border-top:2px solid #86efac">
-                <td colspan="${2 + devisArr.length * 2 + 2}" style="padding:6px 8px;font-weight:700;color:#166534">Prix cible total (meilleure qté × meilleur PU par poste)</td>
-                <td style="padding:6px 8px;text-align:right;font-size:14px;font-weight:800;color:#166534">${data.prix_cible_ht}</td>
+            <tbody>${bodyRows}</tbody>
+            <tfoot><tr style="background:#f0fdf4;border-top:2px solid #86efac">
+                <td style="padding:6px 8px;font-weight:700;color:#166534">TOTAL GÉNÉRAL</td>
+                ${grandCells}
+                <td style="padding:6px 8px;text-align:right;font-size:14px;font-weight:800;color:#166534">${data.prix_cible_ht ?? formatEuro(grandTarget)}</td>
                 <td></td>
-            </tr></tfoot>` : ''}
+            </tr></tfoot>
         </table></div>
+        ${verificationHtml}
         ${postesNeg.length > 0 ? `
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-top:16px">
             <h4 style="font-size:13px;font-weight:700;color:#92400e;margin:0 0 8px">⚠ ${postesNeg.length} poste${postesNeg.length>1?'s':''} à négocier en priorité</h4>

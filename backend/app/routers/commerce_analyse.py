@@ -34,7 +34,7 @@ def _get_api_key(db: Session, db_key: str, env_key: str) -> str | None:
 
 PROMPT_ANALYSE = """Tu es un expert en analyse de devis de CONSTRUCTION (BTP). Analyse et compare ces {n} devis joints.
 
-Extrais les informations clés de chaque document. Si une information est absente, utilise null.
+Extrais TOUTES les lignes de chaque devis, sans exception, sans filtrage.
 
 Fournis l'analyse au format JSON suivant EXACTEMENT (sois concis dans les descriptions) :
 
@@ -62,7 +62,7 @@ Fournis l'analyse au format JSON suivant EXACTEMENT (sois concis dans les descri
       "postes_travaux": [
         {{
           "numero": "N° poste ou null",
-          "corps_etat": "Corps d'état",
+          "corps_etat": "Corps d'état (normaliser les noms entre devis)",
           "description": "Description courte (max 80 caractères)",
           "unite": "Unité",
           "quantite": "Qté",
@@ -94,10 +94,20 @@ Fournis l'analyse au format JSON suivant EXACTEMENT (sois concis dans les descri
       "ecart_qte": "+X%",
       "ecart_pu": "-X%",
       "negocier": true,
-      "motif": "Raison courte (max 60 car)"
+      "motif": "Raison courte (max 60 car) ou null si negocier=false"
     }}
   ],
-  "prix_cible_ht": "Total HT si on retient la meilleure qté ET le meilleur PU sur chaque poste"
+  "prix_cible_ht": "Total HT si on retient la meilleure qté ET le meilleur PU sur chaque poste",
+  "verification_totaux": [
+    {{
+      "devis_id": 1,
+      "nom_fournisseur": "Raison sociale",
+      "total_declare_ht": "Total HT déclaré en pied du devis original",
+      "somme_postes_ht": "Somme arithmétique de tous les prix_total_ht extraits",
+      "ecart": "Différence en € (0 € si concordance)",
+      "concordance": true
+    }}
+  ]
 }}
 
 RÈGLES ABSOLUES :
@@ -108,7 +118,10 @@ RÈGLES ABSOLUES :
 - Pas de commentaires dans le JSON
 - null pour toute valeur absente (jamais de chaîne vide)
 - Descriptions courtes pour économiser l'espace
-- comparaison_postes : UNIQUEMENT postes comparables entre devis avec écart >5%, max 12 entrées triées par impact financier décroissant
+- postes_travaux : extraire TOUTES les lignes sans exception, y compris celles à 0 €
+- comparaison_postes : TOUS les postes alignés entre devis (même poste = même entrée), triés par corps_etat puis ordre d'apparition. Si un poste existe dans un devis mais pas un autre, utiliser null dans par_devis pour le devis manquant. negocier=true uniquement si écart >5% entre devis
+- corps_etat : normaliser les noms identiquement entre tous les devis (ex: "Gros Œuvre" partout, pas "Gros oeuvre" vs "GROS OEUVRE")
+- verification_totaux : pour chaque devis, comparer la somme des prix_total_ht extraits avec le total HT déclaré. concordance=true si écart < 1 €
 """
 
 
@@ -287,7 +300,7 @@ async def analyze_quotes(
                 message = await asyncio.to_thread(
                     claude_client.messages.create,
                     model="claude-sonnet-4-6",
-                    max_tokens=8192,
+                    max_tokens=16384,
                     messages=[{"role": "user", "content": content_parts}],
                 )
                 analysis_data = _parse_json_response(message.content[0].text)
@@ -523,7 +536,7 @@ async def analyze_negociation(
         message = await asyncio.to_thread(
             claude_client.messages.create,
             model="claude-sonnet-4-6",
-            max_tokens=6144,
+            max_tokens=8192,
             messages=[{"role": "user", "content": prompt}],
         )
         negociation_data = _parse_json_response(message.content[0].text)
