@@ -39,9 +39,9 @@ export const LoginPage: React.FC = () => {
         setIsLoading(true);
         try {
             const loginResponse = await instance.loginPopup(loginRequest);
-            if (loginResponse && loginResponse.idToken) {
-                // Send the ID token to the backend for validation
-                const response = await apiLoginWithMicrosoft(loginResponse.idToken);
+            if (loginResponse && loginResponse.accessToken) {
+                // Send the access token to the backend for Graph API validation
+                const response = await apiLoginWithMicrosoft(loginResponse.accessToken);
                 login(response.access_token, response.user);
                 navigate('/');
             }
