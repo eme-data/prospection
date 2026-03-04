@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Paintbrush, Download, RefreshCw, Image, Trash2, CheckCircle2, Loader2, X } from 'lucide-react';
+import { Paintbrush, Download, RefreshCw, Image, Trash2, CheckCircle2, Loader2, X, RotateCcw, Pencil } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import DOMPurify from 'dompurify';
 import { saveLogo, getLogos, deleteLogo } from '../../api/communication';
@@ -40,6 +40,7 @@ export const LogoCreator: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [currentSVG, setCurrentSVG] = useState<string | null>(null);
+    const [iterateMode, setIterateMode] = useState(false); // true = modifier le logo actuel
 
     // Barre de progression
     const [progress, setProgress] = useState(0);
@@ -57,7 +58,16 @@ export const LogoCreator: React.FC = () => {
         stopProgress();
         setProgress(0);
         setProgressLabel('Envoi de la requête...');
-        const steps = [
+        const isIterate = iterateMode && !!currentSVG;
+        const steps = isIterate ? [
+            { at: 5, label: 'Connexion au modèle IA...' },
+            { at: 15, label: 'Analyse du logo existant...' },
+            { at: 30, label: 'Application des modifications...' },
+            { at: 50, label: 'Reconstruction du SVG...' },
+            { at: 70, label: 'Vérification de la cohérence...' },
+            { at: 85, label: 'Finalisation...' },
+            { at: 92, label: 'Presque terminé...' },
+        ] : [
             { at: 5, label: 'Connexion au modèle IA...' },
             { at: 15, label: 'Analyse du brief créatif...' },
             { at: 30, label: 'Conception des formes...' },
@@ -93,6 +103,43 @@ export const LogoCreator: React.FC = () => {
     });
 
     const buildPrompt = () => {
+        // Mode itération : on envoie le SVG actuel avec les instructions de modification
+        if (iterateMode && currentSVG) {
+            const parts = [
+`Voici le code SVG d'un logo existant. Tu dois le MODIFIER selon les consignes de l'utilisateur ci-dessous.
+
+IMPORTANT :
+- NE PAS repartir de zéro. Conserve la structure, le style et l'identité du logo actuel.
+- Applique UNIQUEMENT les modifications demandées par l'utilisateur.
+- Tout ce qui n'est pas mentionné dans les consignes doit rester inchangé.
+
+LOGO SVG ACTUEL :
+${currentSVG}
+
+RÈGLES SVG :
+- viewBox="0 0 500 500", xmlns="http://www.w3.org/2000/svg"
+- Pas de <image>, pas de xlink:href, pas de CSS externe
+- Utilise <path>, <line>, <circle>, <rect>, <text>, <g>
+- Couleurs en attributs fill/stroke directs, pas de classes CSS
+
+FORMAT DE RÉPONSE :
+Réponds UNIQUEMENT avec le code SVG modifié. Pas de markdown, pas de texte explicatif.
+Commence directement par <svg et termine par </svg>.`,
+            ];
+
+            if (description) {
+                parts.push(`
+CONSIGNES DE MODIFICATION DE L'UTILISATEUR (à respecter impérativement) :
+${description}`);
+            } else {
+                parts.push(`
+L'utilisateur n'a pas précisé de consignes spécifiques. Améliore légèrement le logo en conservant son identité : affine les proportions, équilibre la composition, améliore la lisibilité si nécessaire.`);
+            }
+
+            return parts.join('\n');
+        }
+
+        // Mode création : prompt complet depuis zéro
         const colorDirective = colors
             ? `Couleurs imposées : ${colors}. Utilise UNIQUEMENT ces couleurs (+ noir/gris pour le texte si besoin).`
             : 'Choisis 1 à 2 couleurs sobres et élégantes adaptées au secteur (tons naturels, bleu marine, vert sapin, taupe, terracotta, doré…). Évite les couleurs vives ou saturées.';
@@ -296,7 +343,7 @@ ${description}`);
                                 <div key={logo.id} className="group relative bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors">
                                     {/* Miniature SVG */}
                                     <button
-                                        onClick={() => { setCurrentSVG(logo.svg_content); setCompanyName(logo.company_name); }}
+                                        onClick={() => { setCurrentSVG(logo.svg_content); setCompanyName(logo.company_name); setIterateMode(false); }}
                                         className="w-full aspect-square p-3 flex items-center justify-center"
                                         title="Charger ce logo"
                                     >
@@ -430,13 +477,57 @@ ${description}`);
                             />
                         </div>
 
+                        {/* Mode itération / nouveau logo */}
+                        {currentSVG && (
+                            <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Mode de génération</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIterateMode(false)}
+                                        className={`flex items-center gap-2 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                                            !iterateMode
+                                                ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                                                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                                        }`}
+                                    >
+                                        <RotateCcw className="w-4 h-4 flex-shrink-0" />
+                                        <div className="text-left">
+                                            <div>Nouveau logo</div>
+                                            <div className="text-xs font-normal opacity-70">Repartir de zéro</div>
+                                        </div>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIterateMode(true)}
+                                        className={`flex items-center gap-2 p-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                                            iterateMode
+                                                ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400'
+                                                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                                        }`}
+                                    >
+                                        <Pencil className="w-4 h-4 flex-shrink-0" />
+                                        <div className="text-left">
+                                            <div>Modifier le logo</div>
+                                            <div className="text-xs font-normal opacity-70">Affiner le logo actuel</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Instructions additionnelles</label>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                {iterateMode && currentSVG ? 'Consignes de modification' : 'Instructions additionnelles'}
+                            </label>
                             <textarea
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 rows={3}
-                                placeholder="Détails spécifiques sur ce que vous souhaitez voir..."
+                                placeholder={iterateMode && currentSVG
+                                    ? "Ex: Enlève le trait horizontal, change la couleur en bleu marine, agrandis le texte..."
+                                    : "Détails spécifiques sur ce que vous souhaitez voir..."
+                                }
                                 className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             />
                         </div>
@@ -475,12 +566,15 @@ ${description}`);
                             {isLoading ? (
                                 <>
                                     <RefreshCw className="animate-spin -ml-1 mr-2 h-5 w-5" />
-                                    Génération en cours...
+                                    {iterateMode && currentSVG ? 'Modification en cours...' : 'Génération en cours...'}
                                 </>
                             ) : (
                                 <>
-                                    <Paintbrush className="-ml-1 mr-2 h-5 w-5" />
-                                    Générer le Logo
+                                    {iterateMode && currentSVG ? (
+                                        <><Pencil className="-ml-1 mr-2 h-5 w-5" />Modifier le Logo</>
+                                    ) : (
+                                        <><Paintbrush className="-ml-1 mr-2 h-5 w-5" />Générer le Logo</>
+                                    )}
                                 </>
                             )}
                         </button>
