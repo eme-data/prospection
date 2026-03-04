@@ -45,6 +45,9 @@ COPY backend/update_db_modules.py ./
 # Rend l'entrypoint executable
 RUN chmod +x entrypoint.sh
 
+# Crée le dossier de données avec les bonnes permissions
+RUN mkdir -p /data/prospection && chown -R appuser:appuser /data
+
 # Changement d'utilisateur pour la securite
 USER appuser
 

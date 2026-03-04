@@ -3,6 +3,9 @@
 
 set -e
 
+# Crée les sous-dossiers de données nécessaires (le volume /data peut être vide)
+mkdir -p /data/prospection 2>/dev/null || true
+
 echo "[entrypoint] Attente de la base de données..."
 # Attend que la DB soit prête (max 30s)
 MAX_RETRIES=30
