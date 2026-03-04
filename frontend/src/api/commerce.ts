@@ -190,6 +190,58 @@ export const analyzeQuotes = async (files: File[]): Promise<any> => {
     return response.json();
 };
 
+// ========== ÉTUDE DE NÉGOCIATION ==========
+
+export interface NegociationPoint {
+    priorite: number;
+    poste: string;
+    corps_etat: string;
+    prix_actuel: string;
+    prix_concurrent: string;
+    prix_cible: string;
+    ecart_euros: string;
+    ecart_pourcentage: string;
+    argument: string;
+    concession_possible: string;
+}
+
+export interface NegociationResult {
+    prestataire_selectionne: {
+        id: number | string;
+        nom: string;
+        prix_total_ht: string;
+    };
+    synthese_negociation: string;
+    objectif_prix_ht: string;
+    economie_potentielle: {
+        montant: string;
+        pourcentage: string;
+    };
+    points_negociation: NegociationPoint[];
+    strategie: {
+        ordre_priorite: string;
+        points_fermes: string[];
+        concessions_acceptables: string[];
+        arguments_transversaux: string[];
+        ton_recommande: string;
+    };
+    modele_email: string;
+}
+
+export const analyzeNegociation = (
+    analysisData: any,
+    selectedDevisId: number | string,
+): Promise<{ success: boolean; negociation: NegociationResult; model_used: string }> =>
+    fetchJSON('/api/commerce/analyse-devis/negociation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            analysis_data: analysisData,
+            selected_devis_id: selectedDevisId,
+        }),
+    });
+
+
 // ========== CATALOGUE CRM API ==========
 
 export const importCatalogue = async (file: File): Promise<any> => {

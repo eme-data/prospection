@@ -4,16 +4,19 @@ import {
     CheckCircle2, Award, AlertTriangle, ChevronDown, ChevronUp,
     Building2, Hash, Euro, Timer, Star, Phone, Mail, MapPin,
     Shield, ShieldCheck, ShieldAlert, CreditCard, Calendar, Info,
-    FileDown, History, Save, Trash2, FolderOpen, RotateCcw, Search
+    FileDown, History, Save, Trash2, FolderOpen, RotateCcw, Search,
+    Users, Target, MessageSquareText, Copy, TrendingDown, Zap,
 } from 'lucide-react';
 import {
     analyzeQuotes,
+    analyzeNegociation,
     saveAnalysis,
     getAnalyses,
     getAnalysis,
     deleteAnalysis,
     type SavedAnalysisSummary,
     type FichierInfo,
+    type NegociationResult,
 } from '../../../api/commerce';
 
 // ── Estimation & progression ─────────────────────────────────────────────────
@@ -200,8 +203,13 @@ const BadgeDecennale: React.FC<{ data?: AssuranceDecennale | null }> = ({ data }
     );
 };
 
-const DevisCard: React.FC<{ devis: Devis; isRecommended: boolean; isBestValue: boolean; index: number }> = ({
-    devis, isRecommended, isBestValue, index
+const DevisCard: React.FC<{
+    devis: Devis; isRecommended: boolean; isBestValue: boolean; index: number;
+    onSelectForNegociation?: (id: number | string) => void;
+    isSelectedForNegociation?: boolean;
+}> = ({
+    devis, isRecommended, isBestValue, index,
+    onSelectForNegociation, isSelectedForNegociation,
 }) => {
     const [expanded, setExpanded] = useState(false);
     const postes = devis.postes_travaux ?? [];
@@ -382,6 +390,23 @@ const DevisCard: React.FC<{ devis: Devis; isRecommended: boolean; isBestValue: b
                                 </table>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Bouton sélection négociation */}
+                {onSelectForNegociation && (
+                    <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                        <button
+                            onClick={() => onSelectForNegociation(devis.id)}
+                            className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                                isSelectedForNegociation
+                                    ? 'bg-indigo-600 text-white shadow-md'
+                                    : 'bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                            }`}
+                        >
+                            <Users className="w-4 h-4" />
+                            {isSelectedForNegociation ? 'Prestataire sélectionné' : 'Sélectionner pour négociation'}
+                        </button>
                     </div>
                 )}
             </div>
@@ -584,6 +609,173 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
         </div>
     );
 };
+
+// ── Panneau Négociation ──────────────────────────────────────────────────────
+
+const NegociationPanel: React.FC<{ data: NegociationResult }> = ({ data }) => {
+    const [copiedEmail, setCopiedEmail] = useState(false);
+
+    const handleCopyEmail = () => {
+        navigator.clipboard.writeText(data.modele_email.replace(/\\n/g, '\n'));
+        setCopiedEmail(true);
+        setTimeout(() => setCopiedEmail(false), 2000);
+    };
+
+    return (
+        <div className="space-y-6 mt-8 pt-8 border-t-2 border-indigo-200 dark:border-indigo-800">
+            <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Users className="w-6 h-6 text-indigo-500" />
+                    Étude de Négociation — {data.prestataire_selectionne.nom}
+                </h3>
+                <div className="text-right">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Prix actuel</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{data.prestataire_selectionne.prix_total_ht}</p>
+                </div>
+            </div>
+
+            {/* Synthèse + objectif */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-5">
+                    <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-200 mb-2 flex items-center gap-2">
+                        <Info className="w-4 h-4" /> Synthèse
+                    </h4>
+                    <p className="text-sm text-indigo-800 dark:text-indigo-300 leading-relaxed">{data.synthese_negociation}</p>
+                </div>
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-5 flex flex-col items-center justify-center">
+                    <TrendingDown className="w-6 h-6 text-emerald-500 mb-2" />
+                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">Objectif prix HT</p>
+                    <p className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{data.objectif_prix_ht}</p>
+                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
+                        -{data.economie_potentielle.pourcentage}
+                        <span className="text-xs font-normal ml-1">({data.economie_potentielle.montant})</span>
+                    </p>
+                </div>
+            </div>
+
+            {/* Points de négociation */}
+            <div>
+                <h4 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+                    <Target className="w-5 h-5 text-indigo-500" />
+                    Points de négociation ({data.points_negociation.length})
+                </h4>
+                <div className="space-y-3">
+                    {data.points_negociation.map((point, idx) => (
+                        <div key={idx} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
+                            <div className="flex items-start justify-between gap-4 mb-3">
+                                <div className="flex items-start gap-3">
+                                    <span className="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-sm font-bold flex items-center justify-center">
+                                        {point.priorite}
+                                    </span>
+                                    <div>
+                                        <p className="font-semibold text-gray-900 dark:text-white">{point.poste}</p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">{point.corps_etat}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                    <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                                        -{point.ecart_pourcentage}
+                                    </span>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">-{point.ecart_euros}</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3 mb-3">
+                                <div className="bg-red-50 dark:bg-red-900/10 rounded-lg px-3 py-2 text-center">
+                                    <p className="text-[10px] text-red-500 dark:text-red-400 mb-0.5">Prix actuel</p>
+                                    <p className="text-sm font-bold text-red-700 dark:text-red-300">{point.prix_actuel}</p>
+                                </div>
+                                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg px-3 py-2 text-center">
+                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">Concurrent</p>
+                                    <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{point.prix_concurrent}</p>
+                                </div>
+                                <div className="bg-emerald-50 dark:bg-emerald-900/10 rounded-lg px-3 py-2 text-center">
+                                    <p className="text-[10px] text-emerald-500 dark:text-emerald-400 mb-0.5">Prix cible</p>
+                                    <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">{point.prix_cible}</p>
+                                </div>
+                            </div>
+                            <div className="bg-blue-50 dark:bg-blue-900/10 rounded-lg px-3 py-2 mb-2">
+                                <p className="text-xs text-blue-800 dark:text-blue-300">
+                                    <Zap className="w-3 h-3 inline mr-1" />
+                                    <strong>Argument :</strong> {point.argument}
+                                </p>
+                            </div>
+                            {point.concession_possible && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                                    Concession possible : {point.concession_possible}
+                                </p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Stratégie */}
+            <div className="bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+                <h4 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+                    <Zap className="w-5 h-5 text-amber-500" /> Stratégie de négociation
+                </h4>
+                <p className="text-sm text-gray-700 dark:text-gray-300 mb-4">{data.strategie.ordre_priorite}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2">Points fermes (non négociables)</p>
+                        <ul className="space-y-1">
+                            {data.strategie.points_fermes.map((p, i) => (
+                                <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
+                                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" /> {p}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    <div>
+                        <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-2">Concessions acceptables</p>
+                        <ul className="space-y-1">
+                            {data.strategie.concessions_acceptables.map((c, i) => (
+                                <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
+                                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0" /> {c}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </div>
+                {data.strategie.arguments_transversaux?.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600">
+                        <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-2">Arguments transversaux</p>
+                        <ul className="space-y-1">
+                            {data.strategie.arguments_transversaux.map((a, i) => (
+                                <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex items-start gap-2">
+                                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" /> {a}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+                <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                    <strong>Ton recommandé :</strong> {data.strategie.ton_recommande}
+                </div>
+            </div>
+
+            {/* Modèle email */}
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <MessageSquareText className="w-5 h-5 text-indigo-500" /> Modèle d'email de négociation
+                    </h4>
+                    <button
+                        onClick={handleCopyEmail}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                        <Copy className="w-3.5 h-3.5" />
+                        {copiedEmail ? 'Copié !' : 'Copier'}
+                    </button>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line font-mono leading-relaxed">
+                    {data.modele_email.replace(/\\n/g, '\n')}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // ── Export PDF ────────────────────────────────────────────────────────────────
 
@@ -821,7 +1013,14 @@ function exportToPDF(data: AnalysisData) {
 
 // ── Résultats complets ────────────────────────────────────────────────────────
 
-const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
+const AnalysisResults: React.FC<{
+    data: AnalysisData;
+    onSelectForNegociation?: (id: number | string) => void;
+    selectedDevisId?: number | string | null;
+    negociationResult?: NegociationResult | null;
+    negociationLoading?: boolean;
+    onLaunchNegociation?: () => void;
+}> = ({ data, onSelectForNegociation, selectedDevisId, negociationResult, negociationLoading, onLaunchNegociation }) => {
     const recommendedId = String(data.recommandation?.devis_recommande ?? '');
     const bestValueId   = String(
         data.comparaison?.moins_disant ??
@@ -867,6 +1066,8 @@ const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
                             index={i}
                             isRecommended={String(devis.id) === recommendedId}
                             isBestValue={String(devis.id) === bestValueId}
+                            onSelectForNegociation={onSelectForNegociation}
+                            isSelectedForNegociation={selectedDevisId != null && String(devis.id) === String(selectedDevisId)}
                         />
                     ))}
                 </div>
@@ -927,6 +1128,38 @@ const AnalysisResults: React.FC<{ data: AnalysisData }> = ({ data }) => {
                     <p className="text-sm text-green-800 dark:text-green-300 leading-relaxed">{data.recommandation.justification}</p>
                 </div>
             )}
+
+            {/* Section négociation */}
+            {selectedDevisId != null && (
+                <div className="space-y-4">
+                    {!negociationResult && (
+                        <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <Users className="w-6 h-6 text-indigo-500" />
+                                <div>
+                                    <p className="text-sm font-semibold text-indigo-900 dark:text-indigo-200">
+                                        Prestataire sélectionné : {data.devis?.find(d => String(d.id) === String(selectedDevisId))?.nom_fournisseur}
+                                    </p>
+                                    <p className="text-xs text-indigo-600 dark:text-indigo-400">
+                                        Lancer l'étude de négociation pour obtenir des arguments et prix cibles
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={onLaunchNegociation}
+                                disabled={negociationLoading}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors flex-shrink-0 shadow-sm"
+                            >
+                                {negociationLoading
+                                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Analyse en cours...</>
+                                    : <><Users className="w-4 h-4" /> Lancer l'étude de négociation</>
+                                }
+                            </button>
+                        </div>
+                    )}
+                    {negociationResult && <NegociationPanel data={negociationResult} />}
+                </div>
+            )}
         </div>
     );
 };
@@ -959,6 +1192,11 @@ export const AnalyseDevis: React.FC = () => {
     const [historySearch, setHistorySearch] = useState('');
     const [historyDeleteId, setHistoryDeleteId] = useState<string | null>(null);
     const [historyViewLoading, setHistoryViewLoading] = useState<string | null>(null);
+
+    // Négociation
+    const [selectedDevisId, setSelectedDevisId] = useState<number | string | null>(null);
+    const [negociationResult, setNegociationResult] = useState<NegociationResult | null>(null);
+    const [negociationLoading, setNegociationLoading] = useState(false);
 
     const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const elapsedRef  = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1008,7 +1246,10 @@ export const AnalyseDevis: React.FC = () => {
         if (!result) return;
         setSaveState('saving');
         try {
-            await saveAnalysis(nomProjet || null, currentFiles, result);
+            const dataToSave = negociationResult
+                ? { ...result, _negociation: negociationResult, _negociation_devis_id: selectedDevisId }
+                : result;
+            await saveAnalysis(nomProjet || null, currentFiles, dataToSave);
             setSaveState('saved');
         } catch {
             setSaveState('error');
@@ -1019,7 +1260,18 @@ export const AnalyseDevis: React.FC = () => {
         setHistoryViewLoading(id);
         try {
             const saved = await getAnalysis(id);
-            setResult(saved.result);
+            const loadedResult = saved.result;
+            // Restore negotiation data if saved
+            if (loadedResult?._negociation) {
+                setNegociationResult(loadedResult._negociation);
+                setSelectedDevisId(loadedResult._negociation_devis_id ?? null);
+                delete loadedResult._negociation;
+                delete loadedResult._negociation_devis_id;
+            } else {
+                setNegociationResult(null);
+                setSelectedDevisId(null);
+            }
+            setResult(loadedResult);
             setCurrentFiles(saved.fichiers_info);
             setNomProjet(saved.nom_projet || '');
             setSaveState('saved');
@@ -1085,6 +1337,30 @@ export const AnalyseDevis: React.FC = () => {
         setFileSlots(newFiles);
     };
 
+    const handleSelectForNegociation = (id: number | string) => {
+        if (selectedDevisId != null && String(selectedDevisId) === String(id)) {
+            setSelectedDevisId(null);
+            setNegociationResult(null);
+        } else {
+            setSelectedDevisId(id);
+            setNegociationResult(null);
+        }
+    };
+
+    const handleLaunchNegociation = async () => {
+        if (!result || selectedDevisId == null) return;
+        setNegociationLoading(true);
+        setError(null);
+        try {
+            const response = await analyzeNegociation(result, selectedDevisId);
+            setNegociationResult(response.negociation);
+        } catch (err: any) {
+            setError(err.message || "Erreur lors de l'analyse de négociation.");
+        } finally {
+            setNegociationLoading(false);
+        }
+    };
+
     const handleAnalyze = async () => {
         const validFiles = fileSlots.filter(f => f !== null) as File[];
         if (validFiles.length === 0) {
@@ -1096,6 +1372,8 @@ export const AnalyseDevis: React.FC = () => {
         setResult(null);
         setSaveState('idle');
         setNomProjet('');
+        setSelectedDevisId(null);
+        setNegociationResult(null);
         setCurrentFiles(validFiles.map(f => ({ name: f.name, size_bytes: f.size })));
         startProgress(validFiles);
 
@@ -1386,7 +1664,14 @@ export const AnalyseDevis: React.FC = () => {
                                     </div>
                                 )}
 
-                                <AnalysisResults data={result} />
+                                <AnalysisResults
+                                    data={result}
+                                    onSelectForNegociation={handleSelectForNegociation}
+                                    selectedDevisId={selectedDevisId}
+                                    negociationResult={negociationResult}
+                                    negociationLoading={negociationLoading}
+                                    onLaunchNegociation={handleLaunchNegociation}
+                                />
                             </>
                         )}
                     </>

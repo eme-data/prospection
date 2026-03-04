@@ -112,6 +112,64 @@ RÈGLES ABSOLUES :
 """
 
 
+PROMPT_NEGOCIATION = """Tu es un expert en NÉGOCIATION de prix pour des marchés de travaux BTP.
+On te fournit le résultat structuré d'une analyse comparative de {n} devis de prestataires.
+L'utilisateur a sélectionné le prestataire n°{selected_id} ({selected_name}) et souhaite négocier avec lui.
+
+Voici l'analyse comparative complète (JSON) :
+{analysis_json}
+
+À partir de ces données, produis une étude de négociation détaillée au format JSON EXACTEMENT comme suit :
+
+{{
+  "prestataire_selectionne": {{
+    "id": {selected_id},
+    "nom": "{selected_name}",
+    "prix_total_ht": "Prix HT actuel du prestataire"
+  }},
+  "synthese_negociation": "Résumé de 3-4 phrases : potentiel de négociation global, montant d'économie visé, posture recommandée",
+  "objectif_prix_ht": "Prix HT cible après négociation",
+  "economie_potentielle": {{
+    "montant": "Montant en € de l'économie visée",
+    "pourcentage": "Pourcentage de réduction visé"
+  }},
+  "points_negociation": [
+    {{
+      "priorite": 1,
+      "poste": "Libellé du poste ou lot",
+      "corps_etat": "Corps d'état",
+      "prix_actuel": "Prix HT actuel chez ce prestataire",
+      "prix_concurrent": "Meilleur prix concurrent",
+      "prix_cible": "Prix cible réaliste (compromis crédible)",
+      "ecart_euros": "Économie visée en €",
+      "ecart_pourcentage": "Réduction demandée en %",
+      "argument": "Argument de levier détaillé (prix concurrent, marché, volume…)",
+      "concession_possible": "Ce qu'on peut concéder en échange (délai, paiement, volume…)"
+    }}
+  ],
+  "strategie": {{
+    "ordre_priorite": "Par quoi commencer et pourquoi",
+    "points_fermes": ["Point non négociable 1", "Point 2"],
+    "concessions_acceptables": ["Concession possible 1", "Concession possible 2"],
+    "arguments_transversaux": ["Argument applicable à tous les postes"],
+    "ton_recommande": "Collaboratif / Ferme mais ouvert / etc."
+  }},
+  "modele_email": "Objet : Négociation devis — [Projet]\\n\\nMadame, Monsieur,\\n\\nSuite à l'étude comparative de plusieurs offres pour [description], nous souhaitons revenir vers vous concernant votre proposition de [prix HT].\\n\\nNotre analyse fait ressortir les points suivants :\\n- [Point 1 avec chiffres]\\n- [Point 2 avec chiffres]\\n\\nNous restons intéressés par votre prestation et souhaitons trouver un terrain d'entente sur les postes identifiés.\\n\\nNous vous proposons un échange à votre convenance.\\n\\nCordialement,\\n[Signature]"
+}}
+
+RÈGLES ABSOLUES :
+- Commence DIRECTEMENT par {{ sans aucun texte avant
+- Termine DIRECTEMENT par }} sans aucun texte après
+- Guillemets doubles uniquement, jamais de guillemets simples
+- Pas de virgule après le dernier élément d'un tableau ou objet
+- Pas de commentaires dans le JSON
+- null pour toute valeur absente
+- points_negociation : UNIQUEMENT postes où ce prestataire est plus cher qu'un concurrent, triés par impact financier décroissant, max 10 entrées
+- prix_cible : RÉALISTE (compromis crédible, pas simplement le prix du concurrent)
+- modele_email : texte professionnel BTP, factuel et concis, les \\n sont des retours à la ligne
+"""
+
+
 def _parse_json_response(text: str) -> dict:
     # Nettoyer les balises markdown
     text = text.replace('```json', '').replace('```', '').strip()
@@ -413,3 +471,69 @@ def delete_analyse(
     db.delete(record)
     db.commit()
     return {"success": True}
+
+
+# ── Étude de négociation ─────────────────────────────────────────────────────
+
+class NegociationRequest(BaseModel):
+    analysis_data: dict
+    selected_devis_id: int | str
+
+
+@router.post("/negociation")
+async def analyze_negociation(
+    body: NegociationRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Génère une étude de négociation pour un prestataire sélectionné.
+    Utilise les données structurées de l'analyse comparative (pas de re-upload PDF).
+    """
+    analysis = body.analysis_data
+    devis_list = analysis.get("devis", [])
+
+    selected = None
+    for d in devis_list:
+        if str(d.get("id")) == str(body.selected_devis_id):
+            selected = d
+            break
+
+    if not selected:
+        raise HTTPException(status_code=400, detail="Devis sélectionné introuvable dans les données d'analyse.")
+
+    if len(devis_list) < 2:
+        raise HTTPException(status_code=400, detail="Au moins 2 devis sont nécessaires pour une étude de négociation.")
+
+    selected_name = selected.get("nom_fournisseur", "Inconnu")
+
+    prompt = PROMPT_NEGOCIATION.format(
+        n=len(devis_list),
+        selected_id=body.selected_devis_id,
+        selected_name=selected_name,
+        analysis_json=json.dumps(analysis, ensure_ascii=False),
+    )
+
+    anthropic_key = _get_api_key(db, "anthropic_api_key", "ANTHROPIC_API_KEY")
+    if not anthropic_key:
+        raise HTTPException(status_code=500, detail="Clé API Anthropic non configurée.")
+
+    try:
+        claude_client = anthropic.Anthropic(api_key=anthropic_key)
+        message = await asyncio.to_thread(
+            claude_client.messages.create,
+            model="claude-sonnet-4-6",
+            max_tokens=6144,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        negociation_data = _parse_json_response(message.content[0].text)
+        return {
+            "success": True,
+            "negociation": negociation_data,
+            "model_used": "Claude Sonnet (Anthropic)",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Negotiation analysis error: %s", e)
+        raise HTTPException(status_code=500, detail=f"Erreur analyse négociation : {e}")
