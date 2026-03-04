@@ -35,6 +35,7 @@ export const LogoCreator: React.FC = () => {
     const [industry, setIndustry] = useState('');
     const [style, setStyle] = useState('icone-texte');
     const [colors, setColors] = useState('');
+    const [shapeFill, setShapeFill] = useState<'auto' | 'filled' | 'outline'>('auto');
     const [description, setDescription] = useState('');
 
     const [isLoading, setIsLoading] = useState(false);
@@ -145,18 +146,24 @@ L'utilisateur n'a pas précisé de consignes spécifiques. Améliore légèremen
             : 'Choisis 1 à 2 couleurs sobres et élégantes adaptées au secteur (tons naturels, bleu marine, vert sapin, taupe, terracotta, doré…). Évite les couleurs vives ou saturées.';
 
         const sectorDirective = industry
-            ? `Secteur : ${industry}.`
+            ? `Secteur d'activité (pour orienter le style, les couleurs et les formes UNIQUEMENT — NE PAS écrire le nom du secteur sur le logo) : ${industry}.`
             : '';
 
         const styleGuides: Record<string, string> = {
             'typographique': 'Style typographique : le logo repose sur un jeu de lettres créatif (monogramme, ligature, lettrine stylisée). La ou les premières lettres du nom forment le symbole principal. Typographie élégante avec empattements fins ou sans-serif épuré. Peut inclure un petit élément décoratif subtil (trait, arc, vague).',
             'icone-texte': 'Style icône + texte : une icône minimaliste simple (quelques traits/formes) au-dessus ou à gauche du nom écrit en dessous. L\'icône doit être sobre, reconnaissable, en lien avec l\'activité. Le nom est en typographie claire et lisible.',
             'symbole-pur': 'Style symbole pur : uniquement un pictogramme/symbole, sans aucun texte. Formes géométriques épurées, traits fins, design très minimaliste. Doit être identifiable en petit format.',
-            'forme-fond': 'Style avec forme en arrière-plan : le nom et/ou un symbole sont placés sur une forme douce en arrière-plan (cercle, tache organique, médaillon). La forme a une couleur atténuée ou un léger dégradé discret. Effet de superposition subtil.',
+            'forme-fond': 'Style avec forme en arrière-plan : une forme géométrique douce (cercle, ovale, rectangle arrondi, médaillon, tache organique) est placée EN ARRIÈRE-PLAN, c\'est-à-dire DERRIÈRE le texte et les éléments du logo. La forme doit avoir une opacité réduite (opacity="0.08" à "0.15") ou un fill très clair/pastel pour créer un effet de fond subtil et ne pas gêner la lecture du texte par-dessus. Le texte (nom de l\'entreprise) et les icônes sont placés PAR-DESSUS la forme. L\'ordre des couches SVG est : 1) forme de fond en premier, 2) texte et icônes au-dessus. Les contours internes de la forme doivent être invisibles ou très discrets pour ne pas interférer avec le texte.',
             'elegant': 'Style élégant : typographie raffinée avec empattements, traits fins décoratifs, éventuellement une lettrine ornée. Rendu haut de gamme et sobre. Couleurs neutres ou dorées.',
         };
 
         const styleDirective = styleGuides[style] || styleGuides['icone-texte'];
+
+        const shapeFillDirective = shapeFill === 'filled'
+            ? 'REMPLISSAGE DES FORMES : Les formes et icônes doivent être REMPLIES avec une couleur de fond pleine (fill). Pas de formes vides avec seulement des contours.'
+            : shapeFill === 'outline'
+            ? 'REMPLISSAGE DES FORMES : Les formes et icônes doivent être en CONTOURS uniquement (stroke, sans fill ou avec fill="none"). Style filaire, traits fins, pas de remplissage plein.'
+            : '';
 
         const parts = [
 `Crée un logo SVG professionnel pour "${companyName}".
@@ -165,14 +172,15 @@ ${sectorDirective}
 DIRECTION ARTISTIQUE :
 ${styleDirective}
 ${colorDirective}
-
+${shapeFillDirective ? shapeFillDirective + '\n' : ''}
 PRINCIPES DE DESIGN (TRÈS IMPORTANT) :
 - SOBRIÉTÉ : le logo doit être épuré, élégant, pas chargé. Peu de couleurs (1-2 + noir/gris), peu de formes.
 - LIGNES FINES : privilégie les traits fins (stroke-width 1-3), les formes ouvertes, l'espace négatif. Pas de formes pleines massives.
 - PAS DE DÉGRADÉS LOURDS : couleurs aplat ou un seul dégradé très subtil maximum. Pas d'effets 3D, pas d'ombres, pas de textures.
 - TYPOGRAPHIE : si du texte est inclus, utilise <text> avec font-family="Georgia, 'Times New Roman', serif" pour un style élégant, ou font-family="'Helvetica Neue', Arial, sans-serif" pour un style moderne. Espacement des lettres avec letter-spacing="2" à "6" pour un rendu aéré.
 - COMPOSITION AÉRÉE : laisse de l'espace autour des éléments, ne remplis pas tout le viewBox. Le logo doit respirer.
-- PROFESSIONNEL : le résultat doit ressembler à un vrai logo de promoteur immobilier ou d'entreprise haut de gamme, pas à un clipart ou une illustration enfantine.
+- PROFESSIONNEL : le résultat doit ressembler à un vrai logo d'entreprise haut de gamme, pas à un clipart ou une illustration enfantine.
+- PAS DE SECTEUR SUR LE LOGO : n'écris JAMAIS le nom du secteur d'activité, le métier ou la catégorie professionnelle sur le logo. Seul le nom de l'entreprise (et éventuellement un slogan si demandé) doit apparaître en texte.
 
 RÈGLES SVG :
 - viewBox="0 0 500 500", xmlns="http://www.w3.org/2000/svg"
@@ -466,15 +474,29 @@ ${description}`);
                             </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Couleurs préférées</label>
-                            <input
-                                type="text"
-                                value={colors}
-                                onChange={(e) => setColors(e.target.value)}
-                                placeholder="Ex: bleu marine, doré"
-                                className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                            />
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Couleurs préférées</label>
+                                <input
+                                    type="text"
+                                    value={colors}
+                                    onChange={(e) => setColors(e.target.value)}
+                                    placeholder="Ex: bleu marine, doré"
+                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Formes / Icônes</label>
+                                <select
+                                    value={shapeFill}
+                                    onChange={(e) => setShapeFill(e.target.value as 'auto' | 'filled' | 'outline')}
+                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="auto">Auto (laisser l'IA décider)</option>
+                                    <option value="filled">Remplies (couleur de fond)</option>
+                                    <option value="outline">Contours uniquement</option>
+                                </select>
+                            </div>
                         </div>
 
                         {/* Mode itération / nouveau logo */}
