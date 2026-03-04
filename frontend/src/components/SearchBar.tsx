@@ -20,13 +20,16 @@ export function SearchBar({ onSelectAddress }: SearchBarProps) {
     enabled: debouncedQuery.length >= 3,
   })
 
+  const [selectedLabel, setSelectedLabel] = useState('')
+
   useEffect(() => {
-    if (results && results.length > 0) {
+    if (results && results.length > 0 && query !== selectedLabel) {
       setIsOpen(true)
     }
-  }, [results])
+  }, [results, query, selectedLabel])
 
   const handleSelect = (address: AddressResult) => {
+    setSelectedLabel(address.label)
     setQuery(address.label)
     setIsOpen(false)
     onSelectAddress(address)
@@ -44,7 +47,7 @@ export function SearchBar({ onSelectAddress }: SearchBarProps) {
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); setSelectedLabel('') }}
           onFocus={() => results && results.length > 0 && setIsOpen(true)}
           placeholder="Rechercher une adresse..."
           className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
