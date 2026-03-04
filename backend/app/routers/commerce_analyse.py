@@ -36,7 +36,6 @@ def _get_api_key(db: Session, db_key: str, env_key: str) -> str | None:
 PROMPT_ANALYSE = """Tu es un expert en analyse de devis de CONSTRUCTION (BTP). Analyse et compare ces {n} devis joints.
 
 IMPORTANT : Il y a exactement {n} documents/devis distincts. Tu DOIS créer {n} entrées dans le tableau "devis", une par document.
-Extrais TOUTES les lignes de chaque devis dans postes_travaux, sans exception.
 
 Fournis l'analyse au format JSON suivant EXACTEMENT :
 
@@ -63,13 +62,10 @@ Fournis l'analyse au format JSON suivant EXACTEMENT :
       "validite_offre": "Validité ou null",
       "postes_travaux": [
         {{
-          "numero": "1",
-          "corps_etat": "Corps d'état",
-          "description": "Description courte",
-          "unite": "m²",
-          "quantite": 100,
-          "prix_unitaire_ht": 45.00,
-          "prix_total_ht": 4500.00
+          "corps_etat": "GROS OEUVRE",
+          "description": "Fondations, maçonnerie, structure béton...",
+          "nb_lignes": 12,
+          "prix_total_ht": 145000.00
         }}
       ]
     }}
@@ -117,11 +113,11 @@ RÈGLES ABSOLUES :
 - Guillemets doubles uniquement, pas de commentaires
 - null pour toute valeur absente
 - TOUS les montants en NOMBRES (pas de chaînes) : 45000.00 et non "45 000,00 €"
-- postes_travaux : TOUTES les lignes de chaque devis, sans exception
+- postes_travaux : REGROUPER par corps d'état / lot. Chaque entrée = un corps d'état avec : corps_etat, description (résumé des travaux), nb_lignes (nombre de lignes dans ce lot), prix_total_ht (somme HT de ce lot). NE PAS lister chaque ligne individuellement.
 - comparaison_postes : regrouper par CORPS D'ÉTAT / LOT (un par entrée), PAS ligne par ligne. Le total par_devis = somme HT de ce lot pour ce devis. Trier par total décroissant. negocier=true si écart >5%
-- corps_etat : normaliser les noms identiquement entre tous les devis
+- corps_etat : normaliser les noms identiquement entre tous les devis (ex: "GROS OEUVRE" partout, pas "Gros œuvre" vs "GO")
 - verification_totaux : somme de tous les postes_travaux.prix_total_ht vs prix_total_ht déclaré. concordance=true si écart < 1%
-- PRIORITÉ : d'abord les {n} devis complets, puis comparaison_postes, puis verification_totaux
+- PRIORITÉ DE PRODUCTION : d'abord les {n} devis complets (avec postes groupés), puis comparaison_postes, puis verification_totaux. ASSURE-TOI de produire les {n} devis AVANT de passer à comparaison_postes.
 """
 
 
