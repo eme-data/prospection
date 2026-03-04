@@ -34,6 +34,7 @@ def _get_api_key(db: Session, db_key: str, env_key: str) -> str | None:
 
 PROMPT_ANALYSE = """Tu es un expert en analyse de devis de CONSTRUCTION (BTP). Analyse et compare ces {n} devis joints.
 
+IMPORTANT : Il y a exactement {n} documents/devis distincts. Tu DOIS créer {n} entrées dans le tableau "devis", une par document.
 Extrais TOUTES les lignes de chaque devis, sans exception, sans filtrage.
 
 Fournis l'analyse au format JSON suivant EXACTEMENT (sois concis dans les descriptions) :
