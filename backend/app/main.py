@@ -34,6 +34,7 @@ from app.models.user import Base
 from app.models import analyse_devis as _m_analyse_devis  # noqa: F401
 from app.models import logo as _m_logo  # noqa: F401
 from app.models import faisabilite as _m_faisabilite  # noqa: F401
+from app.models import sentiment as _m_sentiment  # noqa: F401
 
 from app.routers import (
     auth,
@@ -62,6 +63,7 @@ from app.routers.scoring import router as scoring_router
 from app.routers.prospection_routes import router as prospection_router
 from app.routers.fiches_routes import router as fiches_router
 from app.routers.secondary_brain import router as secondary_brain_router
+from app.routers.sentiment import router as sentiment_router
 
 setup_logging()
 logger = get_logger(__name__)
@@ -212,3 +214,4 @@ app.include_router(reports_router, dependencies=protected)
 app.include_router(scoring_router, dependencies=protected)
 app.include_router(prospection_router, dependencies=protected)
 app.include_router(fiches_router, dependencies=protected)
+app.include_router(sentiment_router, prefix="/api", dependencies=protected)

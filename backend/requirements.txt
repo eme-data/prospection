@@ -55,6 +55,10 @@ groq
 anthropic>=0.40.0
 json-repair>=0.28.0
 
+# Sentiment Analysis (Module Communication)
+# newsapi-python and tweepy are NOT required — we use httpx for direct API calls
+# Keys: NEWSAPI_KEY (newsapi.org), TWITTER_BEARER_TOKEN (optional)
+
 # Excel Manipulation (Module Commerce)
 pandas>=2.0.0
 openpyxl>=3.1.0

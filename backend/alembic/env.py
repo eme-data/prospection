@@ -25,6 +25,7 @@ from app.models import settings as app_settings_model  # noqa: F401
 from app.models import analyse_devis  # noqa: F401
 from app.models import logo           # noqa: F401
 from app.models import faisabilite    # noqa: F401
+from app.models import sentiment      # noqa: F401
 
 # Config Alembic (depuis alembic.ini)
 config = context.config

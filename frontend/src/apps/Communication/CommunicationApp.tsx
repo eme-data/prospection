@@ -1,7 +1,8 @@
 import React from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import { MessageSquare, Layout, Paintbrush, ArrowLeft, Home } from 'lucide-react';
+import { MessageSquare, Layout, Paintbrush, ArrowLeft, Home, BarChart3 } from 'lucide-react';
 import { LogoCreator } from './LogoCreator';
+import { SentimentAnalysisPage } from './SentimentAnalysis';
 
 const CommunicationDashboard: React.FC = () => {
     const navigate = useNavigate();
@@ -23,7 +24,7 @@ const CommunicationDashboard: React.FC = () => {
                 </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto mt-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto mt-12">
                 {/* Réseaux Sociaux Card */}
                 <button
                     onClick={() => navigate('/communication/reseaux-sociaux')}
@@ -51,6 +52,21 @@ const CommunicationDashboard: React.FC = () => {
                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Création de Logo</h3>
                     <p className="text-gray-500 dark:text-gray-400 text-center text-lg">
                         Générez des logos SVG vectoriels sur mesure grâce à l'Intelligence Artificielle.
+                    </p>
+                </button>
+
+                {/* Analyse Sentiments Card */}
+                <button
+                    onClick={() => navigate('/communication/sentiments')}
+                    className="flex flex-col items-center p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 hover:border-violet-500 hover:ring-2 hover:ring-violet-500 hover:ring-opacity-50 transition-all duration-200 group text-left w-full relative overflow-hidden"
+                >
+                    <div className="absolute top-0 left-0 w-2 h-full bg-violet-500"></div>
+                    <div className="p-4 bg-violet-50 dark:bg-violet-900/30 rounded-xl mb-6 group-hover:scale-110 transition-transform duration-200">
+                        <BarChart3 className="w-10 h-10 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Analyse de Sentiments</h3>
+                    <p className="text-gray-500 dark:text-gray-400 text-center text-lg">
+                        Analysez le sentiment autour d'un sujet sur le web et les réseaux sociaux.
                     </p>
                 </button>
             </div>
@@ -172,6 +188,7 @@ export const CommunicationApp: React.FC = () => {
                     <Route path="/" element={<CommunicationDashboard />} />
                     <Route path="/reseaux-sociaux/*" element={<AutopostIntegration />} />
                     <Route path="/creation-logo" element={<div className="py-8"><LogoCreator /></div>} />
+                    <Route path="/sentiments" element={<SentimentAnalysisPage />} />
                 </Routes>
             </main>
         </div>
