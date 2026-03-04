@@ -303,11 +303,11 @@ export function MapView({
           )
         })()}
 
-        {/* Couche PLU (en dessous des parcelles) */}
+        {/* Couche PLU (en dessous des parcelles via l'ordre JSX) */}
         {activeLayers.has('plu') && pluZones && pluZones.features.length > 0 && (
           <Source id="plu" type="geojson" data={pluZones}>
-            <Layer {...pluFillLayer} beforeId={activeLayers.has('parcelles') ? 'parcelles-fill' : undefined} />
-            <Layer {...pluLineLayer} beforeId={activeLayers.has('parcelles') ? 'parcelles-fill' : undefined} />
+            <Layer {...pluFillLayer} />
+            <Layer {...pluLineLayer} />
           </Source>
         )}
 
