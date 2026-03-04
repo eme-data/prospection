@@ -296,13 +296,17 @@ async def analyze_quotes(
                 content_parts.append({"type": "text", "text": prompt})
 
                 claude_client = anthropic.Anthropic(api_key=anthropic_key)
-                message = await asyncio.to_thread(
-                    claude_client.messages.create,
-                    model="claude-sonnet-4-6",
-                    max_tokens=32768,
-                    messages=[{"role": "user", "content": content_parts}],
-                )
-                analysis_data = _parse_json_response(message.content[0].text)
+
+                def _stream_analysis():
+                    with claude_client.messages.stream(
+                        model="claude-sonnet-4-6",
+                        max_tokens=32768,
+                        messages=[{"role": "user", "content": content_parts}],
+                    ) as stream:
+                        return stream.get_final_text()
+
+                raw_text = await asyncio.to_thread(_stream_analysis)
+                analysis_data = _parse_json_response(raw_text)
                 return {
                     "success": True,
                     "analysis": analysis_data,
@@ -532,13 +536,17 @@ async def analyze_negociation(
 
     try:
         claude_client = anthropic.Anthropic(api_key=anthropic_key)
-        message = await asyncio.to_thread(
-            claude_client.messages.create,
-            model="claude-sonnet-4-6",
-            max_tokens=8192,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        negociation_data = _parse_json_response(message.content[0].text)
+
+        def _stream_negociation():
+            with claude_client.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=8192,
+                messages=[{"role": "user", "content": prompt}],
+            ) as stream:
+                return stream.get_final_text()
+
+        raw_text = await asyncio.to_thread(_stream_negociation)
+        negociation_data = _parse_json_response(raw_text)
         return {
             "success": True,
             "negociation": negociation_data,
