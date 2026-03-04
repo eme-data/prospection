@@ -16,6 +16,7 @@ import {
 import { ProspectionBadge } from './ProspectionBadge'
 import { ActivityTimeline } from './ActivityTimeline'
 import { ActivityForm } from './ActivityForm'
+import { fetchJSON } from '../api'
 import type { Parcelle, ProspectionInfo, StatutProspection, Activity, Project } from '../types'
 
 interface ProspectionPanelProps {
@@ -36,12 +37,12 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
   const { data: prospection, isLoading } = useQuery({
     queryKey: ['prospection', parcelleId],
     queryFn: async () => {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection/${parcelleId}`
-      )
-      if (response.status === 404) return null
-      if (!response.ok) throw new Error('Erreur lors du chargement')
-      return response.json() as Promise<ProspectionInfo>
+      try {
+        return await fetchJSON<ProspectionInfo>(`/api/prospection/${parcelleId}`, { silent: true })
+      } catch (e: any) {
+        if (e.message?.includes('404')) return null
+        throw e
+      }
     },
   })
 
@@ -49,16 +50,11 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
   const createMutation = useMutation({
     mutationFn: async (data: Partial<ProspectionInfo> & { projectIdToJoin?: string }) => {
       const { projectIdToJoin, ...rest } = data
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parcelleId, ...rest }),
-        }
-      )
-      if (!response.ok) throw new Error('Erreur lors de la création')
-      const created = await response.json()
+      const created = await fetchJSON<ProspectionInfo>('/api/prospection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parcelleId, ...rest }),
+      })
       if (projectIdToJoin) {
         onChangeProject(parcelleId, projectIdToJoin)
       }
@@ -72,16 +68,11 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
   // Mutation pour mettre à jour le statut
   const updateStatutMutation = useMutation({
     mutationFn: async (data: { statut: StatutProspection; notes?: string }) => {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection/${parcelleId}/statut`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }
-      )
-      if (!response.ok) throw new Error('Erreur lors de la mise à jour')
-      return response.json()
+      return fetchJSON(`/api/prospection/${parcelleId}/statut`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospection', parcelleId] })
@@ -96,16 +87,11 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
       email?: string
       notes?: string
     }) => {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection/${parcelleId}/contact`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        }
-      )
-      if (!response.ok) throw new Error('Erreur lors de la mise à jour')
-      return response.json()
+      return fetchJSON(`/api/prospection/${parcelleId}/contact`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospection', parcelleId] })
@@ -115,16 +101,11 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
   // Mutation pour ajouter une note
   const addNoteMutation = useMutation({
     mutationFn: async (notes: string) => {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL ?? 'http://localhost:8000'}/api/prospection/${parcelleId}/notes`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ notes }),
-        }
-      )
-      if (!response.ok) throw new Error('Erreur lors de l\'ajout')
-      return response.json()
+      return fetchJSON(`/api/prospection/${parcelleId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes }),
+      })
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['prospection', parcelleId] })
