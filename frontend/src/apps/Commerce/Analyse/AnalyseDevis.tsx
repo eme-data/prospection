@@ -48,8 +48,9 @@ function formatSeconds(s: number): string {
 
 // ── Helpers montants ─────────────────────────────────────────────────────────
 
-function parseEuro(s: string | null | undefined): number {
-    if (!s) return 0;
+function parseEuro(s: string | number | null | undefined): number {
+    if (s == null) return 0;
+    if (typeof s === 'number') return s;
     const cleaned = s.replace(/[€\s\u00a0]/g, '').replace(/\./g, '').replace(',', '.');
     const n = parseFloat(cleaned);
     return isNaN(n) ? 0 : n;
@@ -57,6 +58,13 @@ function parseEuro(s: string | null | undefined): number {
 
 function formatEuro(n: number): string {
     return n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+}
+
+/** Affiche un montant (string ou number) en format € lisible */
+function fmtAmt(v: string | number | null | undefined): string {
+    if (v == null) return '—';
+    if (typeof v === 'number') return formatEuro(v);
+    return v;
 }
 
 // ── Barre de progression ──────────────────────────────────────────────────────
@@ -142,11 +150,11 @@ interface PosteTravaux {
     corps_etat: string;
     description: string;
     unite?: string;
-    quantite: string;
-    prix_unitaire_ht?: string;
-    prix_total_ht?: string;
+    quantite: string | number;
+    prix_unitaire_ht?: string | number;
+    prix_total_ht?: string | number;
     // legacy
-    prix_total?: string;
+    prix_total?: string | number;
 }
 
 interface Devis {
@@ -157,8 +165,8 @@ interface Devis {
     telephone?: string | null;
     email?: string | null;
     assurance_decennale?: AssuranceDecennale | null;
-    prix_total_ht: string;
-    prix_total_ttc: string;
+    prix_total_ht: string | number;
+    prix_total_ttc: string | number;
     tva: string;
     delais_execution: string;
     conditions_paiement?: string | null;
@@ -169,22 +177,22 @@ interface Devis {
 interface PosteComparaison {
     libelle: string;
     corps_etat: string;
-    par_devis: Array<{ id: number | string; qte: string; pu: string; total: string }>;
-    best_qte_id: number | string;
-    best_pu_id: number | string;
-    target_ht: string;
-    ecart_qte: string;
-    ecart_pu: string;
+    par_devis: Array<{ id: number | string; qte: string | number | null; pu: string | number | null; total: string | number }>;
+    best_qte_id: number | string | null;
+    best_pu_id: number | string | null;
+    target_ht: string | number;
+    ecart_qte: string | null;
+    ecart_pu: string | null;
     negocier: boolean;
-    motif?: string;
+    motif?: string | null;
 }
 
 interface VerificationTotal {
     devis_id: number | string;
     nom_fournisseur: string;
-    total_declare_ht: string;
-    somme_postes_ht: string;
-    ecart: string;
+    total_declare_ht: string | number;
+    somme_postes_ht: string | number;
+    ecart: string | number;
     concordance: boolean;
 }
 
@@ -333,13 +341,13 @@ const DevisCard: React.FC<{
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5 flex items-center gap-1">
                             <Euro className="w-3 h-3" /> Total HT
                         </p>
-                        <p className="text-lg font-bold text-gray-900 dark:text-white">{devis.prix_total_ht}</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{fmtAmt(devis.prix_total_ht)}</p>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg px-3 py-2">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-0.5 flex items-center gap-1">
                             <Euro className="w-3 h-3" /> Total TTC
                         </p>
-                        <p className="text-lg font-bold text-gray-900 dark:text-white">{devis.prix_total_ttc}</p>
+                        <p className="text-lg font-bold text-gray-900 dark:text-white">{fmtAmt(devis.prix_total_ttc)}</p>
                     </div>
                 </div>
 
@@ -401,11 +409,11 @@ const DevisCard: React.FC<{
                                                 <td className="px-3 py-2 text-gray-600 dark:text-gray-400 max-w-[220px]">
                                                     <span title={p.description} className="line-clamp-2">{p.description}</span>
                                                 </td>
-                                                <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap">{p.quantite}</td>
+                                                <td className="px-3 py-2 text-right text-gray-700 dark:text-gray-300 whitespace-nowrap">{fmtAmt(p.quantite)}</td>
                                                 <td className="px-3 py-2 text-right text-gray-500 dark:text-gray-400 whitespace-nowrap">{p.unite ?? '—'}</td>
-                                                <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">{p.prix_unitaire_ht ?? '—'}</td>
+                                                <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-400 whitespace-nowrap">{fmtAmt(p.prix_unitaire_ht)}</td>
                                                 <td className="px-3 py-2 text-right font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-                                                    {p.prix_total_ht ?? p.prix_total ?? '—'}
+                                                    {fmtAmt(p.prix_total_ht ?? p.prix_total)}
                                                 </td>
                                             </tr>
                                         ))}
@@ -500,7 +508,7 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
                 {data.prix_cible_ht && (
                     <div className="text-right">
                         <p className="text-xs text-gray-500 dark:text-gray-400">Prix cible (best qté × best PU)</p>
-                        <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{data.prix_cible_ht}</p>
+                        <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{fmtAmt(data.prix_cible_ht)}</p>
                     </div>
                 )}
             </div>
@@ -557,19 +565,19 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
                                             return (
                                                 <React.Fragment key={d.id}>
                                                     <td className={`px-3 py-2 text-right whitespace-nowrap ${isBestQte ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>
-                                                        {entry?.qte ?? '—'}
+                                                        {fmtAmt(entry?.qte)}
                                                     </td>
                                                     <td className={`px-3 py-2 text-right whitespace-nowrap ${isBestPu ? 'text-emerald-700 dark:text-emerald-400 font-bold' : 'text-gray-600 dark:text-gray-400'}`}>
-                                                        {entry?.pu ?? '—'}
+                                                        {fmtAmt(entry?.pu)}
                                                     </td>
                                                     <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-gray-700 dark:text-gray-300">
-                                                        {entry?.total ?? '—'}
+                                                        {fmtAmt(entry?.total)}
                                                     </td>
                                                 </React.Fragment>
                                             );
                                         })}
                                         <td className="px-3 py-2 text-right font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">
-                                            {poste.target_ht}
+                                            {fmtAmt(poste.target_ht)}
                                         </td>
                                         <td className="px-3 py-2 text-center">
                                             {poste.negocier && (
@@ -618,10 +626,11 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
                                     <td className="px-3 py-2.5 text-right text-sm font-extrabold text-gray-900 dark:text-white whitespace-nowrap">
                                         {formatEuro(gt.total)}
                                     </td>
+
                                 </React.Fragment>
                             ))}
                             <td className="px-3 py-2.5 text-right text-sm font-extrabold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
-                                {data.prix_cible_ht ?? formatEuro(grandTotalTarget)}
+                                {data.prix_cible_ht != null ? fmtAmt(data.prix_cible_ht) : formatEuro(grandTotalTarget)}
                             </td>
                             <td />
                         </tr>
@@ -652,16 +661,16 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
                                 <div className="text-xs space-y-1">
                                     <div className="flex justify-between">
                                         <span className="text-gray-500 dark:text-gray-400">Total déclaré HT :</span>
-                                        <span className="font-medium text-gray-700 dark:text-gray-300">{v.total_declare_ht}</span>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300">{fmtAmt(v.total_declare_ht)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-gray-500 dark:text-gray-400">Somme postes extraits :</span>
-                                        <span className="font-medium text-gray-700 dark:text-gray-300">{v.somme_postes_ht}</span>
+                                        <span className="font-medium text-gray-700 dark:text-gray-300">{fmtAmt(v.somme_postes_ht)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-gray-500 dark:text-gray-400">Écart :</span>
                                         <span className={`font-bold ${v.concordance ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                                            {v.ecart}
+                                            {fmtAmt(v.ecart)}
                                         </span>
                                     </div>
                                 </div>
@@ -688,7 +697,7 @@ const ComparaisonPostes: React.FC<{ data: AnalysisData }> = ({ data }) => {
                                     {p.corps_etat && <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">({p.corps_etat})</span>}
                                     {p.motif && <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">{p.motif}</p>}
                                     <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
-                                        Meilleure qté : <strong>{getDevisName(p.best_qte_id)}</strong> · Meilleur PU : <strong>{getDevisName(p.best_pu_id)}</strong>
+                                        Meilleure qté : <strong>{p.best_qte_id != null ? getDevisName(p.best_qte_id) : '—'}</strong> · Meilleur PU : <strong>{p.best_pu_id != null ? getDevisName(p.best_pu_id) : '—'}</strong>
                                     </p>
                                 </div>
                             </div>
@@ -720,7 +729,7 @@ const NegociationPanel: React.FC<{ data: NegociationResult }> = ({ data }) => {
                 </h3>
                 <div className="text-right">
                     <p className="text-xs text-gray-500 dark:text-gray-400">Prix actuel</p>
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">{data.prestataire_selectionne.prix_total_ht}</p>
+                    <p className="text-lg font-bold text-gray-900 dark:text-white">{fmtAmt(data.prestataire_selectionne.prix_total_ht)}</p>
                 </div>
             </div>
 
@@ -735,7 +744,7 @@ const NegociationPanel: React.FC<{ data: NegociationResult }> = ({ data }) => {
                 <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-xl p-5 flex flex-col items-center justify-center">
                     <TrendingDown className="w-6 h-6 text-emerald-500 mb-2" />
                     <p className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">Objectif prix HT</p>
-                    <p className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{data.objectif_prix_ht}</p>
+                    <p className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-300">{fmtAmt(data.objectif_prix_ht)}</p>
                     <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
                         -{data.economie_potentielle.pourcentage}
                         <span className="text-xs font-normal ml-1">({data.economie_potentielle.montant})</span>
@@ -885,10 +894,10 @@ function exportToPDF(data: AnalysisData) {
                 <td style="padding:4px 8px;color:#9ca3af;border-bottom:1px solid #f3f4f6">${p.numero ?? pi + 1}</td>
                 <td style="padding:4px 8px;font-weight:500;border-bottom:1px solid #f3f4f6">${p.corps_etat}</td>
                 <td style="padding:4px 8px;color:#4b5563;border-bottom:1px solid #f3f4f6">${p.description}</td>
-                <td style="padding:4px 8px;text-align:right;border-bottom:1px solid #f3f4f6">${p.quantite}</td>
+                <td style="padding:4px 8px;text-align:right;border-bottom:1px solid #f3f4f6">${fmtAmt(p.quantite)}</td>
                 <td style="padding:4px 8px;text-align:right;color:#6b7280;border-bottom:1px solid #f3f4f6">${p.unite ?? '—'}</td>
-                <td style="padding:4px 8px;text-align:right;color:#6b7280;border-bottom:1px solid #f3f4f6">${p.prix_unitaire_ht ?? '—'}</td>
-                <td style="padding:4px 8px;text-align:right;font-weight:600;border-bottom:1px solid #f3f4f6">${p.prix_total_ht ?? p.prix_total ?? '—'}</td>
+                <td style="padding:4px 8px;text-align:right;color:#6b7280;border-bottom:1px solid #f3f4f6">${fmtAmt(p.prix_unitaire_ht)}</td>
+                <td style="padding:4px 8px;text-align:right;font-weight:600;border-bottom:1px solid #f3f4f6">${fmtAmt(p.prix_total_ht ?? p.prix_total)}</td>
             </tr>`).join('');
 
         return `
@@ -924,11 +933,11 @@ function exportToPDF(data: AnalysisData) {
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
                     <div style="background:#f9fafb;border-radius:8px;padding:10px 14px">
                         <p style="font-size:11px;color:#6b7280;margin:0 0 2px">Total HT</p>
-                        <p style="font-size:18px;font-weight:700;color:#111827;margin:0">${devis.prix_total_ht}</p>
+                        <p style="font-size:18px;font-weight:700;color:#111827;margin:0">${fmtAmt(devis.prix_total_ht)}</p>
                     </div>
                     <div style="background:#f9fafb;border-radius:8px;padding:10px 14px">
                         <p style="font-size:11px;color:#6b7280;margin:0 0 2px">Total TTC</p>
-                        <p style="font-size:18px;font-weight:700;color:#111827;margin:0">${devis.prix_total_ttc}</p>
+                        <p style="font-size:18px;font-weight:700;color:#111827;margin:0">${fmtAmt(devis.prix_total_ttc)}</p>
                     </div>
                 </div>
                 <div style="font-size:12px;color:#4b5563;margin-bottom:12px">
@@ -985,14 +994,14 @@ function exportToPDF(data: AnalysisData) {
                     const isBestQte = String(poste.best_qte_id) === String(d.id);
                     const isBestPu  = String(poste.best_pu_id)  === String(d.id);
                     return `
-                        <td style="padding:4px 8px;text-align:right;font-weight:${isBestQte?'700':'400'};color:${isBestQte?'#166534':'#374151'}">${entry?.qte??'—'}</td>
-                        <td style="padding:4px 8px;text-align:right;font-weight:${isBestPu?'700':'400'};color:${isBestPu?'#166534':'#374151'}">${entry?.pu??'—'}</td>
-                        <td style="padding:4px 8px;text-align:right;font-weight:500;color:#374151">${entry?.total??'—'}</td>`;
+                        <td style="padding:4px 8px;text-align:right;font-weight:${isBestQte?'700':'400'};color:${isBestQte?'#166534':'#374151'}">${fmtAmt(entry?.qte)}</td>
+                        <td style="padding:4px 8px;text-align:right;font-weight:${isBestPu?'700':'400'};color:${isBestPu?'#166534':'#374151'}">${fmtAmt(entry?.pu)}</td>
+                        <td style="padding:4px 8px;text-align:right;font-weight:500;color:#374151">${fmtAmt(entry?.total)}</td>`;
                 }).join('');
                 bodyRows += `<tr style="background:${poste.negocier?'#fffbeb':'#fff'};border-bottom:1px solid #f3f4f6">
                     <td style="padding:4px 8px;font-weight:500">${poste.libelle}</td>
                     ${cellsDevis}
-                    <td style="padding:4px 8px;text-align:right;font-weight:700;color:#166534">${poste.target_ht}</td>
+                    <td style="padding:4px 8px;text-align:right;font-weight:700;color:#166534">${fmtAmt(poste.target_ht)}</td>
                     <td style="padding:4px 8px;text-align:center">${poste.negocier?'<span style="background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:999px;font-size:10px;font-weight:600">À négo.</span>':''}</td>
                 </tr>`;
             }
@@ -1038,9 +1047,9 @@ function exportToPDF(data: AnalysisData) {
                 <tbody>${data.verification_totaux!.map(v => `
                     <tr style="border-bottom:1px solid #f3f4f6">
                         <td style="padding:4px 8px;font-weight:500">${v.nom_fournisseur}</td>
-                        <td style="padding:4px 8px;text-align:right">${v.total_declare_ht}</td>
-                        <td style="padding:4px 8px;text-align:right">${v.somme_postes_ht}</td>
-                        <td style="padding:4px 8px;text-align:right;color:${v.concordance?'#166534':'#dc2626'};font-weight:600">${v.ecart}</td>
+                        <td style="padding:4px 8px;text-align:right">${fmtAmt(v.total_declare_ht)}</td>
+                        <td style="padding:4px 8px;text-align:right">${fmtAmt(v.somme_postes_ht)}</td>
+                        <td style="padding:4px 8px;text-align:right;color:${v.concordance?'#166534':'#dc2626'};font-weight:600">${fmtAmt(v.ecart)}</td>
                         <td style="padding:4px 8px;text-align:center;font-size:14px;color:${v.concordance?'#166534':'#dc2626'}">${v.concordance?'✓':'✗'}</td>
                     </tr>`).join('')}
                 </tbody>
@@ -1067,7 +1076,7 @@ function exportToPDF(data: AnalysisData) {
             <tfoot><tr style="background:#f0fdf4;border-top:2px solid #86efac">
                 <td style="padding:6px 8px;font-weight:700;color:#166534">TOTAL GÉNÉRAL</td>
                 ${grandCells}
-                <td style="padding:6px 8px;text-align:right;font-size:14px;font-weight:800;color:#166534">${data.prix_cible_ht ?? formatEuro(grandTarget)}</td>
+                <td style="padding:6px 8px;text-align:right;font-size:14px;font-weight:800;color:#166534">${data.prix_cible_ht != null ? fmtAmt(data.prix_cible_ht) : formatEuro(grandTarget)}</td>
                 <td></td>
             </tr></tfoot>
         </table></div>
