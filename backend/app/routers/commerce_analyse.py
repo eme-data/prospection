@@ -328,7 +328,6 @@ async def analyze_quotes(
         # ── 2. Ollama (local) — fallback optionnel ────────────────────────────
         try:
             logger.info("Attempting analysis with local Ollama (llama3.2)")
-            import httpx
 
             ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
             if not ollama_url.startswith("http"):
