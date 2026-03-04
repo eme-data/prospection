@@ -37,13 +37,16 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
   const { data: prospection, isLoading } = useQuery({
     queryKey: ['prospection', parcelleId],
     queryFn: async () => {
-      try {
-        return await fetchJSON<ProspectionInfo>(`/api/prospection/${parcelleId}`, { silent: true })
-      } catch (e: any) {
-        if (e.message?.includes('404')) return null
-        throw e
-      }
+      // Fetch avec auth mais gestion manuelle du 404
+      const token = localStorage.getItem('prospection_token')
+      const response = await fetch(`/api/prospection/${parcelleId}`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      })
+      if (response.status === 404) return null
+      if (!response.ok) throw new Error(`Erreur ${response.status}`)
+      return response.json() as Promise<ProspectionInfo>
     },
+    retry: false,
   })
 
   // Mutation pour créer une prospection
@@ -151,6 +154,8 @@ export function ProspectionPanel({ parcelle, onClose, projects, selectedProjectI
         {!prospection ? (
           <InitialProspectionForm
             onCreate={createMutation.mutate}
+            isCreating={createMutation.isPending}
+            createError={createMutation.error?.message || null}
             projects={projects}
             selectedProjectId={selectedProjectId}
           />
@@ -287,10 +292,14 @@ function ProjectAssociationSection({
 // Formulaire initial pour créer une prospection
 function InitialProspectionForm({
   onCreate,
+  isCreating,
+  createError,
   projects,
   selectedProjectId,
 }: {
   onCreate: (data: Partial<ProspectionInfo> & { projectIdToJoin?: string }) => void
+  isCreating?: boolean
+  createError?: string | null
   projects?: Project[]
   selectedProjectId?: string | null
 }) {
@@ -358,11 +367,17 @@ function InitialProspectionForm({
             placeholder="Notes sur cette parcelle..."
           />
         </div>
+        {createError && (
+          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-700 dark:text-red-300">
+            Erreur : {createError}
+          </div>
+        )}
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          disabled={isCreating}
+          className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Créer la fiche
+          {isCreating ? 'Création en cours...' : 'Créer la fiche'}
         </button>
       </form>
     </div>
