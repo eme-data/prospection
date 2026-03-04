@@ -276,8 +276,6 @@ export function FaisabiliteApp() {
     }
     : null
 
-  const AUTO_PROJECT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
-
   const handleSelectAddress = useCallback((address: AddressResult) => {
     setSelectedAddress(address)
     setViewState({
@@ -290,17 +288,17 @@ export function FaisabiliteApp() {
     }
 
     // Créer automatiquement un projet pour la ville si aucun n'existe
-    if (address.city) {
-      const cityName = address.city
+    // Extraire le nom de ville : address.city, ou fallback depuis le label
+    const cityName = address.city || address.label?.split(',')[0]?.trim()
+    if (cityName) {
+      const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
       setProjects(prev => {
-        const existing = prev.find(p => p.name === cityName && p.status === 'active')
+        const existing = prev.find(p => p.name.toLowerCase() === cityName.toLowerCase() && p.status === 'active')
         if (existing) {
-          // Sélectionner le projet existant
           setSelectedProjectId(existing.id)
           return prev
         }
-        // Créer un nouveau projet pour la ville
-        const color = AUTO_PROJECT_COLORS[prev.length % AUTO_PROJECT_COLORS.length]
+        const color = colors[prev.length % colors.length]
         const newProject: Project = {
           id: `tmp-${Date.now()}`,
           name: cityName,
@@ -314,7 +312,6 @@ export function FaisabiliteApp() {
         const next = [newProject, ...prev]
         localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next))
         setSelectedProjectId(newProject.id)
-        // Persister en DB et remplacer l'id temporaire par l'UUID
         apiCreateProj({ name: newProject.name, description: newProject.description, color: newProject.color, status: 'active', parcelles_json: [] })
           .then(apiProj => {
             setProjects(p => {
@@ -344,7 +341,6 @@ export function FaisabiliteApp() {
     })
     apiAddHist({ query: address.label, address_json: address, filters_json: Object.keys(filters).length > 0 ? filters : undefined })
       .then(res => {
-        // Remplace le local id par l'UUID de l'API pour les suppressions futures
         setSearchHistory(prev => prev.map(h => h.id === historyItem.id ? { ...h, id: res.id } : h))
       })
       .catch(() => {})
