@@ -33,7 +33,7 @@ export const LogoCreator: React.FC = () => {
     const [provider, setProvider] = useState('claude');
     const [companyName, setCompanyName] = useState('');
     const [industry, setIndustry] = useState('');
-    const [style, setStyle] = useState('moderne');
+    const [style, setStyle] = useState('icone-texte');
     const [colors, setColors] = useState('');
     const [description, setDescription] = useState('');
 
@@ -94,36 +94,50 @@ export const LogoCreator: React.FC = () => {
 
     const buildPrompt = () => {
         const colorDirective = colors
-            ? `Palette imposée : ${colors}.`
-            : 'Choisis une palette harmonieuse de 2-4 couleurs adaptée au secteur.';
+            ? `Couleurs imposées : ${colors}. Utilise UNIQUEMENT ces couleurs (+ noir/gris pour le texte si besoin).`
+            : 'Choisis 1 à 2 couleurs sobres et élégantes adaptées au secteur (tons naturels, bleu marine, vert sapin, taupe, terracotta, doré…). Évite les couleurs vives ou saturées.';
 
         const sectorDirective = industry
-            ? `Secteur : ${industry}. Intègre un symbole/icône évocateur de ce secteur.`
+            ? `Secteur : ${industry}.`
             : '';
 
+        const styleGuides: Record<string, string> = {
+            'typographique': 'Style typographique : le logo repose sur un jeu de lettres créatif (monogramme, ligature, lettrine stylisée). La ou les premières lettres du nom forment le symbole principal. Typographie élégante avec empattements fins ou sans-serif épuré. Peut inclure un petit élément décoratif subtil (trait, arc, vague).',
+            'icone-texte': 'Style icône + texte : une icône minimaliste simple (quelques traits/formes) au-dessus ou à gauche du nom écrit en dessous. L\'icône doit être sobre, reconnaissable, en lien avec l\'activité. Le nom est en typographie claire et lisible.',
+            'symbole-pur': 'Style symbole pur : uniquement un pictogramme/symbole, sans aucun texte. Formes géométriques épurées, traits fins, design très minimaliste. Doit être identifiable en petit format.',
+            'forme-fond': 'Style avec forme en arrière-plan : le nom et/ou un symbole sont placés sur une forme douce en arrière-plan (cercle, tache organique, médaillon). La forme a une couleur atténuée ou un léger dégradé discret. Effet de superposition subtil.',
+            'elegant': 'Style élégant : typographie raffinée avec empattements, traits fins décoratifs, éventuellement une lettrine ornée. Rendu haut de gamme et sobre. Couleurs neutres ou dorées.',
+        };
+
+        const styleDirective = styleGuides[style] || styleGuides['icone-texte'];
+
         const parts = [
-`Génère un logo professionnel SVG pour "${companyName}".`,
-sectorDirective,
-`Style : ${style}.`,
-colorDirective,
-`
-COMPOSITION DU LOGO :
-- Crée un pictogramme/icône reconnaissable et en lien avec l'activité ou le nom, construit avec des <path> et des formes géométriques soignées.
-- Utilise des dégradés (<linearGradient> ou <radialGradient>) pour donner du relief et de la profondeur.
-- Le logo doit être un SYMBOLE graphique fort, pas une simple illustration.
-- Par défaut, le logo ne contient PAS de texte, uniquement un symbole graphique.
+`Crée un logo SVG professionnel pour "${companyName}".
+${sectorDirective}
+
+DIRECTION ARTISTIQUE :
+${styleDirective}
+${colorDirective}
+
+PRINCIPES DE DESIGN (TRÈS IMPORTANT) :
+- SOBRIÉTÉ : le logo doit être épuré, élégant, pas chargé. Peu de couleurs (1-2 + noir/gris), peu de formes.
+- LIGNES FINES : privilégie les traits fins (stroke-width 1-3), les formes ouvertes, l'espace négatif. Pas de formes pleines massives.
+- PAS DE DÉGRADÉS LOURDS : couleurs aplat ou un seul dégradé très subtil maximum. Pas d'effets 3D, pas d'ombres, pas de textures.
+- TYPOGRAPHIE : si du texte est inclus, utilise <text> avec font-family="Georgia, 'Times New Roman', serif" pour un style élégant, ou font-family="'Helvetica Neue', Arial, sans-serif" pour un style moderne. Espacement des lettres avec letter-spacing="2" à "6" pour un rendu aéré.
+- COMPOSITION AÉRÉE : laisse de l'espace autour des éléments, ne remplis pas tout le viewBox. Le logo doit respirer.
+- PROFESSIONNEL : le résultat doit ressembler à un vrai logo de promoteur immobilier ou d'entreprise haut de gamme, pas à un clipart ou une illustration enfantine.
 
 RÈGLES SVG :
 - viewBox="0 0 500 500", xmlns="http://www.w3.org/2000/svg"
-- Définis les dégradés dans un bloc <defs> en haut
-- Pas de <image>, pas de xlink:href externe, pas de CSS externe
-- Le logo doit être lisible sur fond blanc ET fond sombre (pas de blanc pur pour les formes)
-- Si du texte est demandé, utilise <text> avec font-family="Arial, Helvetica, sans-serif", font-weight="bold", taille lisible (36-48px), bien centré et visible.
-
-FORMAT DE RÉPONSE :
-Réponds UNIQUEMENT avec le code SVG. Aucun texte avant ou après, aucun markdown, aucun commentaire.
-Commence par <svg et termine par </svg>.`,
+- Pas de <image>, pas de xlink:href, pas de CSS externe
+- Utilise <path>, <line>, <circle>, <rect>, <text>, <g>
+- Couleurs en attributs fill/stroke directs, pas de classes CSS`,
         ];
+
+        parts.push(`
+FORMAT DE RÉPONSE :
+Réponds UNIQUEMENT avec le code SVG brut. Pas de markdown, pas de texte explicatif.
+Commence directement par <svg et termine par </svg>.`);
 
         if (description) {
             parts.push(`
@@ -363,7 +377,7 @@ ${description}`);
                                 type="text"
                                 value={companyName}
                                 onChange={(e) => setCompanyName(e.target.value)}
-                                placeholder="Ex: TechCorp"
+                                placeholder="Ex: Résidence Les Moulineaux"
                                 className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                             />
                         </div>
@@ -377,10 +391,16 @@ ${description}`);
                                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                 >
                                     <option value="">Sélectionner...</option>
+                                    <option value="immobilier résidentiel">Immobilier résidentiel</option>
+                                    <option value="promotion immobilière">Promotion immobilière</option>
+                                    <option value="construction / BTP">Construction / BTP</option>
+                                    <option value="architecture">Architecture</option>
+                                    <option value="hôtellerie / résidence de tourisme">Hôtellerie / Tourisme</option>
+                                    <option value="finance / investissement">Finance</option>
                                     <option value="technologie">Technologie</option>
-                                    <option value="immobilier">Immobilier / BTP</option>
-                                    <option value="finance">Finance</option>
                                     <option value="restauration">Restauration</option>
+                                    <option value="santé / bien-être">Santé / Bien-être</option>
+                                    <option value="commerce">Commerce</option>
                                 </select>
                             </div>
                             <div>
@@ -390,11 +410,11 @@ ${description}`);
                                     onChange={(e) => setStyle(e.target.value)}
                                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                 >
-                                    <option value="moderne">Moderne & Minimaliste</option>
-                                    <option value="géométrique">Géométrique</option>
-                                    <option value="abstrait">Abstrait</option>
-                                    <option value="élégant">Élégant & Luxueux</option>
-                                    <option value="professionnel">Corporate</option>
+                                    <option value="icone-texte">Icône + Nom</option>
+                                    <option value="typographique">Typographique / Monogramme</option>
+                                    <option value="symbole-pur">Symbole pur (sans texte)</option>
+                                    <option value="forme-fond">Forme en arrière-plan</option>
+                                    <option value="elegant">Élégant / Raffiné</option>
                                 </select>
                             </div>
                         </div>
