@@ -800,6 +800,7 @@ export function FaisabiliteApp() {
           {showProspection && selectedParcelle && (
             <div className="w-[400px]">
               <ProspectionPanel
+                key={selectedParcelle.properties.id}
                 parcelle={selectedParcelle}
                 onClose={() => setShowProspection(false)}
                 projects={projects}

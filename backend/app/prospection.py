@@ -89,6 +89,7 @@ class ProspectionManager:
         Returns:
             Informations de prospection ou None
         """
+        self._load_data()  # Recharge depuis le disque (multi-worker)
         return self.prospections.get(parcelle_id)
 
     def create_prospection(
@@ -117,6 +118,7 @@ class ProspectionManager:
         if statut not in self.STATUTS:
             raise ValueError(f"Statut invalide: {statut}")
 
+        self._load_data()
         now = datetime.now().isoformat()
 
         prospection = {
@@ -170,6 +172,7 @@ class ProspectionManager:
         if nouveau_statut not in self.STATUTS:
             raise ValueError(f"Statut invalide: {nouveau_statut}")
 
+        self._load_data()
         # Créer la prospection si elle n'existe pas
         if parcelle_id not in self.prospections:
             return self.create_prospection(parcelle_id, statut=nouveau_statut, notes_contact=notes)
@@ -223,6 +226,7 @@ class ProspectionManager:
         Returns:
             Prospection mise à jour
         """
+        self._load_data()
         # Créer la prospection si elle n'existe pas
         if parcelle_id not in self.prospections:
             return self.create_prospection(
@@ -275,6 +279,7 @@ class ProspectionManager:
         Returns:
             Prospection mise à jour
         """
+        self._load_data()
         # Créer la prospection si elle n'existe pas
         if parcelle_id not in self.prospections:
             return self.create_prospection(parcelle_id, notes_contact=notes)
@@ -306,6 +311,7 @@ class ProspectionManager:
         Returns:
             True si supprimé, False sinon
         """
+        self._load_data()
         if parcelle_id in self.prospections:
             del self.prospections[parcelle_id]
             self._save_data()
@@ -329,6 +335,7 @@ class ProspectionManager:
         Returns:
             Liste des prospections
         """
+        self._load_data()
         prospections = list(self.prospections.values())
 
         # Filtrer par statut si demandé
@@ -348,6 +355,7 @@ class ProspectionManager:
         Returns:
             Statistiques globales
         """
+        self._load_data()
         total = len(self.prospections)
         stats_par_statut = {}
 
