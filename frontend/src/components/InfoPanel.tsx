@@ -68,6 +68,16 @@ export function InfoPanel({ parcelle, transaction, allParcelles, onClose, onShow
 
   const adjacentParcelles = getAdjacentParcelles()
 
+  // Highlight automatique des parcelles adjacentes à la sélection
+  useEffect(() => {
+    if (adjacentParcelles.length > 0) {
+      onHighlightParcelles?.(adjacentParcelles.map(a => a.properties.id))
+    }
+    return () => {
+      onHighlightParcelles?.([])
+    }
+  }, [parcelle?.properties?.id])
+
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -162,8 +172,7 @@ export function InfoPanel({ parcelle, transaction, allParcelles, onClose, onShow
             {adjacentParcelles.length > 0 && (
               <div
                 className="pt-3 border-t border-gray-200"
-                onMouseEnter={() => onHighlightParcelles?.(adjacentParcelles.map(a => a.properties.id))}
-                onMouseLeave={() => onHighlightParcelles?.([])}
+                onMouseLeave={() => onHighlightParcelles?.(adjacentParcelles.map(a => a.properties.id))}
               >
                 <h4 className="flex items-center gap-1.5 text-sm font-semibold text-gray-800 mb-2">
                   <Blocks className="w-4 h-4 text-blue-600" />
@@ -175,7 +184,7 @@ export function InfoPanel({ parcelle, transaction, allParcelles, onClose, onShow
                     return (
                       <div key={adj.properties.id} className="text-xs bg-blue-50/50 p-2 rounded border border-blue-100 flex justify-between items-center cursor-pointer hover:bg-orange-50 hover:border-orange-200 transition-colors"
                         onMouseEnter={() => onHighlightParcelles?.([adj.properties.id])}
-                        onMouseLeave={() => onHighlightParcelles?.(adjacentParcelles.map(a => a.properties.id))}
+                        onMouseLeave={() => onHighlightParcelles?.(adjacentParcelles.map(p => p.properties.id))}
                       >
                         <div>
                           <span className="font-semibold text-blue-900">Parcelle {adj.properties.numero}</span>
