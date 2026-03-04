@@ -18,11 +18,12 @@ from app.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Rate limiter
+# Rate limiter — swallow_errors=True pour que l'app reste disponible si Redis tombe
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[f"{settings.rate_limit_requests}/{settings.rate_limit_window}seconds"],
     storage_uri=settings.redis_url if settings.redis_url else "memory://",
+    swallow_errors=True,
 )
 
 
