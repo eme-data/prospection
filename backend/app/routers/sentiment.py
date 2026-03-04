@@ -106,6 +106,55 @@ async def collect_news(query: str, api_key: str) -> list[dict]:
         return []
 
 
+SOCIAL_SITE_MAP = {
+    "linkedin": "site:linkedin.com",
+    "instagram": "site:instagram.com",
+    "facebook": "site:facebook.com",
+}
+
+
+async def collect_social(query: str, platform: str, api_key: str, cx: str) -> list[dict]:
+    """Collect content from a social platform via Google Custom Search API."""
+    import httpx
+
+    site_filter = SOCIAL_SITE_MAP.get(platform, "")
+    search_query = f"{site_filter} {query}" if site_filter else query
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.get(
+                "https://www.googleapis.com/customsearch/v1",
+                params={
+                    "key": api_key,
+                    "cx": cx,
+                    "q": search_query,
+                    "num": 10,
+                    "lr": "lang_fr",
+                },
+            )
+        if response.status_code != 200:
+            logger.warning("Google CSE error for %s: %s", platform, response.text)
+            return []
+
+        data = response.json()
+        items = data.get("items", [])
+        return [
+            {
+                "source": platform,
+                "title": item.get("title", ""),
+                "content": (item.get("snippet") or "")[:500],
+                "url": item.get("link"),
+                "author": None,
+                "published_at": None,
+            }
+            for item in items
+            if item.get("snippet")
+        ]
+    except Exception as e:
+        logger.error("Google CSE collection failed for %s: %s", platform, e)
+        return []
+
+
 async def collect_twitter(query: str, bearer_token: str) -> list[dict]:
     """Collect tweets via Twitter API v2 recent search."""
     import httpx
@@ -224,10 +273,10 @@ async def analyze_sentiment(
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Le terme de recherche est requis.")
 
-    valid_sources = {"news", "twitter"}
+    valid_sources = {"news", "twitter", "linkedin", "instagram", "facebook"}
     sources = [s for s in request.sources if s in valid_sources]
     if not sources:
-        raise HTTPException(status_code=400, detail="Au moins une source valide est requise (news, twitter).")
+        raise HTTPException(status_code=400, detail="Au moins une source valide est requise.")
 
     # Get API keys
     from app.models.settings import SystemSettings
@@ -238,13 +287,17 @@ async def analyze_sentiment(
 
     newsapi_key = os.getenv("NEWSAPI_KEY", "")
     twitter_token = os.getenv("TWITTER_BEARER_TOKEN", "")
+    google_cse_key = os.getenv("GOOGLE_CSE_API_KEY", "")
+    google_cse_cx = os.getenv("GOOGLE_CSE_CX", "")
 
     # Collect data
     all_items: list[dict] = []
+    skipped_sources: list[str] = []
 
     if "news" in sources:
         if not newsapi_key:
             logger.warning("NEWSAPI_KEY not configured, skipping news source")
+            skipped_sources.append("news (NEWSAPI_KEY manquante)")
         else:
             news_items = await collect_news(request.query, newsapi_key)
             all_items.extend(news_items)
@@ -252,15 +305,29 @@ async def analyze_sentiment(
     if "twitter" in sources:
         if not twitter_token:
             logger.warning("TWITTER_BEARER_TOKEN not configured, skipping twitter source")
+            skipped_sources.append("twitter (TWITTER_BEARER_TOKEN manquante)")
         else:
             twitter_items = await collect_twitter(request.query, twitter_token)
             all_items.extend(twitter_items)
 
+    # Social platforms via Google Custom Search
+    social_sources = [s for s in sources if s in ("linkedin", "instagram", "facebook")]
+    if social_sources:
+        if not google_cse_key or not google_cse_cx:
+            for s in social_sources:
+                logger.warning("GOOGLE_CSE_API_KEY/CX not configured, skipping %s", s)
+                skipped_sources.append(f"{s} (GOOGLE_CSE_API_KEY/CX manquante)")
+        else:
+            for platform in social_sources:
+                social_items = await collect_social(request.query, platform, google_cse_key, google_cse_cx)
+                all_items.extend(social_items)
+
     if not all_items:
-        raise HTTPException(
-            status_code=404,
-            detail="Aucun résultat trouvé. Vérifiez vos clés API (NEWSAPI_KEY, TWITTER_BEARER_TOKEN) ou essayez un autre terme."
-        )
+        detail = "Aucun résultat trouvé."
+        if skipped_sources:
+            detail += f" Sources ignorées (clés API manquantes) : {', '.join(skipped_sources)}."
+        detail += " Vérifiez vos clés API ou essayez un autre terme."
+        raise HTTPException(status_code=404, detail=detail)
 
     # Analyze with Claude
     analysis_result = analyze_with_claude(all_items, request.query, claude_key)

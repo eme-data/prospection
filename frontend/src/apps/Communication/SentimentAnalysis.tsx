@@ -43,6 +43,9 @@ const sourceIcon = (source: string) => {
     switch (source) {
         case 'twitter': return '𝕏';
         case 'news': return '📰';
+        case 'linkedin': return '💼';
+        case 'instagram': return '📸';
+        case 'facebook': return '👥';
         case 'manual': return '📝';
         default: return '📄';
     }
@@ -52,6 +55,9 @@ const sourceLabel = (source: string) => {
     switch (source) {
         case 'twitter': return 'Twitter/X';
         case 'news': return 'Actualités';
+        case 'linkedin': return 'LinkedIn';
+        case 'instagram': return 'Instagram';
+        case 'facebook': return 'Facebook';
         case 'manual': return 'Manuel';
         default: return source;
     }
@@ -222,6 +228,9 @@ export const SentimentAnalysisPage: React.FC = () => {
     const [query, setQuery] = useState('');
     const [sourcesNews, setSourcesNews] = useState(true);
     const [sourcesTwitter, setSourcesTwitter] = useState(false);
+    const [sourcesLinkedin, setSourcesLinkedin] = useState(false);
+    const [sourcesInstagram, setSourcesInstagram] = useState(false);
+    const [sourcesFacebook, setSourcesFacebook] = useState(false);
     const [activeTab, setActiveTab] = useState<'search' | 'manual'>('search');
     const [manualTexts, setManualTexts] = useState('');
     const [manualQuery, setManualQuery] = useState('');
@@ -247,6 +256,9 @@ export const SentimentAnalysisPage: React.FC = () => {
         const sources: string[] = [];
         if (sourcesNews) sources.push('news');
         if (sourcesTwitter) sources.push('twitter');
+        if (sourcesLinkedin) sources.push('linkedin');
+        if (sourcesInstagram) sources.push('instagram');
+        if (sourcesFacebook) sources.push('facebook');
         if (sources.length === 0) { setError('Sélectionnez au moins une source.'); return; }
 
         setLoading(true);
@@ -507,6 +519,36 @@ export const SentimentAnalysisPage: React.FC = () => {
                             />
                             <span className="text-base font-bold">𝕏</span>
                             Twitter / X
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={sourcesLinkedin}
+                                onChange={e => setSourcesLinkedin(e.target.checked)}
+                                className="rounded text-violet-600 focus:ring-violet-500"
+                            />
+                            <span className="text-base">💼</span>
+                            LinkedIn
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={sourcesInstagram}
+                                onChange={e => setSourcesInstagram(e.target.checked)}
+                                className="rounded text-violet-600 focus:ring-violet-500"
+                            />
+                            <span className="text-base">📸</span>
+                            Instagram
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={sourcesFacebook}
+                                onChange={e => setSourcesFacebook(e.target.checked)}
+                                className="rounded text-violet-600 focus:ring-violet-500"
+                            />
+                            <span className="text-base">👥</span>
+                            Facebook
                         </label>
                     </div>
                 </div>
