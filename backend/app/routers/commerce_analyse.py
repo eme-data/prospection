@@ -21,6 +21,7 @@ from app.models.analyse_devis import DevisAnalyse
 from app.database import get_db
 from sqlalchemy.orm import Session
 import anthropic
+import httpx
 
 router = APIRouter(prefix="/commerce/analyse-devis", tags=["commerce"])
 
@@ -295,7 +296,10 @@ async def analyze_quotes(
 
                 content_parts.append({"type": "text", "text": prompt})
 
-                claude_client = anthropic.Anthropic(api_key=anthropic_key)
+                claude_client = anthropic.Anthropic(
+                    api_key=anthropic_key,
+                    timeout=httpx.Timeout(900.0, connect=10.0),
+                )
 
                 def _stream_analysis():
                     with claude_client.messages.stream(
@@ -535,7 +539,10 @@ async def analyze_negociation(
         raise HTTPException(status_code=500, detail="Clé API Anthropic non configurée.")
 
     try:
-        claude_client = anthropic.Anthropic(api_key=anthropic_key)
+        claude_client = anthropic.Anthropic(
+            api_key=anthropic_key,
+            timeout=httpx.Timeout(900.0, connect=10.0),
+        )
 
         def _stream_negociation():
             with claude_client.messages.stream(
