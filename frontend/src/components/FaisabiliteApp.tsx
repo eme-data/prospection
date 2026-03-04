@@ -276,6 +276,8 @@ export function FaisabiliteApp() {
     }
     : null
 
+  const AUTO_PROJECT_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316']
+
   const handleSelectAddress = useCallback((address: AddressResult) => {
     setSelectedAddress(address)
     setViewState({
@@ -285,6 +287,46 @@ export function FaisabiliteApp() {
     })
     if (address.citycode) {
       setCurrentCodeInsee(address.citycode)
+    }
+
+    // Créer automatiquement un projet pour la ville si aucun n'existe
+    if (address.city) {
+      const cityName = address.city
+      setProjects(prev => {
+        const existing = prev.find(p => p.name === cityName && p.status === 'active')
+        if (existing) {
+          // Sélectionner le projet existant
+          setSelectedProjectId(existing.id)
+          return prev
+        }
+        // Créer un nouveau projet pour la ville
+        const color = AUTO_PROJECT_COLORS[prev.length % AUTO_PROJECT_COLORS.length]
+        const newProject: Project = {
+          id: `tmp-${Date.now()}`,
+          name: cityName,
+          description: `Prospection ${cityName}${address.postcode ? ` (${address.postcode})` : ''}`,
+          color,
+          parcelles: [],
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        }
+        const next = [newProject, ...prev]
+        localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(next))
+        setSelectedProjectId(newProject.id)
+        // Persister en DB et remplacer l'id temporaire par l'UUID
+        apiCreateProj({ name: newProject.name, description: newProject.description, color: newProject.color, status: 'active', parcelles_json: [] })
+          .then(apiProj => {
+            setProjects(p => {
+              const updated = p.map(proj => proj.id === newProject.id ? { ...proj, id: apiProj.id, createdAt: apiProj.createdAt, updatedAt: apiProj.updatedAt } : proj)
+              localStorage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(updated))
+              return updated
+            })
+            setSelectedProjectId(curr => curr === newProject.id ? apiProj.id : curr)
+          })
+          .catch(() => {})
+        return next
+      })
     }
 
     // Ajouter à l'historique (local d'abord, API en arrière-plan)
