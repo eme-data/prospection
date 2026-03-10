@@ -1,6 +1,6 @@
 """
 Routes API pour l'archivage SharePoint → S3
-Scan des fichiers non accédés/modifiés depuis N mois,
+Scan des fichiers non accédés/modifiés depuis N jours,
 migration vers un bucket S3, suppression optionnelle sur SharePoint.
 """
 
@@ -29,7 +29,7 @@ _migration_jobs: dict = {}
 
 class ScanRequest(BaseModel):
     site_ids: List[str]
-    inactivity_months: int = 24
+    inactivity_days: int = 730
 
 
 class MigrateRequest(BaseModel):
@@ -265,7 +265,7 @@ async def scan_archivable_files(
 
     import httpx
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=body.inactivity_months * 30)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=body.inactivity_days)
     headers = {"Authorization": f"Bearer {token}"}
     archivable_files = []
 

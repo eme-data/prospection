@@ -71,7 +71,7 @@ function daysSince(iso: string): number {
 
 export const ArchivageSharepoint: React.FC = () => {
     // Config
-    const [inactivityMonths, setInactivityMonths] = useState(24);
+    const [inactivityDays, setInactivityDays] = useState(730);
     const [deleteAfterMigration, setDeleteAfterMigration] = useState(false);
 
     // Sites SharePoint
@@ -191,7 +191,7 @@ export const ArchivageSharepoint: React.FC = () => {
             const data = await fetchJSON<ScanResult>('/api/tooling/archivage-sharepoint/scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ site_ids: selectedSiteIds, inactivity_months: inactivityMonths }),
+                body: JSON.stringify({ site_ids: selectedSiteIds, inactivity_days: inactivityDays }),
             });
             setScanResult({
                 ...data,
@@ -281,7 +281,7 @@ export const ArchivageSharepoint: React.FC = () => {
                     <div>
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Archivage SharePoint → S3</h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Identifie et migre les fichiers non accédés/modifiés depuis plus de {inactivityMonths} mois vers le stockage S3.
+                            Identifie et migre les fichiers non accédés/modifiés depuis plus de {inactivityDays} jours vers le stockage S3.
                         </p>
                     </div>
                 </div>
@@ -438,17 +438,17 @@ export const ArchivageSharepoint: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Inactivité minimale (mois)
+                                Inactivité minimale (jours)
                             </label>
                             <input
                                 type="number"
                                 min={1}
-                                max={120}
-                                value={inactivityMonths}
-                                onChange={e => setInactivityMonths(Number(e.target.value))}
+                                max={3650}
+                                value={inactivityDays}
+                                onChange={e => setInactivityDays(Number(e.target.value))}
                                 className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                             />
-                            <p className="text-xs text-gray-400 mt-1">Fichiers non accédés ni modifiés depuis ce nombre de mois.</p>
+                            <p className="text-xs text-gray-400 mt-1">Fichiers non accédés ni modifiés depuis ce nombre de jours.</p>
                         </div>
                         <div className="flex items-center gap-3 self-center">
                             <label className="relative inline-flex items-center cursor-pointer">
