@@ -20,6 +20,7 @@ const CommunicationApp = lazy(() => import('./apps/Communication/CommunicationAp
 const CommerceApp = lazy(() => import('./apps/Commerce/CommerceApp').then(m => ({ default: m.CommerceApp })));
 const AutobotApp = lazy(() => import('./apps/Autobot/AutobotApp').then(m => ({ default: m.AutobotApp })));
 const SecondaryBrainApp = lazy(() => import('./apps/SecondaryBrain/SecondaryBrainApp').then(m => ({ default: m.SecondaryBrainApp })));
+const ToolingApp = lazy(() => import('./apps/Tooling/ToolingApp').then(m => ({ default: m.ToolingApp })));
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -35,7 +36,7 @@ const LoadingFallback = () => (
 );
 
 // Composant pour protéger les routes
-const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'faisabilite' | 'commerce' | 'sav' | 'conges' | 'communication' | 'autobot' | 'secondaryBrain' }> = ({ children, requiredModule }) => {
+const ProtectedRoute: React.FC<{ children: React.ReactNode, requiredModule?: 'faisabilite' | 'commerce' | 'sav' | 'conges' | 'communication' | 'autobot' | 'secondaryBrain' | 'tooling' }> = ({ children, requiredModule }) => {
     const { isAuthenticated, user } = useAuth();
 
     if (!isAuthenticated) {
@@ -178,6 +179,17 @@ function App() {
                                             <ProtectedRoute requiredModule="secondaryBrain">
                                                 <ErrorBoundary module="Second Cerveau">
                                                     <SecondaryBrainApp />
+                                                </ErrorBoundary>
+                                            </ProtectedRoute>
+                                        }
+                                    />
+
+                                    <Route
+                                        path="/tooling/*"
+                                        element={
+                                            <ProtectedRoute requiredModule="tooling">
+                                                <ErrorBoundary module="Tooling">
+                                                    <ToolingApp />
                                                 </ErrorBoundary>
                                             </ProtectedRoute>
                                         }

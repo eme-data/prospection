@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Map, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare, ShoppingBag, Bot, Brain } from 'lucide-react';
+import { Map, Wrench, LogOut, Layout, Calendar, Settings, MessageSquare, ShoppingBag, Bot, Brain, Cog } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 import { Moon, Sun } from 'lucide-react';
 
@@ -69,6 +69,15 @@ export const PortalPage: React.FC = () => {
             color: 'bg-rose-50 hover:bg-rose-100 border-rose-200 dark:bg-rose-900/20 dark:hover:bg-rose-900/40 dark:border-rose-800',
             path: '/autobot',
             active: false // En construction
+        },
+        {
+            id: 'tooling',
+            name: 'Tooling',
+            description: 'Outils internes : archivage, migration, maintenance.',
+            icon: <Cog className="w-12 h-12 mb-4 text-cyan-500" />,
+            color: 'bg-cyan-50 hover:bg-cyan-100 border-cyan-200 dark:bg-cyan-900/20 dark:hover:bg-cyan-900/40 dark:border-cyan-800',
+            path: '/tooling',
+            active: user?.modules?.tooling ?? false
         },
         {
             id: 'secondaryBrain',

@@ -13,6 +13,7 @@ export interface UserCreatePayload {
     module_communication?: boolean;
     module_autobot?: boolean;
     module_secondaryBrain?: boolean;
+    module_tooling?: boolean;
     manager_id?: string;
     solde_conges?: number;
 }

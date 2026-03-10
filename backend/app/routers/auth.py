@@ -42,6 +42,7 @@ class UserCreate(BaseModel):
     module_communication: bool = False
     module_autobot: bool = False
     module_secondaryBrain: bool = True
+    module_tooling: bool = False
     manager_id: Optional[str] = None
     solde_conges: float = 25.0
 
@@ -71,6 +72,7 @@ class UserUpdate(BaseModel):
     module_communication: Optional[bool] = None
     module_autobot: Optional[bool] = None
     module_secondaryBrain: Optional[bool] = None
+    module_tooling: Optional[bool] = None
     manager_id: Optional[str] = None
     solde_conges: Optional[float] = None
 
@@ -119,7 +121,8 @@ async def login_for_access_token(request: Request, form_data: OAuth2PasswordRequ
                 "conges": user.module_conges,
                 "communication": user.module_communication,
                 "autobot": user.module_autobot,
-                "secondaryBrain": user.module_secondaryBrain
+                "secondaryBrain": user.module_secondaryBrain,
+                "tooling": user.module_tooling
             },
             "manager_id": user.manager_id,
             "solde_conges": user.solde_conges
@@ -166,6 +169,7 @@ def create_user(
         module_communication=user.module_communication,
         module_autobot=user.module_autobot,
         module_secondaryBrain=user.module_secondaryBrain,
+        module_tooling=user.module_tooling,
         manager_id=user.manager_id,
         solde_conges=user.solde_conges
     )
@@ -184,7 +188,8 @@ def create_user(
             "conges": db_user.module_conges,
             "communication": db_user.module_communication,
             "autobot": db_user.module_autobot,
-            "secondaryBrain": db_user.module_secondaryBrain
+            "secondaryBrain": db_user.module_secondaryBrain,
+            "tooling": db_user.module_tooling
         },
         "manager_id": db_user.manager_id,
         "solde_conges": db_user.solde_conges
@@ -205,7 +210,8 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
             "conges": current_user.module_conges,
             "communication": current_user.module_communication,
             "autobot": current_user.module_autobot,
-            "secondaryBrain": current_user.module_secondaryBrain
+            "secondaryBrain": current_user.module_secondaryBrain,
+            "tooling": current_user.module_tooling
         },
         "manager_id": current_user.manager_id,
         "solde_conges": current_user.solde_conges
@@ -232,7 +238,8 @@ async def get_all_users(current_user: User = Depends(get_current_active_user), d
                 "conges": u.module_conges,
                 "communication": u.module_communication,
                 "autobot": u.module_autobot,
-                "secondaryBrain": u.module_secondaryBrain
+                "secondaryBrain": u.module_secondaryBrain,
+                "tooling": u.module_tooling
             },
             "manager_id": u.manager_id,
             "solde_conges": u.solde_conges,

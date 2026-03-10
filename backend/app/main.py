@@ -54,6 +54,7 @@ from app.routers import (
     communication,
     commerce_crm,
     commerce_analyse,
+    tooling_archivage,
 )
 from app.routers.logos import router as logos_router
 from app.routers.faisabilite_data import router as faisabilite_data_router
@@ -215,3 +216,4 @@ app.include_router(scoring_router, dependencies=protected)
 app.include_router(prospection_router, dependencies=protected)
 app.include_router(fiches_router, dependencies=protected)
 app.include_router(sentiment_router, prefix="/api", dependencies=protected)
+app.include_router(tooling_archivage.router, prefix="/api", dependencies=protected)

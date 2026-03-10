@@ -25,6 +25,7 @@ class User(Base):
     module_communication = Column(Boolean, default=False)
     module_autobot = Column(Boolean, default=False)
     module_secondaryBrain = Column(Boolean, default=True)
+    module_tooling = Column(Boolean, default=False)
     
     # Congés et Hiérarchie
     manager_id = Column(String, ForeignKey("users.id"), nullable=True)
