@@ -35,7 +35,9 @@ export const LogoCreator: React.FC = () => {
     const [industry, setIndustry] = useState('');
     const [style, setStyle] = useState('icone-texte');
     const [colors, setColors] = useState('');
-    const [shapeFill, setShapeFill] = useState<'auto' | 'filled' | 'outline'>('auto');
+    const [shapeFill, setShapeFill] = useState<'auto' | 'filled' | 'outline' | 'none'>('auto');
+    const [fontCase, setFontCase] = useState<'auto' | 'uppercase' | 'lowercase' | 'mixed'>('auto');
+    const [fontStyle, setFontStyle] = useState('auto');
     const [description, setDescription] = useState('');
 
     const [isLoading, setIsLoading] = useState(false);
@@ -150,10 +152,34 @@ L'utilisateur n'a pas précisé de consignes spécifiques. Améliore légèremen
             : '';
 
         const styleGuides: Record<string, string> = {
-            'typographique': 'Style typographique / monogramme : le logo repose UNIQUEMENT sur un travail créatif de lettres et de typographie. PAS D\'ICÔNE, PAS DE PICTOGRAMME, PAS DE SYMBOLE FIGURATIF (pas d\'abeille, maison, étoile, etc.). PAS DE COULEUR DE FOND ni de forme remplie en arrière-plan. Le fond doit rester transparent/blanc. Utilise les initiales ou le nom complet avec une typographie créative et expressive : monogramme élégant, ligatures inventives, lettres stylisées, jeux de taille/poids/espacement. L\'IA doit faire preuve de créativité typographique : effets sur les lettres (lettres alvéolaires, effet miel, lettres entrelacées, empattements décoratifs, contrastes gras/fin, lettres découpées, superpositions...). Le rendu doit être lisible tout en étant visuellement original et artistique.',
+            'typographique': `Style typographique / monogramme : le logo repose UNIQUEMENT sur un travail créatif de lettres et de typographie.
+INTERDICTIONS ABSOLUES :
+- PAS D'ICÔNE, PAS DE PICTOGRAMME, PAS DE SYMBOLE FIGURATIF (pas d'abeille, maison, étoile, feuille, etc.)
+- PAS DE COULEUR DE FOND ni de forme remplie en arrière-plan
+- Le fond doit rester transparent/blanc
+CRÉATIVITÉ TYPOGRAPHIQUE (TRÈS IMPORTANT) :
+L'IA doit faire preuve d'une grande créativité sur le traitement des lettres. Le texte ne doit PAS être un simple texte en police standard. Exemples d'effets créatifs attendus :
+- Lettres avec texture (alvéolaires, rayures, pointillés, hachures)
+- Lettres avec déformations artistiques (ondulées, perspectives, 3D isométrique)
+- Jeux de taille/poids/espacement entre les mots (mots importants en gras XXL, mots de liaison en fin)
+- Lettres entrelacées, ligatures inventives, lettres qui se chevauchent
+- Contrastes typographiques forts (serif + sans-serif, gras + fin, grand + petit)
+- Lettres découpées, ajourées, avec espaces négatifs créatifs
+- Empattements décoratifs exagérés, terminaisons ornementales
+Le rendu doit être lisible tout en étant visuellement original, artistique et mémorable.`,
             'icone-texte': 'Style icône + texte : une icône minimaliste simple (quelques traits/formes) au-dessus ou à gauche du nom écrit en dessous. L\'icône doit être sobre, reconnaissable, en lien avec l\'activité. Le nom est en typographie claire et lisible.',
             'symbole-pur': 'Style symbole pur : uniquement un pictogramme/symbole, sans aucun texte. Formes géométriques épurées, traits fins, design très minimaliste. Doit être identifiable en petit format.',
-            'forme-fond': 'Style avec forme en arrière-plan : une forme géométrique douce (cercle, ovale, rectangle arrondi, médaillon, tache organique) est placée EN ARRIÈRE-PLAN, c\'est-à-dire DERRIÈRE le texte et les éléments du logo. La forme doit avoir une opacité réduite (opacity="0.08" à "0.15") ou un fill très clair/pastel pour créer un effet de fond subtil et ne pas gêner la lecture du texte par-dessus. Le texte (nom de l\'entreprise) et les icônes sont placés PAR-DESSUS la forme. L\'ordre des couches SVG est : 1) forme de fond en premier, 2) texte et icônes au-dessus. Les contours internes de la forme doivent être invisibles ou très discrets pour ne pas interférer avec le texte.',
+            'forme-fond': `Style avec forme d'arrière-plan :
+FORME DE FOND : une forme géométrique douce et UNIE (cercle, ovale, rectangle arrondi, médaillon arrondi, tache organique) est placée EN ARRIÈRE-PLAN, DERRIÈRE le texte.
+RÈGLES CRITIQUES POUR LA FORME :
+- La forme doit être UNIE ou contenir un DÉGRADÉ TRÈS DOUX (pas de hachures, pas de traits internes, pas de motifs, pas de subdivisions)
+- Opacité RÉDUITE : utilise opacity="0.06" à "0.12" OU un fill très clair/pastel (ex: #F0F4FF, #FFF5F0, #F0FFF4)
+- AUCUN trait, ligne ou contour VISIBLE à l'intérieur de la forme — la forme doit être un aplat de couleur léger et homogène
+- PAS de stroke sur la forme de fond (ou stroke="none")
+- La forme sert uniquement de fond coloré subtil pour habiller le logo
+SUPERPOSITION : Le texte (nom de l'entreprise) et éventuellement une petite icône sont placés PAR-DESSUS la forme.
+Le texte doit être parfaitement lisible par-dessus le fond coloré.
+ORDRE SVG : 1) forme de fond en premier dans le code, 2) texte et icônes ensuite.`,
             'elegant': 'Style élégant : typographie raffinée avec empattements, traits fins décoratifs, éventuellement une lettrine ornée. Rendu haut de gamme et sobre. Couleurs neutres ou dorées.',
         };
 
@@ -163,6 +189,45 @@ L'utilisateur n'a pas précisé de consignes spécifiques. Améliore légèremen
             ? 'REMPLISSAGE DES FORMES : Les formes et icônes doivent être REMPLIES avec une couleur de fond pleine (fill). Pas de formes vides avec seulement des contours.'
             : shapeFill === 'outline'
             ? 'REMPLISSAGE DES FORMES : Les formes et icônes doivent être en CONTOURS uniquement (stroke, sans fill ou avec fill="none"). Style filaire, traits fins, pas de remplissage plein.'
+            : shapeFill === 'none'
+            ? 'SANS ICÔNE : Le logo ne doit contenir AUCUNE icône, aucun pictogramme, aucun symbole figuratif. Uniquement du texte/typographie.'
+            : '';
+
+        // Directive de casse
+        const fontCaseDirective = fontCase === 'uppercase'
+            ? 'CASSE DU TEXTE : Écrire le nom de l\'entreprise ENTIÈREMENT EN MAJUSCULES.'
+            : fontCase === 'lowercase'
+            ? 'CASSE DU TEXTE : Écrire le nom de l\'entreprise entièrement en minuscules.'
+            : fontCase === 'mixed'
+            ? 'CASSE DU TEXTE : Utiliser un style MIXTE avec des contrastes de casse — par exemple les mots principaux en MAJUSCULES GRANDES et les mots de liaison (de, du, le, la, les, et) en minuscules plus petites. Exemple : "LES RUCHES de GUILLAUME".'
+            : '';
+
+        // Directive de style de police
+        const fontStyleMap: Record<string, string> = {
+            'sans-bold': 'Police SANS-SERIF GRASSE (type Helvetica Bold, Montserrat Bold). Traits épais, présence forte, lettres imposantes.',
+            'sans-medium': 'Police SANS-SERIF MÉDIUM (type Helvetica, Montserrat Medium). Épaisseur intermédiaire, équilibrée.',
+            'sans-light': 'Police SANS-SERIF FINE / LIGHT (type Helvetica Light, Raleway Thin). Traits très fins et délicats, élégance minimaliste.',
+            'sans-condensed': 'Police SANS-SERIF CONDENSÉE (type Roboto Condensed). Lettres étroites et compactes, idéal pour les noms longs.',
+            'sans-extended': 'Police SANS-SERIF ÉTENDUE (type Helvetica Extended). Lettres larges avec beaucoup d\'espace horizontal, rendu aéré.',
+            'sans-geometric': 'Police GÉOMÉTRIQUE (type Futura, Century Gothic). Formes basées sur des cercles et lignes parfaits, moderne et structuré.',
+            'sans-rounded': 'Police ARRONDIE (type Nunito, Comfortaa). Terminaisons arrondies douces, aspect chaleureux et accessible.',
+            'serif-classic': 'Police SERIF CLASSIQUE (type Georgia, Times New Roman). Empattements traditionnels, académique et sérieux.',
+            'serif-bold': 'Police SERIF GRASSE (type Playfair Display Bold). Empattements marqués, contraste fort entre traits épais et fins.',
+            'serif-light': 'Police SERIF FINE (type Garamond Light). Empattements délicats et fins, grande élégance.',
+            'serif-modern': 'Police SERIF MODERNE / DIDONE (type Didot, Bodoni). Fort contraste entre pleins et déliés, très sophistiqué.',
+            'serif-slab': 'Police SLAB SERIF (type Rockwell, Courier). Empattements rectangulaires épais, aspect industriel et robuste.',
+            'calligraphic': 'Police CALLIGRAPHIQUE (type Zapfino, Great Vibes). Lettres fluides simulant l\'écriture à la plume, fioritures et liaisons entre lettres.',
+            'handwritten': 'Police MANUSCRITE (type Caveat, Patrick Hand). Apparence d\'écriture à la main, naturelle et décontractée.',
+            'brush': 'Police PINCEAU / BRUSH (type Permanent Marker). Aspect de peinture au pinceau, dynamique et expressif, traits irréguliers.',
+            'art-deco': 'Police ART DÉCO (type Poiret One, Broadway). Géométrie des années 1920-30, lignes droites élégantes, angles nets, glamour.',
+            'retro': 'Police RÉTRO / VINTAGE (type Abril Fatface, Lobster). Inspiration années 50-70, chaleureux et nostalgique.',
+            'stencil': 'Police POCHOIR / STENCIL. Lettres avec des coupures/interruptions comme un pochoir, aspect militaire ou industriel.',
+            'monospace': 'Police MONOSPACE (type Courier, Source Code Pro). Toutes les lettres de même largeur, aspect technique et moderne.',
+            'elegant-script': 'Police SCRIPT ÉLÉGANTE (type Allura, Dancing Script). Cursive raffinée, liaisons fluides, idéal pour le luxe et l\'événementiel.',
+            'display-bold': 'Police DISPLAY GRASSE / IMPACT. Lettres très épaisses et massives, impact visuel maximal, idéal pour un nom court.',
+        };
+        const fontStyleDirective = fontStyle !== 'auto' && fontStyleMap[fontStyle]
+            ? `STYLE DE POLICE : ${fontStyleMap[fontStyle]}`
             : '';
 
         const parts = [
@@ -172,7 +237,7 @@ ${sectorDirective}
 DIRECTION ARTISTIQUE :
 ${styleDirective}
 ${colorDirective}
-${shapeFillDirective ? shapeFillDirective + '\n' : ''}
+${shapeFillDirective ? shapeFillDirective + '\n' : ''}${fontCaseDirective ? fontCaseDirective + '\n' : ''}${fontStyleDirective ? fontStyleDirective + '\n' : ''}
 PRINCIPES DE DESIGN (TRÈS IMPORTANT) :
 - SOBRIÉTÉ : le logo doit être épuré, élégant, pas chargé. Peu de couleurs (1-2 + noir/gris), peu de formes.
 - LIGNES FINES : privilégie les traits fins (stroke-width 1-3), les formes ouvertes, l'espace négatif. Pas de formes pleines massives.
@@ -489,12 +554,66 @@ ${description}`);
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Formes / Icônes</label>
                                 <select
                                     value={shapeFill}
-                                    onChange={(e) => setShapeFill(e.target.value as 'auto' | 'filled' | 'outline')}
+                                    onChange={(e) => setShapeFill(e.target.value as 'auto' | 'filled' | 'outline' | 'none')}
                                     className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                 >
                                     <option value="auto">Auto (laisser l'IA décider)</option>
                                     <option value="filled">Remplies (couleur de fond)</option>
                                     <option value="outline">Contours uniquement</option>
+                                    <option value="none">Sans icônes</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Casse du texte</label>
+                                <select
+                                    value={fontCase}
+                                    onChange={(e) => setFontCase(e.target.value as typeof fontCase)}
+                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="auto">Auto (laisser l'IA décider)</option>
+                                    <option value="uppercase">TOUT EN MAJUSCULES</option>
+                                    <option value="lowercase">tout en minuscules</option>
+                                    <option value="mixed">Mixte (ex: LES RUCHES de Guillaume)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Style de police</label>
+                                <select
+                                    value={fontStyle}
+                                    onChange={(e) => setFontStyle(e.target.value)}
+                                    className="w-full rounded-md border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                >
+                                    <option value="auto">Auto (laisser l'IA décider)</option>
+                                    <optgroup label="Sans-serif">
+                                        <option value="sans-bold">Sans-serif Gras</option>
+                                        <option value="sans-medium">Sans-serif Médium</option>
+                                        <option value="sans-light">Sans-serif Fin / Light</option>
+                                        <option value="sans-condensed">Sans-serif Condensé</option>
+                                        <option value="sans-extended">Sans-serif Étendu</option>
+                                        <option value="sans-geometric">Géométrique (Futura-like)</option>
+                                        <option value="sans-rounded">Arrondi</option>
+                                    </optgroup>
+                                    <optgroup label="Serif">
+                                        <option value="serif-classic">Serif Classique</option>
+                                        <option value="serif-bold">Serif Gras</option>
+                                        <option value="serif-light">Serif Fin / Light</option>
+                                        <option value="serif-modern">Serif Moderne (Didot-like)</option>
+                                        <option value="serif-slab">Slab Serif (Rockwell-like)</option>
+                                    </optgroup>
+                                    <optgroup label="Décoratif / Script">
+                                        <option value="calligraphic">Calligraphique</option>
+                                        <option value="handwritten">Manuscrit / Handwritten</option>
+                                        <option value="brush">Pinceau / Brush</option>
+                                        <option value="art-deco">Art Déco</option>
+                                        <option value="retro">Rétro / Vintage</option>
+                                        <option value="stencil">Pochoir / Stencil</option>
+                                        <option value="monospace">Monospace / Technique</option>
+                                        <option value="elegant-script">Script Élégant</option>
+                                        <option value="display-bold">Display Gras / Impact</option>
+                                    </optgroup>
                                 </select>
                             </div>
                         </div>
