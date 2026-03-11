@@ -83,6 +83,8 @@ function daysSince(iso: string): number {
 
 // ── Composant principal ──────────────────────────────────────────────────────
 
+const SCAN_ID_KEY = 'archivage_scan_id';
+
 export const ArchivageSharepoint: React.FC = () => {
     // Config
     const [inactivityDays, setInactivityDays] = useState(730);
@@ -125,6 +127,33 @@ export const ArchivageSharepoint: React.FC = () => {
     }, []);
 
     useEffect(() => { loadConfig(); }, [loadConfig]);
+
+    // ── Reprendre un scan en cours si on revient sur la page ──────────────────
+    useEffect(() => {
+        const savedScanId = localStorage.getItem(SCAN_ID_KEY);
+        if (!savedScanId) return;
+        // Vérifier si le scan existe encore côté backend
+        (async () => {
+            try {
+                const data = await fetchJSON<ScanJob>(`/api/tooling/archivage-sharepoint/scan-jobs/${savedScanId}`, { silent: true });
+                if (data.status === 'running') {
+                    setScanJob(data);
+                    setScanning(true);
+                } else if (data.status === 'completed') {
+                    setScanResult({
+                        total_files: data.eligible_files,
+                        total_size_bytes: data.eligible_size_bytes,
+                        files: (data.files ?? []).map((f: any) => ({ ...f, selected: true })),
+                    });
+                    localStorage.removeItem(SCAN_ID_KEY);
+                } else {
+                    localStorage.removeItem(SCAN_ID_KEY);
+                }
+            } catch {
+                localStorage.removeItem(SCAN_ID_KEY);
+            }
+        })();
+    }, []);
 
     const handleSaveConfig = async () => {
         setSavingConfig(true);
@@ -209,6 +238,7 @@ export const ArchivageSharepoint: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ site_ids: selectedSiteIds, inactivity_days: inactivityDays }),
             });
+            localStorage.setItem(SCAN_ID_KEY, data.scan_id);
             setScanJob({
                 id: data.scan_id,
                 status: 'running',
@@ -242,10 +272,12 @@ export const ArchivageSharepoint: React.FC = () => {
                         files: (data.files ?? []).map((f: any) => ({ ...f, selected: true })),
                     });
                     setScanning(false);
+                    localStorage.removeItem(SCAN_ID_KEY);
                     clearInterval(interval);
                 } else if (data.status === 'failed') {
                     setError(data.error ?? 'Le scan a échoué');
                     setScanning(false);
+                    localStorage.removeItem(SCAN_ID_KEY);
                     clearInterval(interval);
                 }
             } catch {
