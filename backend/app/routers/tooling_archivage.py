@@ -303,6 +303,21 @@ async def get_scan_status(
     return _scan_jobs[scan_id]
 
 
+@router.post("/scan-jobs/{scan_id}/cancel")
+async def cancel_scan(
+    scan_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Arrête un scan en cours. Les fichiers déjà trouvés restent disponibles."""
+    if scan_id not in _scan_jobs:
+        raise HTTPException(status_code=404, detail="Scan introuvable.")
+    job = _scan_jobs[scan_id]
+    if job["status"] != "running":
+        raise HTTPException(status_code=400, detail="Le scan n'est pas en cours.")
+    job["_cancel_requested"] = True
+    return {"success": True, "message": "Arrêt demandé"}
+
+
 def _run_scan(
     scan_id: str,
     site_ids: List[str],
@@ -338,6 +353,13 @@ def _run_scan(
                     ]
 
                     while urls_to_explore:
+                        # Vérifier si l'arrêt a été demandé
+                        if job.get("_cancel_requested"):
+                            job["status"] = "cancelled"
+                            job["completed_at"] = datetime.now(timezone.utc).isoformat()
+                            job["current_folder"] = ""
+                            return
+
                         explore_url, folder_name = urls_to_explore.pop()
                         job["current_folder"] = folder_name
                         job["folders_explored"] += 1

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Archive, Play, RefreshCw, Loader2, CheckCircle2, AlertCircle,
-    FolderOpen, FileText, HardDrive, Search, Trash2,
+    FolderOpen, FileText, HardDrive, Search, Trash2, Square,
     Filter, ChevronDown, ChevronUp, Info,
     Settings, Save, Plug, Eye, EyeOff,
 } from 'lucide-react';
@@ -35,7 +35,7 @@ interface ScanResult {
 
 interface ScanJob {
     id: string;
-    status: 'running' | 'completed' | 'failed';
+    status: 'running' | 'completed' | 'failed' | 'cancelled';
     folders_explored: number;
     files_analyzed: number;
     eligible_files: number;
@@ -157,8 +157,8 @@ export const ArchivageSharepoint: React.FC = () => {
                     // Scan toujours en cours → reprendre le polling
                     setScanJob(data);
                     setScanning(true);
-                } else if (data.status === 'completed') {
-                    // Scan terminé côté backend → charger les résultats frais
+                } else if (data.status === 'completed' || data.status === 'cancelled') {
+                    // Scan terminé/arrêté côté backend → charger les résultats
                     setScanResult({
                         total_files: data.eligible_files,
                         total_size_bytes: data.eligible_size_bytes,
@@ -276,6 +276,16 @@ export const ArchivageSharepoint: React.FC = () => {
         }
     };
 
+    // ── Arrêter le scan ─────────────────────────────────────────────────────
+    const handleCancelScan = async () => {
+        if (!scanJob) return;
+        try {
+            await fetchJSON(`/api/tooling/archivage-sharepoint/scan-jobs/${scanJob.id}/cancel`, { method: 'POST' });
+        } catch {
+            // ignore — le polling détectera l'arrêt
+        }
+    };
+
     // ── Polling du scan en cours ──────────────────────────────────────────────
     useEffect(() => {
         if (!scanJob || scanJob.status !== 'running') return;
@@ -283,7 +293,7 @@ export const ArchivageSharepoint: React.FC = () => {
             try {
                 const data = await fetchJSON<ScanJob>(`/api/tooling/archivage-sharepoint/scan-jobs/${scanJob.id}`, { silent: true });
                 setScanJob(data);
-                if (data.status === 'completed') {
+                if (data.status === 'completed' || data.status === 'cancelled') {
                     setScanResult({
                         total_files: data.eligible_files,
                         total_size_bytes: data.eligible_size_bytes,
@@ -638,6 +648,13 @@ export const ArchivageSharepoint: React.FC = () => {
                                             </p>
                                         )}
                                     </div>
+                                    <button
+                                        onClick={handleCancelScan}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                        title="Arrêter le scan (les fichiers déjà trouvés sont conservés)"
+                                    >
+                                        <Square className="w-3.5 h-3.5" /> Arrêter
+                                    </button>
                                 </div>
 
                                 {/* Barre animée */}
