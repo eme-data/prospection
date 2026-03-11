@@ -33,6 +33,20 @@ interface ScanResult {
     files: ArchivableFile[];
 }
 
+interface ScanJob {
+    id: string;
+    status: 'running' | 'completed' | 'failed';
+    folders_explored: number;
+    files_analyzed: number;
+    eligible_files: number;
+    eligible_size_bytes: number;
+    current_folder: string;
+    files: ArchivableFile[];
+    started_at: string | null;
+    completed_at: string | null;
+    error: string | null;
+}
+
 interface MigrationJob {
     id: string;
     status: 'pending' | 'running' | 'completed' | 'failed';
@@ -81,6 +95,7 @@ export const ArchivageSharepoint: React.FC = () => {
     // Scan
     const [scanResult, setScanResult] = useState<ScanResult | null>(null);
     const [scanning, setScanning] = useState(false);
+    const [scanJob, setScanJob] = useState<ScanJob | null>(null);
 
     // Migration
     const [currentJob, setCurrentJob] = useState<MigrationJob | null>(null);
@@ -187,22 +202,58 @@ export const ArchivageSharepoint: React.FC = () => {
         setScanning(true);
         setError(null);
         setScanResult(null);
+        setScanJob(null);
         try {
-            const data = await fetchJSON<ScanResult>('/api/tooling/archivage-sharepoint/scan', {
+            const data = await fetchJSON<{ scan_id: string }>('/api/tooling/archivage-sharepoint/scan', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ site_ids: selectedSiteIds, inactivity_days: inactivityDays }),
             });
-            setScanResult({
-                ...data,
-                files: (data.files ?? []).map((f: any) => ({ ...f, selected: true })),
+            setScanJob({
+                id: data.scan_id,
+                status: 'running',
+                folders_explored: 0,
+                files_analyzed: 0,
+                eligible_files: 0,
+                eligible_size_bytes: 0,
+                current_folder: '',
+                files: [],
+                started_at: new Date().toISOString(),
+                completed_at: null,
+                error: null,
             });
         } catch (e: any) {
             setError(e.message ?? 'Erreur lors du scan');
-        } finally {
             setScanning(false);
         }
     };
+
+    // ── Polling du scan en cours ──────────────────────────────────────────────
+    useEffect(() => {
+        if (!scanJob || scanJob.status !== 'running') return;
+        const interval = setInterval(async () => {
+            try {
+                const data = await fetchJSON<ScanJob>(`/api/tooling/archivage-sharepoint/scan-jobs/${scanJob.id}`, { silent: true });
+                setScanJob(data);
+                if (data.status === 'completed') {
+                    setScanResult({
+                        total_files: data.eligible_files,
+                        total_size_bytes: data.eligible_size_bytes,
+                        files: (data.files ?? []).map((f: any) => ({ ...f, selected: true })),
+                    });
+                    setScanning(false);
+                    clearInterval(interval);
+                } else if (data.status === 'failed') {
+                    setError(data.error ?? 'Le scan a échoué');
+                    setScanning(false);
+                    clearInterval(interval);
+                }
+            } catch {
+                // silently ignore polling errors
+            }
+        }, 1500);
+        return () => clearInterval(interval);
+    }, [scanJob?.id, scanJob?.status]);
 
     // ── Lancer la migration ──────────────────────────────────────────────────
     const handleMigrate = async () => {
@@ -523,6 +574,46 @@ export const ArchivageSharepoint: React.FC = () => {
                             {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                             {scanning ? 'Scan en cours...' : 'Scanner les fichiers éligibles'}
                         </button>
+
+                        {/* Barre de progression du scan */}
+                        {scanJob && scanJob.status === 'running' && (
+                            <div className="mt-4 p-4 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <Loader2 className="w-5 h-5 text-cyan-500 animate-spin flex-shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                            Scan en cours...
+                                        </p>
+                                        {scanJob.current_folder && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                Dossier : {scanJob.current_folder}
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Barre animée */}
+                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3 overflow-hidden">
+                                    <div className="h-full bg-cyan-500 rounded-full animate-pulse" style={{ width: '100%', opacity: 0.7 }} />
+                                </div>
+
+                                {/* Compteurs en temps réel */}
+                                <div className="grid grid-cols-3 gap-3 text-center">
+                                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                                        <p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{scanJob.folders_explored}</p>
+                                        <p className="text-[10px] text-gray-500">dossiers explorés</p>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                                        <p className="text-lg font-bold text-gray-700 dark:text-gray-300">{scanJob.files_analyzed}</p>
+                                        <p className="text-[10px] text-gray-500">fichiers analysés</p>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                                        <p className="text-lg font-bold text-green-600 dark:text-green-400">{scanJob.eligible_files}</p>
+                                        <p className="text-[10px] text-gray-500">éligibles ({formatBytes(scanJob.eligible_size_bytes)})</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 

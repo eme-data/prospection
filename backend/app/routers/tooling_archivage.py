@@ -23,6 +23,7 @@ router = APIRouter(prefix="/tooling/archivage-sharepoint", tags=["tooling"])
 
 # ── Stockage en mémoire des jobs (à remplacer par DB si besoin) ──────────────
 _migration_jobs: dict = {}
+_scan_jobs: dict = {}
 
 
 # ── Schémas ──────────────────────────────────────────────────────────────────
@@ -249,10 +250,11 @@ async def list_sharepoint_sites(
 @router.post("/scan")
 async def scan_archivable_files(
     body: ScanRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Scanne les fichiers SharePoint éligibles à l'archivage."""
+    """Lance un scan en arrière-plan des fichiers SharePoint éligibles."""
     if not current_user.module_tooling:
         raise HTTPException(status_code=403, detail="Module Tooling désactivé.")
 
@@ -263,91 +265,143 @@ async def scan_archivable_files(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erreur d'authentification SharePoint : {e}")
 
+    scan_id = str(uuid.uuid4())
+    scan_job = {
+        "id": scan_id,
+        "status": "running",
+        "folders_explored": 0,
+        "files_analyzed": 0,
+        "eligible_files": 0,
+        "eligible_size_bytes": 0,
+        "current_folder": "",
+        "files": [],
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": None,
+        "error": None,
+    }
+    _scan_jobs[scan_id] = scan_job
+
+    background_tasks.add_task(
+        _run_scan,
+        scan_id=scan_id,
+        site_ids=body.site_ids,
+        inactivity_days=body.inactivity_days,
+        graph_token=token,
+    )
+
+    return {"scan_id": scan_id, "status": "running"}
+
+
+@router.get("/scan-jobs/{scan_id}")
+async def get_scan_status(
+    scan_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Retourne le statut d'un scan en cours."""
+    if scan_id not in _scan_jobs:
+        raise HTTPException(status_code=404, detail="Scan introuvable.")
+    return _scan_jobs[scan_id]
+
+
+def _run_scan(
+    scan_id: str,
+    site_ids: List[str],
+    inactivity_days: int,
+    graph_token: str,
+):
+    """Exécute le scan récursif SharePoint (tâche de fond)."""
     import httpx
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=body.inactivity_days)
-    headers = {"Authorization": f"Bearer {token}"}
-    archivable_files = []
+    job = _scan_jobs[scan_id]
+    cutoff = datetime.now(timezone.utc) - timedelta(days=inactivity_days)
+    headers = {"Authorization": f"Bearer {graph_token}"}
 
-    with httpx.Client(timeout=60.0) as client:
-        for site_id in body.site_ids:
-            # Lister les drives du site
-            try:
-                drives_resp = client.get(
-                    f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives",
-                    headers=headers,
-                )
-                drives_resp.raise_for_status()
-                drives = drives_resp.json().get("value", [])
-            except Exception as e:
-                logger.warning("Failed to list drives for site %s: %s", site_id, e)
-                continue
+    try:
+        with httpx.Client(timeout=60.0) as client:
+            for site_id in site_ids:
+                try:
+                    drives_resp = client.get(
+                        f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives",
+                        headers=headers,
+                    )
+                    drives_resp.raise_for_status()
+                    drives = drives_resp.json().get("value", [])
+                except Exception as e:
+                    logger.warning("Failed to list drives for site %s: %s", site_id, e)
+                    continue
 
-            for drive in drives:
-                drive_id = drive["id"]
-                drive_name = drive.get("name", "")
-                # Parcours récursif : pile d'URLs à explorer (dossiers inclus)
-                urls_to_explore = [
-                    f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root/children"
-                ]
+                for drive in drives:
+                    drive_id = drive["id"]
+                    drive_name = drive.get("name", "")
+                    urls_to_explore = [
+                        (f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root/children", drive_name)
+                    ]
 
-                while urls_to_explore:
-                    next_url: Optional[str] = urls_to_explore.pop()
-                    while next_url:
-                        try:
-                            items_resp = client.get(next_url, headers=headers)
-                            items_resp.raise_for_status()
-                            items_data = items_resp.json()
-                        except Exception as e:
-                            logger.warning("Error listing items: %s", e)
-                            break
+                    while urls_to_explore:
+                        explore_url, folder_name = urls_to_explore.pop()
+                        job["current_folder"] = folder_name
+                        job["folders_explored"] += 1
 
-                        for item in items_data.get("value", []):
-                            # Si c'est un dossier, ajouter ses enfants à la pile
-                            if "folder" in item:
-                                folder_children_url = (
-                                    f"https://graph.microsoft.com/v1.0/drives/{drive_id}"
-                                    f"/items/{item['id']}/children"
-                                )
-                                urls_to_explore.append(folder_children_url)
-                                continue
-
-                            # Fichiers uniquement
-                            if "file" not in item:
-                                continue
-
-                            last_modified = item.get("lastModifiedDateTime", "")
-                            fs_info = item.get("fileSystemInfo", {})
-                            last_accessed = fs_info.get("lastAccessedDateTime", last_modified)
-
+                        next_url: Optional[str] = explore_url
+                        while next_url:
                             try:
-                                mod_dt = datetime.fromisoformat(last_modified.replace("Z", "+00:00"))
-                                acc_dt = datetime.fromisoformat(last_accessed.replace("Z", "+00:00"))
-                            except (ValueError, AttributeError):
-                                continue
+                                items_resp = client.get(next_url, headers=headers)
+                                items_resp.raise_for_status()
+                                items_data = items_resp.json()
+                            except Exception as e:
+                                logger.warning("Error listing items: %s", e)
+                                break
 
-                            if mod_dt < cutoff and acc_dt < cutoff:
-                                archivable_files.append({
-                                    "id": item["id"],
-                                    "name": item.get("name", ""),
-                                    "path": item.get("parentReference", {}).get("path", ""),
-                                    "size_bytes": item.get("size", 0),
-                                    "last_accessed": last_accessed,
-                                    "last_modified": last_modified,
-                                    "site_name": drive_name,
-                                    "drive_id": drive_id,
-                                    "download_url": item.get("@microsoft.graph.downloadUrl", ""),
-                                })
+                            for item in items_data.get("value", []):
+                                if "folder" in item:
+                                    folder_children_url = (
+                                        f"https://graph.microsoft.com/v1.0/drives/{drive_id}"
+                                        f"/items/{item['id']}/children"
+                                    )
+                                    urls_to_explore.append((folder_children_url, item.get("name", "")))
+                                    continue
 
-                        next_url = items_data.get("@odata.nextLink")
+                                if "file" not in item:
+                                    continue
 
-    total_size = sum(f["size_bytes"] for f in archivable_files)
+                                job["files_analyzed"] += 1
 
-    return {
-        "total_files": len(archivable_files),
-        "total_size_bytes": total_size,
-        "files": archivable_files,
-    }
+                                last_modified = item.get("lastModifiedDateTime", "")
+                                fs_info = item.get("fileSystemInfo", {})
+                                last_accessed = fs_info.get("lastAccessedDateTime", last_modified)
+
+                                try:
+                                    mod_dt = datetime.fromisoformat(last_modified.replace("Z", "+00:00"))
+                                    acc_dt = datetime.fromisoformat(last_accessed.replace("Z", "+00:00"))
+                                except (ValueError, AttributeError):
+                                    continue
+
+                                if mod_dt < cutoff and acc_dt < cutoff:
+                                    file_size = item.get("size", 0)
+                                    job["files"].append({
+                                        "id": item["id"],
+                                        "name": item.get("name", ""),
+                                        "path": item.get("parentReference", {}).get("path", ""),
+                                        "size_bytes": file_size,
+                                        "last_accessed": last_accessed,
+                                        "last_modified": last_modified,
+                                        "site_name": drive_name,
+                                        "drive_id": drive_id,
+                                        "download_url": item.get("@microsoft.graph.downloadUrl", ""),
+                                    })
+                                    job["eligible_files"] += 1
+                                    job["eligible_size_bytes"] += file_size
+
+                            next_url = items_data.get("@odata.nextLink")
+
+        job["status"] = "completed"
+    except Exception as e:
+        logger.error("Scan job %s failed: %s", scan_id, e)
+        job["status"] = "failed"
+        job["error"] = str(e)
+    finally:
+        job["completed_at"] = datetime.now(timezone.utc).isoformat()
+        job["current_folder"] = ""
 
 
 @router.post("/migrate")
