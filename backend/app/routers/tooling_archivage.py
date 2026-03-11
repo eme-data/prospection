@@ -21,9 +21,30 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/tooling/archivage-sharepoint", tags=["tooling"])
 
-# ── Stockage en mémoire des jobs (à remplacer par DB si besoin) ──────────────
-_migration_jobs: dict = {}
-_scan_jobs: dict = {}
+# ── Stockage des jobs via Redis (partagé entre workers Gunicorn) ──────────────
+import json as _json
+
+def _get_redis():
+    """Retourne le client Redis, None si indisponible."""
+    from app.cache import get_redis_client
+    return get_redis_client()
+
+_SCAN_PREFIX = "archivage:scan:"
+_MIGRATION_PREFIX = "archivage:migration:"
+_JOB_TTL = 86400  # 24h
+
+def _save_job(prefix: str, job_id: str, job: dict):
+    r = _get_redis()
+    if r:
+        r.setex(f"{prefix}{job_id}", _JOB_TTL, _json.dumps(job, default=str))
+
+def _load_job(prefix: str, job_id: str) -> dict | None:
+    r = _get_redis()
+    if r:
+        data = r.get(f"{prefix}{job_id}")
+        if data:
+            return _json.loads(data)
+    return None
 
 
 # ── Schémas ──────────────────────────────────────────────────────────────────
@@ -279,7 +300,7 @@ async def scan_archivable_files(
         "completed_at": None,
         "error": None,
     }
-    _scan_jobs[scan_id] = scan_job
+    _save_job(_SCAN_PREFIX, scan_id, scan_job)
 
     background_tasks.add_task(
         _run_scan,
@@ -298,9 +319,10 @@ async def get_scan_status(
     current_user: User = Depends(get_current_active_user),
 ):
     """Retourne le statut d'un scan en cours."""
-    if scan_id not in _scan_jobs:
+    job = _load_job(_SCAN_PREFIX, scan_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Scan introuvable.")
-    return _scan_jobs[scan_id]
+    return job
 
 
 @router.post("/scan-jobs/{scan_id}/cancel")
@@ -309,13 +331,24 @@ async def cancel_scan(
     current_user: User = Depends(get_current_active_user),
 ):
     """Arrête un scan en cours. Les fichiers déjà trouvés restent disponibles."""
-    if scan_id not in _scan_jobs:
+    job = _load_job(_SCAN_PREFIX, scan_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Scan introuvable.")
-    job = _scan_jobs[scan_id]
     if job["status"] != "running":
         raise HTTPException(status_code=400, detail="Le scan n'est pas en cours.")
-    job["_cancel_requested"] = True
+    # Utiliser une clé Redis dédiée pour le signal d'annulation
+    r = _get_redis()
+    if r:
+        r.setex(f"{_SCAN_PREFIX}{scan_id}:cancel", 3600, "1")
     return {"success": True, "message": "Arrêt demandé"}
+
+
+def _is_scan_cancelled(scan_id: str) -> bool:
+    """Vérifie si l'annulation a été demandée via Redis."""
+    r = _get_redis()
+    if r:
+        return r.get(f"{_SCAN_PREFIX}{scan_id}:cancel") is not None
+    return False
 
 
 def _run_scan(
@@ -327,9 +360,15 @@ def _run_scan(
     """Exécute le scan récursif SharePoint (tâche de fond)."""
     import httpx
 
-    job = _scan_jobs[scan_id]
+    job = _load_job(_SCAN_PREFIX, scan_id) or {}
     cutoff = datetime.now(timezone.utc) - timedelta(days=inactivity_days)
     headers = {"Authorization": f"Bearer {graph_token}"}
+    # Compteur pour sauvegarder périodiquement dans Redis
+    save_counter = [0]
+
+    def _persist():
+        """Sauvegarde l'état courant dans Redis."""
+        _save_job(_SCAN_PREFIX, scan_id, job)
 
     try:
         with httpx.Client(timeout=60.0) as client:
@@ -353,11 +392,12 @@ def _run_scan(
                     ]
 
                     while urls_to_explore:
-                        # Vérifier si l'arrêt a été demandé
-                        if job.get("_cancel_requested"):
+                        # Vérifier si l'arrêt a été demandé via Redis
+                        if _is_scan_cancelled(scan_id):
                             job["status"] = "cancelled"
                             job["completed_at"] = datetime.now(timezone.utc).isoformat()
                             job["current_folder"] = ""
+                            _persist()
                             return
 
                         explore_url, folder_name = urls_to_explore.pop()
@@ -416,6 +456,11 @@ def _run_scan(
 
                             next_url = items_data.get("@odata.nextLink")
 
+                        # Sauvegarder dans Redis tous les 5 dossiers
+                        save_counter[0] += 1
+                        if save_counter[0] % 5 == 0:
+                            _persist()
+
         job["status"] = "completed"
     except Exception as e:
         logger.error("Scan job %s failed: %s", scan_id, e)
@@ -424,6 +469,7 @@ def _run_scan(
     finally:
         job["completed_at"] = datetime.now(timezone.utc).isoformat()
         job["current_folder"] = ""
+        _persist()
 
 
 @router.post("/migrate")
@@ -453,7 +499,7 @@ async def start_migration(
         "completed_at": None,
         "errors": [],
     }
-    _migration_jobs[job_id] = job
+    _save_job(_MIGRATION_PREFIX, job_id, job)
 
     try:
         token = _get_graph_token(db)
@@ -489,9 +535,10 @@ async def get_job_status(
     current_user: User = Depends(get_current_active_user),
 ):
     """Retourne le statut d'un job de migration."""
-    if job_id not in _migration_jobs:
+    job = _load_job(_MIGRATION_PREFIX, job_id)
+    if not job:
         raise HTTPException(status_code=404, detail="Job introuvable.")
-    return _migration_jobs[job_id]
+    return job
 
 
 # ── Tâche de fond : migration ────────────────────────────────────────────────
@@ -507,9 +554,10 @@ def _run_migration(
     import httpx
     import boto3
 
-    job = _migration_jobs[job_id]
+    job = _load_job(_MIGRATION_PREFIX, job_id) or {}
     job["status"] = "running"
     job["started_at"] = datetime.now(timezone.utc).isoformat()
+    _save_job(_MIGRATION_PREFIX, job_id, job)
 
     # Construire le client S3 à partir de la config passée
     s3_kwargs = {
@@ -573,6 +621,7 @@ def _run_migration(
 
                 job["migrated_files"] += 1
                 job["migrated_size_bytes"] += file_size
+                _save_job(_MIGRATION_PREFIX, job_id, job)
 
                 # Supprimer sur SharePoint si demandé
                 if delete_after:
@@ -593,6 +642,7 @@ def _run_migration(
     job["status"] = "completed" if job["failed_files"] == 0 else "completed"
     job["completed_at"] = datetime.now(timezone.utc).isoformat()
     job["total_size_bytes"] = job["migrated_size_bytes"]  # Update actual total
+    _save_job(_MIGRATION_PREFIX, job_id, job)
 
     logger.info(
         "Migration job %s completed: %d/%d migrated, %d failed",
