@@ -95,10 +95,10 @@ export const ArchivageSharepoint: React.FC = () => {
     const [sites, setSites] = useState<SharePointSite[]>([]);
     const [loadingSites, setLoadingSites] = useState(false);
 
-    // Scan — restaurer les résultats précédents depuis sessionStorage
+    // Scan — restaurer les résultats précédents depuis localStorage
     const [scanResult, setScanResult] = useState<ScanResult | null>(() => {
         try {
-            const saved = sessionStorage.getItem(SCAN_RESULT_KEY);
+            const saved = localStorage.getItem(SCAN_RESULT_KEY);
             return saved ? JSON.parse(saved) : null;
         } catch { return null; }
     });
@@ -124,14 +124,14 @@ export const ArchivageSharepoint: React.FC = () => {
     const [searchFilter, setSearchFilter] = useState('');
     const [error, setError] = useState<string | null>(null);
 
-    // ── Persister les résultats du scan dans sessionStorage ───────────────────
+    // ── Persister les résultats du scan dans localStorage ───────────────────
     useEffect(() => {
         if (scanResult) {
             try {
-                sessionStorage.setItem(SCAN_RESULT_KEY, JSON.stringify(scanResult));
+                localStorage.setItem(SCAN_RESULT_KEY, JSON.stringify(scanResult));
             } catch { /* quota exceeded — ignore */ }
         } else {
-            sessionStorage.removeItem(SCAN_RESULT_KEY);
+            localStorage.removeItem(SCAN_RESULT_KEY);
         }
     }, [scanResult]);
 
@@ -154,20 +154,21 @@ export const ArchivageSharepoint: React.FC = () => {
             try {
                 const data = await fetchJSON<ScanJob>(`/api/tooling/archivage-sharepoint/scan-jobs/${savedScanId}`, { silent: true });
                 if (data.status === 'running') {
+                    // Scan toujours en cours → reprendre le polling
                     setScanJob(data);
                     setScanning(true);
                 } else if (data.status === 'completed') {
+                    // Scan terminé côté backend → charger les résultats frais
                     setScanResult({
                         total_files: data.eligible_files,
                         total_size_bytes: data.eligible_size_bytes,
                         files: (data.files ?? []).map((f: any) => ({ ...f, selected: true })),
                     });
-                    localStorage.removeItem(SCAN_ID_KEY);
-                } else {
-                    localStorage.removeItem(SCAN_ID_KEY);
                 }
+                // On ne supprime PAS le scan_id — il sera écrasé au prochain scan
             } catch {
-                localStorage.removeItem(SCAN_ID_KEY);
+                // Backend ne connaît plus ce scan (redémarrage) — on garde le cache localStorage
+                // Les résultats ont déjà été restaurés via l'initialisation du useState
             }
         })();
     }, []);
@@ -289,12 +290,10 @@ export const ArchivageSharepoint: React.FC = () => {
                         files: (data.files ?? []).map((f: any) => ({ ...f, selected: true })),
                     });
                     setScanning(false);
-                    localStorage.removeItem(SCAN_ID_KEY);
                     clearInterval(interval);
                 } else if (data.status === 'failed') {
                     setError(data.error ?? 'Le scan a échoué');
                     setScanning(false);
-                    localStorage.removeItem(SCAN_ID_KEY);
                     clearInterval(interval);
                 }
             } catch {
@@ -673,12 +672,25 @@ export const ArchivageSharepoint: React.FC = () => {
                             <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                                 <FileText className="w-4 h-4 text-cyan-500" /> Fichiers éligibles à l'archivage
                             </h3>
-                            <button
-                                onClick={() => setExpandedFiles(v => !v)}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                {expandedFiles ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setScanResult(null);
+                                        setScanJob(null);
+                                        localStorage.removeItem(SCAN_ID_KEY);
+                                        localStorage.removeItem(SCAN_RESULT_KEY);
+                                    }}
+                                    className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" /> Effacer
+                                </button>
+                                <button
+                                    onClick={() => setExpandedFiles(v => !v)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    {expandedFiles ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                                </button>
+                            </div>
                         </div>
 
                         {/* Stats résumé */}
