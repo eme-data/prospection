@@ -84,6 +84,7 @@ function daysSince(iso: string): number {
 // ── Composant principal ──────────────────────────────────────────────────────
 
 const SCAN_ID_KEY = 'archivage_scan_id';
+const SCAN_RESULT_KEY = 'archivage_scan_result';
 
 export const ArchivageSharepoint: React.FC = () => {
     // Config
@@ -94,8 +95,13 @@ export const ArchivageSharepoint: React.FC = () => {
     const [sites, setSites] = useState<SharePointSite[]>([]);
     const [loadingSites, setLoadingSites] = useState(false);
 
-    // Scan
-    const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+    // Scan — restaurer les résultats précédents depuis sessionStorage
+    const [scanResult, setScanResult] = useState<ScanResult | null>(() => {
+        try {
+            const saved = sessionStorage.getItem(SCAN_RESULT_KEY);
+            return saved ? JSON.parse(saved) : null;
+        } catch { return null; }
+    });
     const [scanning, setScanning] = useState(false);
     const [scanJob, setScanJob] = useState<ScanJob | null>(null);
 
@@ -117,6 +123,17 @@ export const ArchivageSharepoint: React.FC = () => {
     const [expandedFiles, setExpandedFiles] = useState(true);
     const [searchFilter, setSearchFilter] = useState('');
     const [error, setError] = useState<string | null>(null);
+
+    // ── Persister les résultats du scan dans sessionStorage ───────────────────
+    useEffect(() => {
+        if (scanResult) {
+            try {
+                sessionStorage.setItem(SCAN_RESULT_KEY, JSON.stringify(scanResult));
+            } catch { /* quota exceeded — ignore */ }
+        } else {
+            sessionStorage.removeItem(SCAN_RESULT_KEY);
+        }
+    }, [scanResult]);
 
     // ── Charger la config ────────────────────────────────────────────────────
     const loadConfig = useCallback(async () => {
