@@ -48,6 +48,8 @@ services:
       dockerfile: Dockerfile.frontend
       args:
         VITE_API_URL: ""
+        VITE_MSAL_CLIENT_ID: "${MSAL_CLIENT_ID:-}"
+        VITE_MSAL_TENANT_ID: "${MSAL_TENANT_ID:-}"
     container_name: prospection-frontend
     ports:
       - "80:80"
