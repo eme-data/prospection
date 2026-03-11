@@ -285,49 +285,61 @@ async def scan_archivable_files(
 
             for drive in drives:
                 drive_id = drive["id"]
-                # Récupérer récursivement les items du drive
-                next_url: Optional[str] = (
+                drive_name = drive.get("name", "")
+                # Parcours récursif : pile d'URLs à explorer (dossiers inclus)
+                urls_to_explore = [
                     f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root/children"
-                )
-                while next_url:
-                    try:
-                        items_resp = client.get(next_url, headers=headers)
-                        items_resp.raise_for_status()
-                        items_data = items_resp.json()
-                    except Exception as e:
-                        logger.warning("Error listing items: %s", e)
-                        break
+                ]
 
-                    for item in items_data.get("value", []):
-                        # On ne prend que les fichiers (pas les dossiers)
-                        if "file" not in item:
-                            continue
-
-                        last_modified = item.get("lastModifiedDateTime", "")
-                        # Graph API: fileSystemInfo contient lastAccessedDateTime
-                        fs_info = item.get("fileSystemInfo", {})
-                        last_accessed = fs_info.get("lastAccessedDateTime", last_modified)
-
+                while urls_to_explore:
+                    next_url: Optional[str] = urls_to_explore.pop()
+                    while next_url:
                         try:
-                            mod_dt = datetime.fromisoformat(last_modified.replace("Z", "+00:00"))
-                            acc_dt = datetime.fromisoformat(last_accessed.replace("Z", "+00:00"))
-                        except (ValueError, AttributeError):
-                            continue
+                            items_resp = client.get(next_url, headers=headers)
+                            items_resp.raise_for_status()
+                            items_data = items_resp.json()
+                        except Exception as e:
+                            logger.warning("Error listing items: %s", e)
+                            break
 
-                        if mod_dt < cutoff and acc_dt < cutoff:
-                            archivable_files.append({
-                                "id": item["id"],
-                                "name": item.get("name", ""),
-                                "path": item.get("parentReference", {}).get("path", ""),
-                                "size_bytes": item.get("size", 0),
-                                "last_accessed": last_accessed,
-                                "last_modified": last_modified,
-                                "site_name": drive.get("name", ""),
-                                "drive_id": drive_id,
-                                "download_url": item.get("@microsoft.graph.downloadUrl", ""),
-                            })
+                        for item in items_data.get("value", []):
+                            # Si c'est un dossier, ajouter ses enfants à la pile
+                            if "folder" in item:
+                                folder_children_url = (
+                                    f"https://graph.microsoft.com/v1.0/drives/{drive_id}"
+                                    f"/items/{item['id']}/children"
+                                )
+                                urls_to_explore.append(folder_children_url)
+                                continue
 
-                    next_url = items_data.get("@odata.nextLink")
+                            # Fichiers uniquement
+                            if "file" not in item:
+                                continue
+
+                            last_modified = item.get("lastModifiedDateTime", "")
+                            fs_info = item.get("fileSystemInfo", {})
+                            last_accessed = fs_info.get("lastAccessedDateTime", last_modified)
+
+                            try:
+                                mod_dt = datetime.fromisoformat(last_modified.replace("Z", "+00:00"))
+                                acc_dt = datetime.fromisoformat(last_accessed.replace("Z", "+00:00"))
+                            except (ValueError, AttributeError):
+                                continue
+
+                            if mod_dt < cutoff and acc_dt < cutoff:
+                                archivable_files.append({
+                                    "id": item["id"],
+                                    "name": item.get("name", ""),
+                                    "path": item.get("parentReference", {}).get("path", ""),
+                                    "size_bytes": item.get("size", 0),
+                                    "last_accessed": last_accessed,
+                                    "last_modified": last_modified,
+                                    "site_name": drive_name,
+                                    "drive_id": drive_id,
+                                    "download_url": item.get("@microsoft.graph.downloadUrl", ""),
+                                })
+
+                        next_url = items_data.get("@odata.nextLink")
 
     total_size = sum(f["size_bytes"] for f in archivable_files)
 
