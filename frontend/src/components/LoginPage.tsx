@@ -46,9 +46,9 @@ export const LoginPage: React.FC = () => {
                 navigate('/');
             }
         } catch (err: any) {
-            console.error(err);
+            console.error('Microsoft login error:', err);
             if (err.name !== 'BrowserAuthError') {
-                setError("Erreur avec l'authentification Microsoft.");
+                setError(err.message || "Erreur avec l'authentification Microsoft.");
             }
         } finally {
             setIsLoading(false);
