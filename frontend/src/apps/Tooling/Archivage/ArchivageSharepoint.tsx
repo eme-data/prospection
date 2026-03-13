@@ -842,6 +842,18 @@ export const ArchivageSharepoint: React.FC = () => {
                         </div>
                     ) : (
                         <div className="space-y-2">
+                            <label className="flex items-center gap-3 p-2 rounded-lg bg-gray-50 dark:bg-gray-700/30 cursor-pointer border border-gray-200 dark:border-gray-600">
+                                <input
+                                    type="checkbox"
+                                    checked={sites.length > 0 && sites.every(s => s.selected)}
+                                    ref={el => { if (el) el.indeterminate = sites.some(s => s.selected) && !sites.every(s => s.selected); }}
+                                    onChange={e => setSites(prev => prev.map(s => ({ ...s, selected: e.target.checked })))}
+                                    className="w-4 h-4 text-cyan-500 rounded border-gray-300 focus:ring-cyan-500"
+                                />
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Tout sélectionner ({sites.filter(s => s.selected).length} / {sites.length})
+                                </span>
+                            </label>
                             {sites.map(site => (
                                 <label key={site.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
                                     <input
@@ -1034,8 +1046,7 @@ export const ArchivageSharepoint: React.FC = () => {
                                             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-cyan-500"
                                         />
                                     </div>
-                                    <button onClick={() => toggleAllFiles(true)} className="text-xs text-cyan-600 hover:underline">Tout sélectionner</button>
-                                    <button onClick={() => toggleAllFiles(false)} className="text-xs text-gray-500 hover:underline">Tout désélectionner</button>
+                                    <span className="text-xs text-gray-500">{selectedCount} / {scanResult?.files.length ?? 0} sélectionnés</span>
                                 </div>
 
                                 {/* Table fichiers */}
@@ -1043,7 +1054,15 @@ export const ArchivageSharepoint: React.FC = () => {
                                     <table className="w-full text-xs">
                                         <thead className="sticky top-0">
                                             <tr className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                                <th className="px-3 py-2 w-8"></th>
+                                                <th className="px-3 py-2 w-8">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={filteredFiles.length > 0 && filteredFiles.every(f => f.selected)}
+                                                        ref={el => { if (el) el.indeterminate = filteredFiles.some(f => f.selected) && !filteredFiles.every(f => f.selected); }}
+                                                        onChange={e => toggleAllFiles(e.target.checked)}
+                                                        className="w-3.5 h-3.5 text-cyan-500 rounded border-gray-300"
+                                                    />
+                                                </th>
                                                 <th className="px-3 py-2 text-left font-semibold">Fichier</th>
                                                 <th className="px-3 py-2 text-left font-semibold">Site</th>
                                                 <th className="px-3 py-2 text-right font-semibold">Taille</th>
