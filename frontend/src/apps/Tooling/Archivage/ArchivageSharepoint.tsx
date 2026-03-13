@@ -163,6 +163,8 @@ export const ArchivageSharepoint: React.FC = () => {
     const [dupScanJob, setDupScanJob] = useState<DuplicateScanJob | null>(null);
     const [dupSearchFilter, setDupSearchFilter] = useState('');
     const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+    const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
     // Config
     const [showConfig, setShowConfig] = useState(false);
@@ -480,6 +482,36 @@ export const ArchivageSharepoint: React.FC = () => {
             if (next.has(name)) next.delete(name); else next.add(name);
             return next;
         });
+    };
+
+    // ── Supprimer un fichier doublon ──────────────────────────────────────────
+    const handleDeleteDuplicate = async (file: DuplicateFile) => {
+        setDeletingFileId(file.id);
+        setError(null);
+        try {
+            await fetchJSON('/api/tooling/archivage-sharepoint/delete-file', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ drive_id: file.drive_id, file_id: file.id }),
+            });
+            // Retirer le fichier des résultats
+            if (dupResult) {
+                const updated = dupResult
+                    .map(g => ({
+                        ...g,
+                        files: g.files.filter(f => f.id !== file.id),
+                        count: g.files.filter(f => f.id !== file.id).length,
+                        wasted_bytes: Math.max(0, (g.files.filter(f => f.id !== file.id).length - 1) * g.size_bytes),
+                    }))
+                    .filter(g => g.files.length > 1); // Retirer les groupes qui n'ont plus de doublons
+                setDupResult(updated);
+            }
+        } catch (e: any) {
+            setError(e.message ?? 'Erreur lors de la suppression');
+        } finally {
+            setDeletingFileId(null);
+            setConfirmDeleteId(null);
+        }
     };
 
     // ── Lancer la migration ──────────────────────────────────────────────────
@@ -1232,11 +1264,12 @@ export const ArchivageSharepoint: React.FC = () => {
                                                         <th className="px-4 py-2 text-left font-medium">Emplacement</th>
                                                         <th className="px-4 py-2 text-left font-medium">Site</th>
                                                         <th className="px-4 py-2 text-right font-medium">Dernière modif.</th>
+                                                        <th className="px-4 py-2 text-center font-medium w-28">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                                    {group.files.map((f, fi) => (
-                                                        <tr key={f.id} className={fi === 0 ? 'bg-green-50/50 dark:bg-green-900/10' : ''}>
+                                                    {group.files.map((f) => (
+                                                        <tr key={f.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                                                             <td className="px-4 py-2">
                                                                 <p className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-xs" title={f.name}>
                                                                     {f.name}
@@ -1249,6 +1282,33 @@ export const ArchivageSharepoint: React.FC = () => {
                                                             </td>
                                                             <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{f.site_name}</td>
                                                             <td className="px-4 py-2 text-right text-gray-500 whitespace-nowrap">{formatDate(f.last_modified)}</td>
+                                                            <td className="px-4 py-2 text-center">
+                                                                {confirmDeleteId === f.id ? (
+                                                                    <div className="flex items-center justify-center gap-1">
+                                                                        <button
+                                                                            onClick={() => handleDeleteDuplicate(f)}
+                                                                            disabled={deletingFileId === f.id}
+                                                                            className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-600 text-white text-[10px] font-medium hover:bg-red-700 disabled:opacity-50"
+                                                                        >
+                                                                            {deletingFileId === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                                                                            Oui
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => setConfirmDeleteId(null)}
+                                                                            className="px-2 py-1 rounded bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 text-[10px] font-medium hover:bg-gray-300 dark:hover:bg-gray-500"
+                                                                        >
+                                                                            Non
+                                                                        </button>
+                                                                    </div>
+                                                                ) : (
+                                                                    <button
+                                                                        onClick={() => setConfirmDeleteId(f.id)}
+                                                                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 text-[10px] font-medium transition-colors"
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" /> Supprimer
+                                                                    </button>
+                                                                )}
+                                                            </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>

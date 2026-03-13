@@ -434,6 +434,47 @@ async def cancel_duplicate_scan(
     return {"success": True, "message": "Arrêt demandé"}
 
 
+class DeleteFileRequest(BaseModel):
+    drive_id: str
+    file_id: str
+
+
+@router.post("/delete-file")
+async def delete_sharepoint_file(
+    body: DeleteFileRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Supprime un fichier spécifique de SharePoint via Microsoft Graph."""
+    if not current_user.module_tooling:
+        raise HTTPException(status_code=403, detail="Module Tooling désactivé.")
+
+    import httpx
+
+    try:
+        token = _get_graph_token(db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur d'authentification SharePoint : {e}")
+
+    headers = {"Authorization": f"Bearer {token}"}
+    delete_url = f"https://graph.microsoft.com/v1.0/drives/{body.drive_id}/items/{body.file_id}"
+
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.delete(delete_url, headers=headers)
+            if resp.status_code == 404:
+                raise HTTPException(status_code=404, detail="Fichier introuvable sur SharePoint.")
+            resp.raise_for_status()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la suppression : {e}")
+
+    return {"success": True, "message": "Fichier supprimé de SharePoint."}
+
+
 def _is_dup_scan_cancelled(scan_id: str) -> bool:
     r = _get_redis()
     if r:
