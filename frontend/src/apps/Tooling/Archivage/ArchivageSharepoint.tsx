@@ -18,6 +18,7 @@ interface SharePointSite {
 
 interface ArchivableFile {
     id: string;
+    drive_id: string;
     name: string;
     path: string;
     size_bytes: number;
@@ -520,6 +521,12 @@ export const ArchivageSharepoint: React.FC = () => {
         const selectedFiles = scanResult.files.filter(f => f.selected);
         if (selectedFiles.length === 0) {
             setError('Aucun fichier sélectionné pour la migration.');
+            return;
+        }
+        // Vérifier que tous les fichiers ont un drive_id (ancien scan sans drive_id)
+        const missingDriveId = selectedFiles.some(f => !f.drive_id);
+        if (missingDriveId) {
+            setError('Les données du scan sont obsolètes (drive_id manquant). Veuillez relancer un scan.');
             return;
         }
         setMigrating(true);

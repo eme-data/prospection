@@ -817,6 +817,13 @@ async def start_migration(
     }
 
     file_refs = [{"id": f.id, "drive_id": f.drive_id} for f in body.files]
+    # Vérifier que tous les drive_id sont présents
+    missing = [r for r in file_refs if not r["drive_id"]]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{len(missing)} fichier(s) sans drive_id. Veuillez relancer le scan.",
+        )
     background_tasks.add_task(
         _run_migration,
         job_id=job_id,
