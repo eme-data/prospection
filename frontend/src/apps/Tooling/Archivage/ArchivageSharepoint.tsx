@@ -69,10 +69,12 @@ interface DuplicateFile {
     site_name: string;
     drive_id: string;
     web_url: string;
+    hash: string;
 }
 
 interface DuplicateGroup {
     name: string;
+    hash: string;
     size_bytes: number;
     count: number;
     wasted_bytes: number;
@@ -1207,7 +1209,7 @@ export const ArchivageSharepoint: React.FC = () => {
                                         <div className="min-w-0 flex-1">
                                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{group.name}</p>
                                             <p className="text-xs text-gray-400">
-                                                {formatBytes(group.size_bytes)} par fichier
+                                                {formatBytes(group.size_bytes)} par fichier — <span className="font-mono">{group.hash?.slice(0, 12)}...</span>
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-3 flex-shrink-0">
@@ -1226,6 +1228,7 @@ export const ArchivageSharepoint: React.FC = () => {
                                             <table className="w-full text-xs">
                                                 <thead>
                                                     <tr className="text-gray-500 dark:text-gray-400">
+                                                        <th className="px-4 py-2 text-left font-medium">Fichier</th>
                                                         <th className="px-4 py-2 text-left font-medium">Emplacement</th>
                                                         <th className="px-4 py-2 text-left font-medium">Site</th>
                                                         <th className="px-4 py-2 text-right font-medium">Dernière modif.</th>
@@ -1235,8 +1238,12 @@ export const ArchivageSharepoint: React.FC = () => {
                                                     {group.files.map((f, fi) => (
                                                         <tr key={f.id} className={fi === 0 ? 'bg-green-50/50 dark:bg-green-900/10' : ''}>
                                                             <td className="px-4 py-2">
-                                                                <p className="text-gray-700 dark:text-gray-300 truncate max-w-md" title={f.path}>
-                                                                    {fi === 0 && <span className="text-green-600 dark:text-green-400 font-medium mr-1">Original</span>}
+                                                                <p className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-xs" title={f.name}>
+                                                                    {f.name}
+                                                                </p>
+                                                            </td>
+                                                            <td className="px-4 py-2">
+                                                                <p className="text-gray-500 dark:text-gray-400 truncate max-w-md" title={f.path}>
                                                                     {f.path || '/'}
                                                                 </p>
                                                             </td>

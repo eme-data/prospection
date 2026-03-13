@@ -446,14 +446,14 @@ def _run_duplicate_scan(
     site_ids: List[str],
     graph_token: str,
 ):
-    """Scanne tous les fichiers SharePoint et identifie les doublons (même nom + même taille)."""
+    """Scanne tous les fichiers SharePoint et identifie les doublons par signature de contenu (hash)."""
     import httpx
     from collections import defaultdict
 
     job = _load_job(_DUPLICATES_PREFIX, scan_id) or {}
     headers = {"Authorization": f"Bearer {graph_token}"}
-    # Dictionnaire : clé = (nom_fichier, taille) → liste de fichiers
-    file_index: dict[tuple, list] = defaultdict(list)
+    # Dictionnaire : clé = hash de contenu → liste de fichiers
+    file_index: dict[str, list] = defaultdict(list)
     save_counter = [0]
 
     def _persist():
@@ -522,6 +522,17 @@ def _run_duplicate_scan(
                                 parent_path = item.get("parentReference", {}).get("path", "")
                                 clean_path = parent_path.split("root:")[-1].lstrip("/") if "root:" in parent_path else parent_path
 
+                                # Récupérer le hash de contenu (quickXorHash ou sha256Hash)
+                                file_hashes = item.get("file", {}).get("hashes", {})
+                                content_hash = (
+                                    file_hashes.get("quickXorHash")
+                                    or file_hashes.get("sha256Hash")
+                                    or file_hashes.get("sha1Hash")
+                                )
+                                if not content_hash:
+                                    # Pas de hash disponible — ignorer ce fichier
+                                    continue
+
                                 file_entry = {
                                     "id": item["id"],
                                     "name": file_name,
@@ -531,8 +542,9 @@ def _run_duplicate_scan(
                                     "site_name": drive_name,
                                     "drive_id": drive_id,
                                     "web_url": item.get("webUrl", ""),
+                                    "hash": content_hash,
                                 }
-                                file_index[(file_name, file_size)].append(file_entry)
+                                file_index[content_hash].append(file_entry)
 
                             next_url = items_data.get("@odata.nextLink")
 
@@ -558,16 +570,25 @@ def _run_duplicate_scan(
 
 
 def _finalize_duplicate_groups(job: dict, file_index: dict):
-    """Construit la liste des groupes de doublons à partir de l'index."""
+    """Construit la liste des groupes de doublons à partir de l'index par hash."""
     groups = []
     total_dup_size = 0
-    for (name, size), files in file_index.items():
+    for content_hash, files in file_index.items():
         if len(files) > 1:
-            # L'espace gaspillé = (nb copies - 1) * taille
+            # Utiliser le nom du premier fichier comme nom du groupe
+            # (les fichiers identiques peuvent avoir des noms différents)
+            size = files[0]["size_bytes"]
+            # Construire un label : si tous ont le même nom, l'utiliser, sinon lister les noms uniques
+            unique_names = list(dict.fromkeys(f["name"] for f in files))
+            group_name = unique_names[0] if len(unique_names) == 1 else " / ".join(unique_names[:3])
+            if len(unique_names) > 3:
+                group_name += f" (+{len(unique_names) - 3})"
+
             wasted = (len(files) - 1) * size
             total_dup_size += wasted
             groups.append({
-                "name": name,
+                "name": group_name,
+                "hash": content_hash,
                 "size_bytes": size,
                 "count": len(files),
                 "wasted_bytes": wasted,
