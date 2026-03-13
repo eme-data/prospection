@@ -3,7 +3,7 @@ import {
     Archive, Play, RefreshCw, Loader2, CheckCircle2, AlertCircle,
     FolderOpen, FileText, HardDrive, Search, Trash2, Square,
     Filter, ChevronDown, ChevronUp, Info,
-    Settings, Save, Plug, Eye, EyeOff,
+    Settings, Save, Plug, Eye, EyeOff, Copy,
 } from 'lucide-react';
 import { fetchJSON } from '../../../api';
 
@@ -60,6 +60,42 @@ interface MigrationJob {
     errors: string[];
 }
 
+interface DuplicateFile {
+    id: string;
+    name: string;
+    path: string;
+    size_bytes: number;
+    last_modified: string;
+    site_name: string;
+    drive_id: string;
+    web_url: string;
+}
+
+interface DuplicateGroup {
+    name: string;
+    size_bytes: number;
+    count: number;
+    wasted_bytes: number;
+    files: DuplicateFile[];
+}
+
+interface DuplicateScanJob {
+    id: string;
+    status: 'running' | 'completed' | 'failed' | 'cancelled';
+    folders_explored: number;
+    files_analyzed: number;
+    duplicate_groups: number;
+    duplicate_files: number;
+    duplicate_size_bytes: number;
+    current_folder: string;
+    groups: DuplicateGroup[];
+    started_at: string | null;
+    completed_at: string | null;
+    error: string | null;
+}
+
+type ScanMode = 'archivage' | 'doublons';
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatBytes(bytes: number): string {
@@ -85,8 +121,13 @@ function daysSince(iso: string): number {
 
 const SCAN_ID_KEY = 'archivage_scan_id';
 const SCAN_RESULT_KEY = 'archivage_scan_result';
+const DUP_SCAN_ID_KEY = 'archivage_dup_scan_id';
+const DUP_RESULT_KEY = 'archivage_dup_result';
 
 export const ArchivageSharepoint: React.FC = () => {
+    // Mode
+    const [scanMode, setScanMode] = useState<ScanMode>('archivage');
+
     // Config
     const [inactivityDays, setInactivityDays] = useState(730);
     const [deleteAfterMigration, setDeleteAfterMigration] = useState(false);
@@ -108,6 +149,18 @@ export const ArchivageSharepoint: React.FC = () => {
     // Migration
     const [currentJob, setCurrentJob] = useState<MigrationJob | null>(null);
     const [migrating, setMigrating] = useState(false);
+
+    // Doublons
+    const [dupResult, setDupResult] = useState<DuplicateGroup[] | null>(() => {
+        try {
+            const saved = localStorage.getItem(DUP_RESULT_KEY);
+            return saved ? JSON.parse(saved) : null;
+        } catch { return null; }
+    });
+    const [dupScanning, setDupScanning] = useState(false);
+    const [dupScanJob, setDupScanJob] = useState<DuplicateScanJob | null>(null);
+    const [dupSearchFilter, setDupSearchFilter] = useState('');
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
     // Config
     const [showConfig, setShowConfig] = useState(false);
@@ -134,6 +187,17 @@ export const ArchivageSharepoint: React.FC = () => {
             localStorage.removeItem(SCAN_RESULT_KEY);
         }
     }, [scanResult]);
+
+    // ── Persister les résultats doublons dans localStorage ──────────────────
+    useEffect(() => {
+        if (dupResult) {
+            try {
+                localStorage.setItem(DUP_RESULT_KEY, JSON.stringify(dupResult));
+            } catch { /* quota exceeded */ }
+        } else {
+            localStorage.removeItem(DUP_RESULT_KEY);
+        }
+    }, [dupResult]);
 
     // ── Charger la config ────────────────────────────────────────────────────
     const loadConfig = useCallback(async () => {
@@ -169,6 +233,27 @@ export const ArchivageSharepoint: React.FC = () => {
             } catch {
                 // Backend ne connaît plus ce scan (redémarrage) — on garde le cache localStorage
                 // Les résultats ont déjà été restaurés via l'initialisation du useState
+            }
+        })();
+    }, []);
+
+    // ── Reprendre un scan doublons en cours ────────────────────────────────
+    useEffect(() => {
+        const savedDupId = localStorage.getItem(DUP_SCAN_ID_KEY);
+        if (!savedDupId) return;
+        (async () => {
+            try {
+                const data = await fetchJSON<DuplicateScanJob>(`/api/tooling/archivage-sharepoint/duplicate-jobs/${savedDupId}`, { silent: true });
+                if (data.status === 'running') {
+                    setDupScanJob(data);
+                    setDupScanning(true);
+                    setScanMode('doublons');
+                } else if (data.status === 'completed' || data.status === 'cancelled') {
+                    setDupResult(data.groups ?? []);
+                    setScanMode('doublons');
+                }
+            } catch {
+                // Backend ne connaît plus ce scan — garder le cache localStorage
             }
         })();
     }, []);
@@ -313,6 +398,88 @@ export const ArchivageSharepoint: React.FC = () => {
         return () => clearInterval(interval);
     }, [scanJob?.id, scanJob?.status]);
 
+    // ── Scanner les doublons ─────────────────────────────────────────────────
+    const handleDuplicateScan = async () => {
+        const selectedSiteIds = sites.filter(s => s.selected).map(s => s.id);
+        if (selectedSiteIds.length === 0) {
+            setError('Sélectionnez au moins un site SharePoint.');
+            return;
+        }
+        setDupScanning(true);
+        setError(null);
+        setDupResult(null);
+        setDupScanJob(null);
+        try {
+            const data = await fetchJSON<{ scan_id: string }>('/api/tooling/archivage-sharepoint/scan-duplicates', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ site_ids: selectedSiteIds }),
+            });
+            localStorage.setItem(DUP_SCAN_ID_KEY, data.scan_id);
+            setDupScanJob({
+                id: data.scan_id,
+                status: 'running',
+                folders_explored: 0,
+                files_analyzed: 0,
+                duplicate_groups: 0,
+                duplicate_files: 0,
+                duplicate_size_bytes: 0,
+                current_folder: '',
+                groups: [],
+                started_at: new Date().toISOString(),
+                completed_at: null,
+                error: null,
+            });
+        } catch (e: any) {
+            setError(e.message ?? 'Erreur lors du scan des doublons');
+            setDupScanning(false);
+        }
+    };
+
+    const handleCancelDupScan = async () => {
+        if (!dupScanJob) return;
+        try {
+            await fetchJSON(`/api/tooling/archivage-sharepoint/duplicate-jobs/${dupScanJob.id}/cancel`, { method: 'POST' });
+        } catch { /* ignore */ }
+    };
+
+    // ── Polling du scan doublons ──────────────────────────────────────────────
+    useEffect(() => {
+        if (!dupScanJob || dupScanJob.status !== 'running') return;
+        const interval = setInterval(async () => {
+            try {
+                const data = await fetchJSON<DuplicateScanJob>(`/api/tooling/archivage-sharepoint/duplicate-jobs/${dupScanJob.id}`, { silent: true });
+                setDupScanJob(data);
+                if (data.status === 'completed' || data.status === 'cancelled') {
+                    setDupResult(data.groups ?? []);
+                    setDupScanning(false);
+                    clearInterval(interval);
+                } else if (data.status === 'failed') {
+                    setError(data.error ?? 'Le scan des doublons a échoué');
+                    setDupScanning(false);
+                    clearInterval(interval);
+                }
+            } catch { /* ignore */ }
+        }, 1500);
+        return () => clearInterval(interval);
+    }, [dupScanJob?.id, dupScanJob?.status]);
+
+    // ── Filtrage doublons ──────────────────────────────────────────────────────
+    const filteredDupGroups = dupResult?.filter(g =>
+        g.name.toLowerCase().includes(dupSearchFilter.toLowerCase()) ||
+        g.files.some(f => f.path.toLowerCase().includes(dupSearchFilter.toLowerCase()) || f.site_name.toLowerCase().includes(dupSearchFilter.toLowerCase()))
+    ) ?? [];
+
+    const totalWasted = dupResult?.reduce((s, g) => s + g.wasted_bytes, 0) ?? 0;
+
+    const toggleGroup = (name: string) => {
+        setExpandedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(name)) next.delete(name); else next.add(name);
+            return next;
+        });
+    };
+
     // ── Lancer la migration ──────────────────────────────────────────────────
     const handleMigrate = async () => {
         if (!scanResult) return;
@@ -388,11 +555,35 @@ export const ArchivageSharepoint: React.FC = () => {
                 <div className="flex items-center gap-3">
                     <Archive className="w-8 h-8 text-cyan-600 dark:text-cyan-400" />
                     <div>
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Archivage SharePoint → S3</h2>
+                        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">SharePoint — Outils</h2>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Identifie et migre les fichiers non accédés/modifiés depuis plus de {inactivityDays} jours vers le stockage S3.
+                            Archivage des fichiers inactifs et détection des doublons.
                         </p>
                     </div>
+                </div>
+
+                {/* Onglets mode */}
+                <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+                    <button
+                        onClick={() => setScanMode('archivage')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                            scanMode === 'archivage'
+                                ? 'bg-white dark:bg-gray-700 text-cyan-700 dark:text-cyan-400 shadow-sm'
+                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                    >
+                        <Archive className="w-4 h-4" /> Archivage S3
+                    </button>
+                    <button
+                        onClick={() => setScanMode('doublons')}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-md text-sm font-medium transition-colors ${
+                            scanMode === 'doublons'
+                                ? 'bg-white dark:bg-gray-700 text-orange-700 dark:text-orange-400 shadow-sm'
+                                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                        }`}
+                    >
+                        <Copy className="w-4 h-4" /> Détection des doublons
+                    </button>
                 </div>
 
                 {/* Configuration SharePoint + S3 */}
@@ -539,7 +730,8 @@ export const ArchivageSharepoint: React.FC = () => {
                     </div>
                 )}
 
-                {/* Paramètres */}
+                {/* Paramètres — archivage seulement */}
+                {scanMode === 'archivage' && (
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
                     <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                         <Filter className="w-4 h-4 text-cyan-500" /> Paramètres de scan
@@ -578,6 +770,7 @@ export const ArchivageSharepoint: React.FC = () => {
                         </div>
                     </div>
                 </div>
+                )}
 
                 {/* Sites SharePoint */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
@@ -624,17 +817,28 @@ export const ArchivageSharepoint: React.FC = () => {
                     )}
 
                     <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                        <button
-                            onClick={handleScan}
-                            disabled={scanning || sites.filter(s => s.selected).length === 0}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-cyan-600 text-white font-medium text-sm hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                            {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                            {scanning ? 'Scan en cours...' : 'Scanner les fichiers éligibles'}
-                        </button>
+                        {scanMode === 'archivage' ? (
+                            <button
+                                onClick={handleScan}
+                                disabled={scanning || sites.filter(s => s.selected).length === 0}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-cyan-600 text-white font-medium text-sm hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                                {scanning ? 'Scan en cours...' : 'Scanner les fichiers éligibles'}
+                            </button>
+                        ) : (
+                            <button
+                                onClick={handleDuplicateScan}
+                                disabled={dupScanning || sites.filter(s => s.selected).length === 0}
+                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-orange-600 text-white font-medium text-sm hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {dupScanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}
+                                {dupScanning ? 'Analyse en cours...' : 'Analyser les doublons'}
+                            </button>
+                        )}
 
-                        {/* Barre de progression du scan */}
-                        {scanJob && scanJob.status === 'running' && (
+                        {/* Barre de progression du scan archivage */}
+                        {scanMode === 'archivage' && scanJob && scanJob.status === 'running' && (
                             <div className="mt-4 p-4 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800">
                                 <div className="flex items-center gap-3 mb-3">
                                     <Loader2 className="w-5 h-5 text-cyan-500 animate-spin flex-shrink-0" />
@@ -657,12 +861,10 @@ export const ArchivageSharepoint: React.FC = () => {
                                     </button>
                                 </div>
 
-                                {/* Barre animée */}
                                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3 overflow-hidden">
                                     <div className="h-full bg-cyan-500 rounded-full animate-pulse" style={{ width: '100%', opacity: 0.7 }} />
                                 </div>
 
-                                {/* Compteurs en temps réel */}
                                 <div className="grid grid-cols-3 gap-3 text-center">
                                     <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
                                         <p className="text-lg font-bold text-cyan-600 dark:text-cyan-400">{scanJob.folders_explored}</p>
@@ -679,11 +881,59 @@ export const ArchivageSharepoint: React.FC = () => {
                                 </div>
                             </div>
                         )}
+
+                        {/* Barre de progression du scan doublons */}
+                        {scanMode === 'doublons' && dupScanJob && dupScanJob.status === 'running' && (
+                            <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+                                <div className="flex items-center gap-3 mb-3">
+                                    <Loader2 className="w-5 h-5 text-orange-500 animate-spin flex-shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                            Analyse des doublons en cours...
+                                        </p>
+                                        {dupScanJob.current_folder && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                                Dossier : {dupScanJob.current_folder}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={handleCancelDupScan}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                                    >
+                                        <Square className="w-3.5 h-3.5" /> Arrêter
+                                    </button>
+                                </div>
+
+                                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-3 overflow-hidden">
+                                    <div className="h-full bg-orange-500 rounded-full animate-pulse" style={{ width: '100%', opacity: 0.7 }} />
+                                </div>
+
+                                <div className="grid grid-cols-4 gap-3 text-center">
+                                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                                        <p className="text-lg font-bold text-orange-600 dark:text-orange-400">{dupScanJob.folders_explored}</p>
+                                        <p className="text-[10px] text-gray-500">dossiers explorés</p>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                                        <p className="text-lg font-bold text-gray-700 dark:text-gray-300">{dupScanJob.files_analyzed}</p>
+                                        <p className="text-[10px] text-gray-500">fichiers analysés</p>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                                        <p className="text-lg font-bold text-red-600 dark:text-red-400">{dupScanJob.duplicate_groups}</p>
+                                        <p className="text-[10px] text-gray-500">groupes de doublons</p>
+                                    </div>
+                                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg px-3 py-2">
+                                        <p className="text-lg font-bold text-red-600 dark:text-red-400">{dupScanJob.duplicate_files}</p>
+                                        <p className="text-[10px] text-gray-500">fichiers en double</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Résultats du scan */}
-                {scanResult && (
+                {/* Résultats du scan archivage */}
+                {scanMode === 'archivage' && scanResult && (
                     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -812,7 +1062,7 @@ export const ArchivageSharepoint: React.FC = () => {
                 )}
 
                 {/* Job en cours / terminé */}
-                {currentJob && (
+                {scanMode === 'archivage' && currentJob && (
                     <div className={`rounded-xl border-2 p-5 ${
                         currentJob.status === 'completed' ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20' :
                         currentJob.status === 'failed' ? 'border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20' :
@@ -886,6 +1136,133 @@ export const ArchivageSharepoint: React.FC = () => {
                                 </ul>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Résultats doublons */}
+                {scanMode === 'doublons' && dupResult && dupResult.length > 0 && (
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <Copy className="w-4 h-4 text-orange-500" /> Doublons détectés
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setDupResult(null);
+                                    setDupScanJob(null);
+                                    localStorage.removeItem(DUP_SCAN_ID_KEY);
+                                    localStorage.removeItem(DUP_RESULT_KEY);
+                                }}
+                                className="text-xs text-red-500 hover:text-red-600 font-medium flex items-center gap-1"
+                            >
+                                <Trash2 className="w-3.5 h-3.5" /> Effacer
+                            </button>
+                        </div>
+
+                        {/* Stats résumé */}
+                        <div className="grid grid-cols-3 gap-4 mb-4">
+                            <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg px-4 py-3 text-center">
+                                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{dupResult.length}</p>
+                                <p className="text-xs text-gray-500">groupes de doublons</p>
+                            </div>
+                            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-3 text-center">
+                                <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                                    {dupResult.reduce((s, g) => s + g.count, 0)}
+                                </p>
+                                <p className="text-xs text-gray-500">fichiers en double</p>
+                            </div>
+                            <div className="bg-red-50 dark:bg-red-900/20 rounded-lg px-4 py-3 text-center">
+                                <p className="text-2xl font-bold text-red-600 dark:text-red-400">{formatBytes(totalWasted)}</p>
+                                <p className="text-xs text-gray-500">espace gaspillé</p>
+                            </div>
+                        </div>
+
+                        {/* Barre de recherche */}
+                        <div className="relative mb-3">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                                type="text"
+                                value={dupSearchFilter}
+                                onChange={e => setDupSearchFilter(e.target.value)}
+                                placeholder="Filtrer par nom de fichier, chemin ou site..."
+                                className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500"
+                            />
+                        </div>
+
+                        {/* Liste des groupes de doublons */}
+                        <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                            {filteredDupGroups.map((group, gi) => (
+                                <div key={`${group.name}-${group.size_bytes}-${gi}`} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                                    {/* En-tête du groupe */}
+                                    <button
+                                        onClick={() => toggleGroup(`${group.name}-${gi}`)}
+                                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                                    >
+                                        {expandedGroups.has(`${group.name}-${gi}`) ? (
+                                            <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                        ) : (
+                                            <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                        )}
+                                        <Copy className="w-4 h-4 text-orange-500 flex-shrink-0" />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{group.name}</p>
+                                            <p className="text-xs text-gray-400">
+                                                {formatBytes(group.size_bytes)} par fichier
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-3 flex-shrink-0">
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 text-xs font-medium">
+                                                {group.count} copies
+                                            </span>
+                                            <span className="text-xs text-red-500 font-medium">
+                                                -{formatBytes(group.wasted_bytes)} gaspillés
+                                            </span>
+                                        </div>
+                                    </button>
+
+                                    {/* Détails des fichiers du groupe */}
+                                    {expandedGroups.has(`${group.name}-${gi}`) && (
+                                        <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                                            <table className="w-full text-xs">
+                                                <thead>
+                                                    <tr className="text-gray-500 dark:text-gray-400">
+                                                        <th className="px-4 py-2 text-left font-medium">Emplacement</th>
+                                                        <th className="px-4 py-2 text-left font-medium">Site</th>
+                                                        <th className="px-4 py-2 text-right font-medium">Dernière modif.</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                                    {group.files.map((f, fi) => (
+                                                        <tr key={f.id} className={fi === 0 ? 'bg-green-50/50 dark:bg-green-900/10' : ''}>
+                                                            <td className="px-4 py-2">
+                                                                <p className="text-gray-700 dark:text-gray-300 truncate max-w-md" title={f.path}>
+                                                                    {fi === 0 && <span className="text-green-600 dark:text-green-400 font-medium mr-1">Original</span>}
+                                                                    {f.path || '/'}
+                                                                </p>
+                                                            </td>
+                                                            <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{f.site_name}</td>
+                                                            <td className="px-4 py-2 text-right text-gray-500 whitespace-nowrap">{formatDate(f.last_modified)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {filteredDupGroups.length === 0 && (
+                            <div className="py-8 text-center text-gray-400 text-sm">Aucun doublon ne correspond au filtre.</div>
+                        )}
+                    </div>
+                )}
+
+                {scanMode === 'doublons' && dupResult && dupResult.length === 0 && (
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-8 text-center">
+                        <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Aucun doublon détecté</h3>
+                        <p className="text-sm text-gray-500">Votre espace SharePoint ne contient pas de fichiers en double.</p>
                     </div>
                 )}
 

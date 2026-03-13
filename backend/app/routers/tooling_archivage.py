@@ -54,6 +54,10 @@ class ScanRequest(BaseModel):
     inactivity_days: int = 730
 
 
+class DuplicateScanRequest(BaseModel):
+    site_ids: List[str]
+
+
 class MigrateRequest(BaseModel):
     file_ids: List[str]
     delete_after_migration: bool = False
@@ -350,6 +354,234 @@ def _is_scan_cancelled(scan_id: str) -> bool:
         return r.get(f"{_SCAN_PREFIX}{scan_id}:cancel") is not None
     return False
 
+
+# ── Scan doublons ────────────────────────────────────────────────────────────
+
+_DUPLICATES_PREFIX = "archivage:duplicates:"
+
+
+@router.post("/scan-duplicates")
+async def scan_duplicates(
+    body: DuplicateScanRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Lance un scan de doublons en arrière-plan sur les sites SharePoint sélectionnés."""
+    if not current_user.module_tooling:
+        raise HTTPException(status_code=403, detail="Module Tooling désactivé.")
+
+    try:
+        token = _get_graph_token(db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur d'authentification SharePoint : {e}")
+
+    scan_id = str(uuid.uuid4())
+    scan_job = {
+        "id": scan_id,
+        "status": "running",
+        "folders_explored": 0,
+        "files_analyzed": 0,
+        "duplicate_groups": 0,
+        "duplicate_files": 0,
+        "duplicate_size_bytes": 0,
+        "current_folder": "",
+        "groups": [],  # List of duplicate groups
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "completed_at": None,
+        "error": None,
+    }
+    _save_job(_DUPLICATES_PREFIX, scan_id, scan_job)
+
+    background_tasks.add_task(
+        _run_duplicate_scan,
+        scan_id=scan_id,
+        site_ids=body.site_ids,
+        graph_token=token,
+    )
+
+    return {"scan_id": scan_id}
+
+
+@router.get("/duplicate-jobs/{scan_id}")
+async def get_duplicate_scan_status(
+    scan_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Retourne le statut d'un scan de doublons."""
+    job = _load_job(_DUPLICATES_PREFIX, scan_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Scan introuvable.")
+    return job
+
+
+@router.post("/duplicate-jobs/{scan_id}/cancel")
+async def cancel_duplicate_scan(
+    scan_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """Arrête un scan de doublons en cours."""
+    job = _load_job(_DUPLICATES_PREFIX, scan_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Scan introuvable.")
+    if job["status"] != "running":
+        raise HTTPException(status_code=400, detail="Le scan n'est pas en cours.")
+    r = _get_redis()
+    if r:
+        r.setex(f"{_DUPLICATES_PREFIX}{scan_id}:cancel", 3600, "1")
+    return {"success": True, "message": "Arrêt demandé"}
+
+
+def _is_dup_scan_cancelled(scan_id: str) -> bool:
+    r = _get_redis()
+    if r:
+        return r.get(f"{_DUPLICATES_PREFIX}{scan_id}:cancel") is not None
+    return False
+
+
+def _run_duplicate_scan(
+    scan_id: str,
+    site_ids: List[str],
+    graph_token: str,
+):
+    """Scanne tous les fichiers SharePoint et identifie les doublons (même nom + même taille)."""
+    import httpx
+    from collections import defaultdict
+
+    job = _load_job(_DUPLICATES_PREFIX, scan_id) or {}
+    headers = {"Authorization": f"Bearer {graph_token}"}
+    # Dictionnaire : clé = (nom_fichier, taille) → liste de fichiers
+    file_index: dict[tuple, list] = defaultdict(list)
+    save_counter = [0]
+
+    def _persist():
+        _save_job(_DUPLICATES_PREFIX, scan_id, job)
+
+    try:
+        with httpx.Client(timeout=60.0) as client:
+            for site_id in site_ids:
+                try:
+                    drives_resp = client.get(
+                        f"https://graph.microsoft.com/v1.0/sites/{site_id}/drives",
+                        headers=headers,
+                    )
+                    drives_resp.raise_for_status()
+                    drives = drives_resp.json().get("value", [])
+                except Exception as e:
+                    logger.warning("Duplicates scan: failed to list drives for site %s: %s", site_id, e)
+                    continue
+
+                for drive in drives:
+                    drive_id = drive["id"]
+                    drive_name = drive.get("name", "")
+                    urls_to_explore = [
+                        (f"https://graph.microsoft.com/v1.0/drives/{drive_id}/root/children", drive_name)
+                    ]
+
+                    while urls_to_explore:
+                        if _is_dup_scan_cancelled(scan_id):
+                            job["status"] = "cancelled"
+                            job["completed_at"] = datetime.now(timezone.utc).isoformat()
+                            job["current_folder"] = ""
+                            # Calculer les groupes avant de quitter
+                            _finalize_duplicate_groups(job, file_index)
+                            _persist()
+                            return
+
+                        explore_url, folder_name = urls_to_explore.pop()
+                        job["current_folder"] = folder_name
+                        job["folders_explored"] += 1
+
+                        next_url: Optional[str] = explore_url
+                        while next_url:
+                            try:
+                                items_resp = client.get(next_url, headers=headers)
+                                items_resp.raise_for_status()
+                                items_data = items_resp.json()
+                            except Exception as e:
+                                logger.warning("Duplicates scan: error listing items: %s", e)
+                                break
+
+                            for item in items_data.get("value", []):
+                                if "folder" in item:
+                                    folder_children_url = (
+                                        f"https://graph.microsoft.com/v1.0/drives/{drive_id}"
+                                        f"/items/{item['id']}/children"
+                                    )
+                                    urls_to_explore.append((folder_children_url, item.get("name", "")))
+                                    continue
+
+                                if "file" not in item:
+                                    continue
+
+                                job["files_analyzed"] += 1
+                                file_name = item.get("name", "")
+                                file_size = item.get("size", 0)
+                                parent_path = item.get("parentReference", {}).get("path", "")
+                                clean_path = parent_path.split("root:")[-1].lstrip("/") if "root:" in parent_path else parent_path
+
+                                file_entry = {
+                                    "id": item["id"],
+                                    "name": file_name,
+                                    "path": clean_path,
+                                    "size_bytes": file_size,
+                                    "last_modified": item.get("lastModifiedDateTime", ""),
+                                    "site_name": drive_name,
+                                    "drive_id": drive_id,
+                                    "web_url": item.get("webUrl", ""),
+                                }
+                                file_index[(file_name, file_size)].append(file_entry)
+
+                            next_url = items_data.get("@odata.nextLink")
+
+                        save_counter[0] += 1
+                        if save_counter[0] % 5 == 0:
+                            # Mettre à jour les compteurs de doublons en temps réel
+                            dup_count = sum(1 for v in file_index.values() if len(v) > 1)
+                            dup_files = sum(len(v) for v in file_index.values() if len(v) > 1)
+                            job["duplicate_groups"] = dup_count
+                            job["duplicate_files"] = dup_files
+                            _persist()
+
+        job["status"] = "completed"
+    except Exception as e:
+        logger.error("Duplicate scan job %s failed: %s", scan_id, e)
+        job["status"] = "failed"
+        job["error"] = str(e)
+    finally:
+        job["completed_at"] = datetime.now(timezone.utc).isoformat()
+        job["current_folder"] = ""
+        _finalize_duplicate_groups(job, file_index)
+        _persist()
+
+
+def _finalize_duplicate_groups(job: dict, file_index: dict):
+    """Construit la liste des groupes de doublons à partir de l'index."""
+    groups = []
+    total_dup_size = 0
+    for (name, size), files in file_index.items():
+        if len(files) > 1:
+            # L'espace gaspillé = (nb copies - 1) * taille
+            wasted = (len(files) - 1) * size
+            total_dup_size += wasted
+            groups.append({
+                "name": name,
+                "size_bytes": size,
+                "count": len(files),
+                "wasted_bytes": wasted,
+                "files": files,
+            })
+    # Trier par espace gaspillé décroissant
+    groups.sort(key=lambda g: g["wasted_bytes"], reverse=True)
+    job["groups"] = groups
+    job["duplicate_groups"] = len(groups)
+    job["duplicate_files"] = sum(g["count"] for g in groups)
+    job["duplicate_size_bytes"] = total_dup_size
+
+
+# ── Scan archivage ───────────────────────────────────────────────────────────
 
 def _run_scan(
     scan_id: str,
