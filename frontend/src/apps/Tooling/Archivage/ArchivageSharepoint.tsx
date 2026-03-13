@@ -54,8 +54,11 @@ interface MigrationJob {
     total_files: number;
     migrated_files: number;
     failed_files: number;
+    deleted_files: number;
     total_size_bytes: number;
     migrated_size_bytes: number;
+    current_file: string;
+    delete_after: boolean;
     started_at: string | null;
     completed_at: string | null;
     errors: string[];
@@ -1130,19 +1133,30 @@ export const ArchivageSharepoint: React.FC = () => {
                             </div>
                         </div>
 
+                        {/* Fichier en cours */}
+                        {currentJob.status === 'running' && currentJob.current_file && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 truncate">
+                                <Loader2 className="w-3 h-3 inline animate-spin mr-1" />
+                                {currentJob.current_file}
+                            </p>
+                        )}
+
                         {/* Barre de progression */}
                         {(currentJob.status === 'running' || currentJob.status === 'completed') && (
                             <div className="mb-4">
                                 <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                    <span>{currentJob.migrated_files} / {currentJob.total_files} fichiers</span>
-                                    <span>{formatBytes(currentJob.migrated_size_bytes)} / {formatBytes(currentJob.total_size_bytes)}</span>
+                                    <span>{currentJob.migrated_files} / {currentJob.total_files} fichiers migrés</span>
+                                    {currentJob.delete_after && (
+                                        <span className="text-orange-500">{currentJob.deleted_files} supprimé{currentJob.deleted_files > 1 ? 's' : ''}</span>
+                                    )}
+                                    <span>{formatBytes(currentJob.migrated_size_bytes)}</span>
                                 </div>
                                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
                                     <div
                                         className={`h-full rounded-full transition-all duration-500 ${
                                             currentJob.status === 'completed' ? 'bg-green-500' : 'bg-cyan-500'
                                         }`}
-                                        style={{ width: `${currentJob.total_files > 0 ? (currentJob.migrated_files / currentJob.total_files) * 100 : 0}%` }}
+                                        style={{ width: `${currentJob.total_files > 0 ? ((currentJob.migrated_files + currentJob.failed_files) / currentJob.total_files) * 100 : 0}%` }}
                                     />
                                 </div>
                             </div>
@@ -1150,7 +1164,7 @@ export const ArchivageSharepoint: React.FC = () => {
 
                         {/* Stats finales */}
                         {currentJob.status === 'completed' && (
-                            <div className="grid grid-cols-3 gap-3 text-center">
+                            <div className={`grid ${currentJob.delete_after ? 'grid-cols-4' : 'grid-cols-3'} gap-3 text-center`}>
                                 <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3">
                                     <p className="text-xl font-bold text-green-600">{currentJob.migrated_files}</p>
                                     <p className="text-xs text-gray-500">migrés</p>
@@ -1163,6 +1177,12 @@ export const ArchivageSharepoint: React.FC = () => {
                                     <p className="text-xl font-bold text-gray-900 dark:text-white">{formatBytes(currentJob.migrated_size_bytes)}</p>
                                     <p className="text-xs text-gray-500">archivés</p>
                                 </div>
+                                {currentJob.delete_after && (
+                                    <div className="bg-white/60 dark:bg-gray-800/60 rounded-lg p-3">
+                                        <p className="text-xl font-bold text-orange-500">{currentJob.deleted_files}</p>
+                                        <p className="text-xs text-gray-500">supprimés</p>
+                                    </div>
+                                )}
                             </div>
                         )}
 

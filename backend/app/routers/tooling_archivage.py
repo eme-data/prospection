@@ -792,8 +792,11 @@ async def start_migration(
         "total_files": len(body.files),
         "migrated_files": 0,
         "failed_files": 0,
+        "deleted_files": 0,
         "total_size_bytes": 0,
         "migrated_size_bytes": 0,
+        "current_file": "",
+        "delete_after": body.delete_after_migration,
         "started_at": None,
         "completed_at": None,
         "errors": [],
@@ -884,6 +887,9 @@ def _run_migration(
             drive_id = ref["drive_id"]
             try:
                 # Récupérer les infos du fichier via Graph avec drive_id
+                job["current_file"] = f"Récupération info {file_id[:12]}..."
+                _save_job(_MIGRATION_PREFIX, job_id, job)
+
                 resp = client.get(
                     f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}",
                     headers=headers,
@@ -895,6 +901,10 @@ def _run_migration(
 
                 resp.raise_for_status()
                 item = resp.json()
+                file_name = item.get("name", file_id)
+                job["current_file"] = file_name
+                _save_job(_MIGRATION_PREFIX, job_id, job)
+
                 download_url = item.get("@microsoft.graph.downloadUrl")
                 if not download_url:
                     job["errors"].append(f"Pas d'URL de téléchargement pour {item.get('name', file_id)}")
@@ -933,22 +943,27 @@ def _run_migration(
                 # Supprimer sur SharePoint si demandé
                 if delete_after:
                     try:
+                        job["current_file"] = f"Suppression {file_name}..."
+                        _save_job(_MIGRATION_PREFIX, job_id, job)
                         del_resp = client.delete(
                             f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}",
                             headers=headers,
                         )
                         del_resp.raise_for_status()
+                        job["deleted_files"] += 1
+                        _save_job(_MIGRATION_PREFIX, job_id, job)
                     except Exception as e:
-                        job["errors"].append(f"Migré mais suppression échouée pour {item.get('name', file_id)}: {e}")
+                        job["errors"].append(f"Migré mais suppression échouée pour {file_name}: {e}")
 
             except Exception as e:
                 logger.error("Migration error for file %s: %s", file_id, e)
                 job["errors"].append(f"Erreur migration {file_id}: {e}")
                 job["failed_files"] += 1
 
-    job["status"] = "completed" if job["failed_files"] == 0 else "completed"
+    job["status"] = "completed"
     job["completed_at"] = datetime.now(timezone.utc).isoformat()
-    job["total_size_bytes"] = job["migrated_size_bytes"]  # Update actual total
+    job["total_size_bytes"] = job["migrated_size_bytes"]
+    job["current_file"] = ""
     _save_job(_MIGRATION_PREFIX, job_id, job)
 
     logger.info(
