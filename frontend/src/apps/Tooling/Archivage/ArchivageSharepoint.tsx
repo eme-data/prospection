@@ -1256,33 +1256,33 @@ export const ArchivageSharepoint: React.FC = () => {
 
                                     {/* Détails des fichiers du groupe */}
                                     {expandedGroups.has(`${group.name}-${gi}`) && (
-                                        <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
-                                            <table className="w-full text-xs">
+                                        <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50 overflow-x-auto">
+                                            <table className="w-full text-xs table-fixed">
                                                 <thead>
                                                     <tr className="text-gray-500 dark:text-gray-400">
-                                                        <th className="px-4 py-2 text-left font-medium">Fichier</th>
-                                                        <th className="px-4 py-2 text-left font-medium">Emplacement</th>
-                                                        <th className="px-4 py-2 text-left font-medium">Site</th>
-                                                        <th className="px-4 py-2 text-right font-medium">Dernière modif.</th>
-                                                        <th className="px-4 py-2 text-center font-medium w-28">Action</th>
+                                                        <th className="px-3 py-2 text-left font-medium w-[22%]">Fichier</th>
+                                                        <th className="px-3 py-2 text-left font-medium w-[32%]">Emplacement</th>
+                                                        <th className="px-3 py-2 text-left font-medium w-[18%]">Site</th>
+                                                        <th className="px-3 py-2 text-right font-medium w-[13%]">Dernière modif.</th>
+                                                        <th className="px-3 py-2 text-center font-medium w-[15%]">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                                     {group.files.map((f) => (
                                                         <tr key={f.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                                            <td className="px-4 py-2">
-                                                                <p className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-xs" title={f.name}>
+                                                            <td className="px-3 py-2">
+                                                                <p className="text-gray-700 dark:text-gray-300 font-medium truncate" title={f.name}>
                                                                     {f.name}
                                                                 </p>
                                                             </td>
-                                                            <td className="px-4 py-2">
-                                                                <p className="text-gray-500 dark:text-gray-400 truncate max-w-md" title={f.path}>
+                                                            <td className="px-3 py-2">
+                                                                <p className="text-gray-500 dark:text-gray-400 truncate" title={f.path}>
                                                                     {f.path || '/'}
                                                                 </p>
                                                             </td>
-                                                            <td className="px-4 py-2 text-gray-500 whitespace-nowrap">{f.site_name}</td>
-                                                            <td className="px-4 py-2 text-right text-gray-500 whitespace-nowrap">{formatDate(f.last_modified)}</td>
-                                                            <td className="px-4 py-2 text-center">
+                                                            <td className="px-3 py-2 text-gray-500 truncate">{f.site_name}</td>
+                                                            <td className="px-3 py-2 text-right text-gray-500 whitespace-nowrap">{formatDate(f.last_modified)}</td>
+                                                            <td className="px-3 py-2 text-center">
                                                                 {confirmDeleteId === f.id ? (
                                                                     <div className="flex items-center justify-center gap-1">
                                                                         <button
