@@ -528,7 +528,7 @@ export const ArchivageSharepoint: React.FC = () => {
             const data = await fetchJSON<{ job: MigrationJob }>('/api/tooling/archivage-sharepoint/migrate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ file_ids: selectedFiles.map(f => f.id), delete_after_migration: deleteAfterMigration }),
+                body: JSON.stringify({ files: selectedFiles.map(f => ({ id: f.id, drive_id: f.drive_id })), delete_after_migration: deleteAfterMigration }),
             });
             setCurrentJob(data.job);
         } catch (e: any) {

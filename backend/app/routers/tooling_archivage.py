@@ -58,8 +58,13 @@ class DuplicateScanRequest(BaseModel):
     site_ids: List[str]
 
 
+class MigrateFileRef(BaseModel):
+    id: str
+    drive_id: str
+
+
 class MigrateRequest(BaseModel):
-    file_ids: List[str]
+    files: List[MigrateFileRef]
     delete_after_migration: bool = False
 
 
@@ -777,14 +782,14 @@ async def start_migration(
     if not current_user.module_tooling:
         raise HTTPException(status_code=403, detail="Module Tooling désactivé.")
 
-    if not body.file_ids:
+    if not body.files:
         raise HTTPException(status_code=400, detail="Aucun fichier à migrer.")
 
     job_id = str(uuid.uuid4())
     job = {
         "id": job_id,
         "status": "pending",
-        "total_files": len(body.file_ids),
+        "total_files": len(body.files),
         "migrated_files": 0,
         "failed_files": 0,
         "total_size_bytes": 0,
@@ -811,10 +816,11 @@ async def start_migration(
         "bucket": _get_setting(db, "s3_archive_bucket") or "sharepoint-archive",
     }
 
+    file_refs = [{"id": f.id, "drive_id": f.drive_id} for f in body.files]
     background_tasks.add_task(
         _run_migration,
         job_id=job_id,
-        file_ids=body.file_ids,
+        file_refs=file_refs,
         delete_after=body.delete_after_migration,
         graph_token=token,
         s3_config=s3_config,
@@ -839,7 +845,7 @@ async def get_job_status(
 
 def _run_migration(
     job_id: str,
-    file_ids: List[str],
+    file_refs: List[dict],
     delete_after: bool,
     graph_token: str,
     s3_config: dict,
@@ -866,13 +872,13 @@ def _run_migration(
     headers = {"Authorization": f"Bearer {graph_token}"}
 
     with httpx.Client(timeout=120.0) as client:
-        for file_id in file_ids:
+        for ref in file_refs:
+            file_id = ref["id"]
+            drive_id = ref["drive_id"]
             try:
-                # Récupérer les infos du fichier via Graph
-                # On cherche dans tous les drives — ici on utilise /me/drive comme fallback
-                # Le scan devrait fournir drive_id, mais on gère le cas simplifié
+                # Récupérer les infos du fichier via Graph avec drive_id
                 resp = client.get(
-                    f"https://graph.microsoft.com/v1.0/drives/items/{file_id}",
+                    f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}",
                     headers=headers,
                 )
                 if resp.status_code == 404:
@@ -921,7 +927,7 @@ def _run_migration(
                 if delete_after:
                     try:
                         del_resp = client.delete(
-                            f"https://graph.microsoft.com/v1.0/drives/items/{file_id}",
+                            f"https://graph.microsoft.com/v1.0/drives/{drive_id}/items/{file_id}",
                             headers=headers,
                         )
                         del_resp.raise_for_status()
